@@ -22,13 +22,17 @@ public static class MechPoseSolver
         pose.Jank = jn;
 
         // Pelvis: lateral sway toward the stance leg (+ = left), bob lowest just after footfall, counter-yaw.
-        float s = t.Scale;
-        float swayLeft = 0.32f * s * t.Sway * g * cs;
+        // Side-to-side sway is a walking thing; at a running cadence it reads as a waddle, so it fades with the run.
+        float s = t.Scale, run = gait.Run, walkSway = 1f - 0.75f * run;
+        float swayLeft = 0.32f * s * t.Sway * g * walkSway * cs;
         Vector3 sway = MathUtil.RotateY(new Vector3(-swayLeft, 0f, 0f), body.Psi);
-        float bob = -0.17f * s * t.Bob * g * MathF.Cos(MathUtil.Tau * (2f * p - 0.1f));
+        // Running: the bounce grows and its low point moves to mid-stance (leg compression), high in the flight phase;
+        // the hips ride higher (straighter legs) and the body leans into the run.
+        float bob = -0.17f * s * t.Bob * g * (1f + 0.8f * run) * MathF.Cos(MathUtil.Tau * (2f * p - MathUtil.Lerp(0.1f, gait.Duty, run)));
+        float hipRaise = 0.25f * s * run;
         float drop = t.CollapseDrop * collapse;
-        pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + bob + sec.BounceY.X + 0.09f * s * jn - drop, 0f);
-        pose.PelvisRotation = Rot.Yxz(-0.03f - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * c0, 0.025f * t.Sway * g * cs - collapseRoll * collapse);
+        pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + hipRaise + bob + sec.BounceY.X + 0.09f * s * jn - drop, 0f);
+        pose.PelvisRotation = Rot.Yxz(-0.03f - 0.1f * run - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * walkSway * c0, 0.025f * t.Sway * g * walkSway * cs - collapseRoll * collapse);
 
         pose.TorsoRotation = Rot.Yxz(
             -(sec.TorsoPitch.X + 0.01f * jn),

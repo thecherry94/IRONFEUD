@@ -99,8 +99,11 @@ public sealed class MechChassis
     public float Impact = 1f;
     public float Jank = 1f;
 
+    /// <summary>0 = walking, 1 = fully running.</summary>
+    public float RunBlend(float speed) => Core.MathUtil.Smoothstep(RunStartSpeed, RunFullSpeed, speed);
+
     /// <summary>Stance fraction at a given speed.</summary>
-    public float DutyAt(float speed) => Core.MathUtil.Lerp(Duty, DutyRun, Core.MathUtil.Smoothstep(RunStartSpeed, RunFullSpeed, speed));
+    public float DutyAt(float speed) => Core.MathUtil.Lerp(Duty, DutyRun, RunBlend(speed));
 
     public static MechChassis Create(ChassisClass c) => c switch
     {
@@ -138,7 +141,7 @@ public sealed class MechChassis
         c.L1 *= 1.1f;
         c.L2 *= 1.1f;
         c.HipHeight = c.AnkleHeight + 0.75f * (c.L1 + c.L2) - c.HipRootY;
-        c.AMax = 2.3f;
+        c.AMax = 2.15f;
         c.FMin = 0.6f;
         c.SetRunSpeedsFromLegs();
 

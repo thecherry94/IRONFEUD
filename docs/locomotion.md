@@ -119,9 +119,19 @@ tests. The game's classes run at genre speeds:
 (where animals switch gaits). Each leg **latches its duty at landing**, so a speed change mid-step never skips or
 truncates a swing.
 
-**Cadence:** `f = max(FMIN, |v|/DMAX, |v|·duty/(2·AMAX))`. The last term caps stance travel at the leg's reach, so at
-speed the frequency rises instead of the leg over-extending. Light at top speed ≈ 2.5 Hz (5 steps/s), medium ≈ 1.35 Hz.
+**Cadence:** `f = max(FMIN, (1 − run)·|v|/DMAX, |v|·duty_stance/(2·AMAX))`, `run` = 0..1 walk-to-run blend.
+- The reach term caps stance travel at 2·AMAX, so the leg never over-extends; `duty_stance` is the largest duty
+  latched by a leg currently in stance (it is higher than the current duty while accelerating).
+- The walking cap DMAX fades out with the run. Left on, it held the light's stride to 4.5 m and made it shuffle at
+  16 steps/s ("walk of shame").
+- At top speed: light 2.7 Hz (5.4 steps/s), medium 1.35 Hz, heavy 0.9 Hz, assault 0.65 Hz.
+
+**Running posture** (all scaled by `run`): hips 0.25 m·scale higher; bob amplitude ×1.8 with its low point moved from
+just after footfall to mid-stance (compression), high in the flight phase; pelvis pitched 0.1 rad forward; lateral
+sway and pelvis counter-yaw/roll reduced to 25 % (side-to-side sway at a running cadence reads as a waddle);
+swing lift rises to 0.28·(L1+L2) with an earlier peak (`sin(π·s^0.55)`) so the recovering foot comes up under the hip.
 **Footfall impulses** are scaled by `min(1, 0.7 Hz / f)` so fast cadences don't saturate the springs and trauma.
+`--parade` (F11) runs all four classes on a concentric track through walk → run → walk with live duty/cadence.
 
 `MechChassis.Scale` multiplies the gait's built-in lengths (lift, outward arc, foot pivot lengths, settle threshold,
 pelvis sway/bob, footfall bounce); the rig builds prototype-size meshes and scales the pelvis node.

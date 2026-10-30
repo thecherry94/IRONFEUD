@@ -84,6 +84,9 @@ public sealed class GaitController
     /// <summary>Stance fraction for the current speed: walk (≈0.62) blending to run (≈0.32, both feet off the ground between steps).</summary>
     public float Duty;
 
+    /// <summary>0 = walking, 1 = fully running; drives the running posture (hip height, bounce, lean, foot lift).</summary>
+    public float Run;
+
     public bool Active;
 
     public void Reset(BodyState body, MechChassis t)
@@ -132,9 +135,16 @@ public sealed class GaitController
         }
 
         Active = spd > 0.12f || MathF.Abs(body.Omega) > 0.04f || unsettled;
+        Run = t.RunBlend(spd);
         Duty = t.DutyAt(spd);
-        // Stride is capped by DMax (walking) and by leg reach: stance travel v·duty/f may not exceed 2·AMax.
-        F = MathF.Max(t.FMin, MathF.Max(spd / t.DMax, spd * Duty / (2f * t.AMax)));
+        // Stride is limited by leg reach (stance travel v·duty/f ≤ 2·AMax) and, while walking, by DMax. The DMax cap
+        // fades out with the run, otherwise a fast mech can only speed up by shuffling ever faster.
+        // A planted leg keeps the duty it latched at landing (longer while accelerating), so size the cadence for the
+        // longest stance in progress.
+        float stanceDuty = Duty;
+        foreach (var leg in Legs)
+            if (!leg.Swing) stanceDuty = MathF.Max(stanceDuty, leg.Duty);
+        F = MathF.Max(t.FMin, MathF.Max((1f - Run) * spd / t.DMax, spd * stanceDuty / (2f * t.AMax)));
         float gT = Active ? MathUtil.Clamp01(0.3f + spd / t.VMax + 0.5f * MathF.Abs(body.Omega) / t.OmegaMax) : 0f;
         G += (gT - G) * MathF.Min(1f, h * 2.5f);
         if (!Active) return;
@@ -198,7 +208,11 @@ public sealed class GaitController
             yaw = MathUtil.LerpAngle(leg.From.Yaw, landing.Yaw, e);
             float dist = MathUtil.PlanarDistance(landing.Position, leg.From.Position);
             scale = MathUtil.Clamp01(dist / (3f * s0));
-            lift = 0.95f * s0 * t.Lift * MathUtil.Clamp(dist / (1.6f * s0), 0.35f, 1f) * MathF.Sin(MathF.PI * MathF.Pow(s, 0.75f));
+            // Walking: fast lift, hang, hard drop. Running: a much higher, earlier arc (the foot is pulled up under
+            // the hip as it recovers) instead of skimming the ground.
+            float walkLift = 0.95f * s0 * MathUtil.Clamp(dist / (1.6f * s0), 0.35f, 1f);
+            float runLift = 0.28f * (t.L1 + t.L2);
+            lift = t.Lift * MathUtil.Lerp(walkLift, runLift, Run) * MathF.Sin(MathF.PI * MathF.Pow(s, MathUtil.Lerp(0.75f, 0.55f, Run)));
             pitch = MathUtil.Lerp(0.38f, -0.14f, MathUtil.Smoothstep(0f, 0.75f, s));
             outward = 0.22f * s0 * MathF.Sin(MathF.PI * s) * MathUtil.Clamp01(dist / (2f * s0));
         }

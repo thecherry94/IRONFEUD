@@ -81,6 +81,21 @@ public class ChassisTests
         Assert.True(Cadence(light) > 1.5f * Cadence(MechChassis.Medium()));
     }
 
+    [Theory]
+    [InlineData(ChassisClass.Light)]
+    [InlineData(ChassisClass.Medium)]
+    [InlineData(ChassisClass.Heavy)]
+    public void AtTopSpeed_StrideIsSetByLegReach_NotByAShuffle(ChassisClass cls)
+    {
+        // Regression: the walking stride cap (DMax) once stayed on at a run and made the light take 16 steps/s.
+        var c = MechChassis.Create(cls);
+        var m = new MechLocomotion(c);
+        for (int i = 0; i < 120 * 10; i++) m.Step(new MechInput { Throttle = 1f }, H);
+        float reachLimited = c.VMax * m.Gait.Duty / (2f * c.AMax);
+        Assert.Equal(reachLimited, m.Gait.F, 2);
+        Assert.True(2f * m.Gait.F < 6f, $"{cls}: {2f * m.Gait.F:0.0} steps/s");
+    }
+
     private static float Cadence(MechChassis c)
     {
         var m = new MechLocomotion(c);
