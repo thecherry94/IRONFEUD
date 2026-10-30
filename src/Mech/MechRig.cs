@@ -11,7 +11,7 @@ namespace IronFeud.Mech;
 /// Pelvis (top-level, world space)
 ///   LegRoot[i] → Hip → Knee → Ankle
 ///   TorsoBase (twist) → Torso → Head → CamMount
-///                             → Shoulder[i] → Elbow[i] → Muzzle / Emitter
+///                             → Shoulder[i] → Elbow[i]
 /// </summary>
 public sealed class MechRig
 {
@@ -30,7 +30,6 @@ public sealed class MechRig
     }
 
     public Node3D Pelvis = null!, TorsoBase = null!, Torso = null!, Head = null!, CamMount = null!;
-    public Node3D Muzzle = null!, Emitter = null!;
     public readonly LegNodes[] Legs = new LegNodes[2];
     public readonly ArmNodes[] Arms = new ArmNodes[2];
 
@@ -140,9 +139,9 @@ public sealed class MechRig
             r.Legs[i] = leg;
         }
 
-        r.TorsoBase = Group(pelvis, "TorsoBase", 0, 0.55f, 0);
+        r.TorsoBase = Group(pelvis, "TorsoBase", 0, t.TorsoBaseY, 0);
         Cyl(r.TorsoBase, 0.75f, 0.95f, 0.8f, m.Frame, 0, 0.25f, 0, segments: 12);
-        r.Torso = Group(r.TorsoBase, "Torso", 0, 0.6f, 0);
+        r.Torso = Group(r.TorsoBase, "Torso", 0, t.TorsoY, 0);
         var torso = r.Torso;
         Box(torso, 3.6f, 2.4f, 2.8f, m.Armor, 0, 1.3f, 0);
         Box(torso, 3.9f, 0.6f, 2.6f, m.ArmorDark, 0, 0.2f, 0);
@@ -175,12 +174,12 @@ public sealed class MechRig
         {
             int side = i == 0 ? +1 : -1;
             var arm = new ArmNodes();
-            arm.Shoulder = Group(torso, i == 0 ? "ShoulderL" : "ShoulderR", -side * 2.4f, 1.9f, 0);
+            arm.Shoulder = Group(torso, i == 0 ? "ShoulderL" : "ShoulderR", -side * t.ShoulderOffset.X, t.ShoulderOffset.Y, t.ShoulderOffset.Z);
             Box(arm.Shoulder, 1.25f, 1.0f, 1.8f, m.Armor, -side * 0.35f, 0.3f, 0);
             Box(arm.Shoulder, 0.2f, 0.85f, 1.6f, m.Accent, -side * 1.0f, 0.25f, 0);
             Cyl(arm.Shoulder, 0.5f, 0.5f, 0.9f, m.Frame, -side * 0.2f, 0, 0, 0, 0, -halfPi);
             Box(arm.Shoulder, 0.75f, 1.9f, 0.8f, m.Frame, -side * 0.45f, -1.1f, 0);
-            arm.Elbow = Group(arm.Shoulder, "Elbow", -side * 0.45f, -2.1f, 0);
+            arm.Elbow = Group(arm.Shoulder, "Elbow", -side * t.ElbowOffset.X, t.ElbowOffset.Y, t.ElbowOffset.Z);
             Cyl(arm.Elbow, 0.42f, 0.42f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -halfPi);
             Box(arm.Elbow, 1.0f, 1.0f, 2.4f, m.ArmorDark, 0, 0, -1.0f);
             if (i == 1)
@@ -190,7 +189,6 @@ public sealed class MechRig
                 Cyl(arm.Elbow, 0.26f, 0.26f, 3.2f, m.Frame, 0, 0.05f, -3.6f, -halfPi);
                 Cyl(arm.Elbow, 0.34f, 0.3f, 0.45f, m.Frame, 0, 0.05f, -5.1f, -halfPi);
                 Cyl(arm.Elbow, 0.15f, 0.15f, 0.05f, m.Hole, 0, 0.05f, -5.33f, -halfPi);
-                r.Muzzle = Group(arm.Elbow, "Muzzle", 0, 0.05f, -5.4f);
             }
             else
             {
@@ -199,7 +197,6 @@ public sealed class MechRig
                 Box(arm.Elbow, 1.3f, 0.12f, 1.1f, m.Accent, 0, 0.58f, -2.5f);
                 foreach (float lx in new[] { -0.38f, 0f, 0.38f })
                     Cyl(arm.Elbow, 0.14f, 0.14f, 0.12f, m.Lens, lx, 0.1f, -3.38f, -halfPi);
-                r.Emitter = Group(arm.Elbow, "Emitter", 0, 0.1f, -3.5f);
             }
             r.Arms[i] = arm;
         }

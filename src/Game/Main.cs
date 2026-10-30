@@ -3,7 +3,7 @@ using IronFeud.Mech;
 
 namespace IronFeud.Game;
 
-/// <summary>Walker test bed: arena, one player-piloted mech, cameras, HUD and gait debug overlay.</summary>
+/// <summary>Walker test bed: arena, one player-piloted mech, weapons, cameras, HUD and gait debug overlay.</summary>
 public partial class Main : Node3D
 {
     [Export] public uint ArenaSeed { get; set; } = 1337;
@@ -12,8 +12,15 @@ public partial class Main : Node3D
     {
         Arena.Build(this, ArenaSeed);
 
+        var effects = new Effects { Name = "Effects" };
+        AddChild(effects);
+        var projectiles = new Projectiles { Name = "Projectiles", Effects = effects };
+        AddChild(projectiles);
+
         var mech = new MechNode { Name = "PlayerMech" };
         AddChild(mech);
+        mech.Footfall += f => effects.Footfall(f);
+        mech.ShotFired += s => projectiles.Fire(s);
 
         var camera = new CameraRig { Name = "Camera", Target = mech };
         AddChild(camera);
