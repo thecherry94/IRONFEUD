@@ -1,0 +1,206 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using IronFeud.Logic.Core;
+
+namespace IronFeud.Logic.Mech;
+
+/// <summary>A foot's ground contact: planar position (y = ground) and yaw.</summary>
+public struct FootPlant
+{
+    public Vector3 Position;
+    public float Yaw;
+
+    public FootPlant(Vector3 position, float yaw)
+    {
+        Position = position;
+        Yaw = yaw;
+    }
+}
+
+public sealed class LegGait
+{
+    /// <summary>+1 = left leg, -1 = right leg. The left hip sits at local -X.</summary>
+    public readonly int Side;
+    public readonly float PhaseOffset;
+
+    public FootPlant Plant;
+    public FootPlant From;
+    public bool Swing;
+    public float StepLength;
+
+    public LegGait(int side, float phaseOffset)
+    {
+        Side = side;
+        PhaseOffset = phaseOffset;
+    }
+}
+
+/// <summary>Where the ankle should be this tick and how the foot is oriented.</summary>
+public struct FootTarget
+{
+    public Vector3 Ankle;
+    public float Yaw;
+
+    /// <summary>Foot pitch, positive = toe down (heel lifted).</summary>
+    public float Pitch;
+
+    /// <summary>Predicted landing spot while swinging; equals the plant during stance.</summary>
+    public FootPlant Landing;
+}
+
+public struct Footfall
+{
+    public int Leg;
+
+    /// <summary>Foot centre on the ground (slightly ahead of the ankle).</summary>
+    public Vector3 Position;
+    public float Yaw;
+
+    /// <summary>Impact strength k, already scaled by the Impact multiplier.</summary>
+    public float Strength;
+    public float SpeedFraction;
+}
+
+/// <summary>
+/// Gait phase and planted-foot bookkeeping. Feet in stance never move; swinging feet travel from their
+/// last plant to a landing target predicted from the body's current velocity and turn rate.
+/// </summary>
+public sealed class GaitController
+{
+    public readonly LegGait[] Legs = { new(+1, 0f), new(-1, 0.5f) };
+
+    public float Phase;
+
+    /// <summary>Cycle frequency, Hz.</summary>
+    public float F;
+
+    /// <summary>Gait amplitude 0..1; eases with activity and scales sway/bob.</summary>
+    public float G;
+
+    public bool Active;
+
+    public void Reset(BodyState body, MechTuning t)
+    {
+        Phase = 0f;
+        F = t.FMin;
+        G = 0f;
+        Active = false;
+        foreach (var leg in Legs)
+        {
+            leg.Plant = Neutral(leg, body, t);
+            leg.From = leg.Plant;
+            leg.Swing = false;
+            leg.StepLength = 0f;
+        }
+    }
+
+    public static Vector3 HipOffset(LegGait leg, MechTuning t) => new(-leg.Side * t.HipWidth, 0f, 0f);
+
+    public static FootPlant Neutral(LegGait leg, BodyState body, MechTuning t) =>
+        new(body.Position + MathUtil.RotateY(HipOffset(leg, t), body.Psi), body.Psi);
+
+    /// <summary>Where the foot will land if the body keeps its current v and ω for <paramref name="remaining"/> seconds.</summary>
+    public FootPlant Landing(LegGait leg, BodyState body, MechTuning t, float remaining)
+    {
+        float psiL = body.Psi + body.Omega * remaining;
+        Vector3 p = body.Position + MathUtil.Forward(body.Psi) * (body.V * remaining);
+        float halfStride = MathUtil.Clamp(body.V / F * t.Duty / 2f, -t.AMax, t.AMax);
+        Vector3 local = HipOffset(leg, t) + new Vector3(0f, 0f, -halfStride);
+        return new FootPlant(p + MathUtil.RotateY(local, psiL), psiL);
+    }
+
+    public void Step(BodyState body, MechTuning t, float h, List<Footfall>? footfalls)
+    {
+        float spd = MathF.Abs(body.V);
+        bool unsettled = false;
+        foreach (var leg in Legs)
+        {
+            if (leg.Swing) { unsettled = true; continue; }
+            var n = Neutral(leg, body, t);
+            if (MathUtil.PlanarDistance(leg.Plant.Position, n.Position) > 0.45f ||
+                MathF.Abs(MathUtil.WrapAngle(leg.Plant.Yaw - body.Psi)) > 0.2f)
+                unsettled = true;
+        }
+
+        Active = spd > 0.12f || MathF.Abs(body.Omega) > 0.04f || unsettled;
+        F = MathF.Max(t.FMin, spd / t.DMax);
+        float gT = Active ? MathUtil.Clamp01(0.3f + spd / t.VMax + 0.5f * MathF.Abs(body.Omega) / t.OmegaMax) : 0f;
+        G += (gT - G) * MathF.Min(1f, h * 2.5f);
+        if (!Active) return;
+
+        float prev = Phase;
+        Phase = MathUtil.Frac(Phase + F * h);
+        for (int i = 0; i < Legs.Length; i++)
+        {
+            var leg = Legs[i];
+            float pa = MathUtil.Frac(prev + leg.PhaseOffset);
+            float pb = MathUtil.Frac(Phase + leg.PhaseOffset);
+            if (pa < t.Duty && pb >= t.Duty)
+            {
+                leg.Swing = true;
+                leg.From = leg.Plant;
+            }
+            if (pb < pa)
+            {
+                leg.Swing = false;
+                leg.Plant = Landing(leg, body, t, 0f);
+                leg.StepLength = MathUtil.PlanarDistance(leg.Plant.Position, leg.From.Position);
+                float k = t.Impact * (0.45f + 0.55f * MathF.Min(1f, leg.StepLength / 3f));
+                footfalls?.Add(new Footfall
+                {
+                    Leg = i,
+                    Position = leg.Plant.Position + MathUtil.Forward(leg.Plant.Yaw) * 0.3f,
+                    Yaw = leg.Plant.Yaw,
+                    Strength = k,
+                    SpeedFraction = spd / t.VMax,
+                });
+            }
+        }
+    }
+
+    /// <summary>Ankle target and foot orientation for the current phase (heel-strike / toe-off, swing arc).</summary>
+    public FootTarget Evaluate(int legIndex, BodyState body, MechTuning t)
+    {
+        var leg = Legs[legIndex];
+        float lp = MathUtil.Frac(Phase + leg.PhaseOffset);
+        float lift = 0f, outward = 0f, pitch, yaw;
+        float scale = MathUtil.Clamp01(leg.StepLength / 3f);
+        Vector3 cur;
+        FootPlant landing;
+
+        if (!leg.Swing)
+        {
+            cur = leg.Plant.Position;
+            yaw = leg.Plant.Yaw;
+            landing = leg.Plant;
+            pitch = 0.38f * MathUtil.Smoothstep(t.Duty - 0.16f, t.Duty, lp) - 0.14f * (1f - MathUtil.Smoothstep(0f, 0.07f, lp));
+        }
+        else
+        {
+            float s = MathUtil.Clamp01((lp - t.Duty) / (1f - t.Duty));
+            landing = Landing(leg, body, t, (1f - s) * (1f - t.Duty) / F);
+            float e = MathUtil.Smootherstep(s);
+            cur = Vector3.Lerp(leg.From.Position, landing.Position, e);
+            yaw = MathUtil.LerpAngle(leg.From.Yaw, landing.Yaw, e);
+            float dist = MathUtil.PlanarDistance(landing.Position, leg.From.Position);
+            scale = MathUtil.Clamp01(dist / 3f);
+            lift = 0.95f * t.Lift * MathUtil.Clamp(dist / 1.6f, 0.35f, 1f) * MathF.Sin(MathF.PI * MathF.Pow(s, 0.75f));
+            pitch = MathUtil.Lerp(0.38f, -0.14f, MathUtil.Smoothstep(0f, 0.75f, s));
+            outward = 0.22f * MathF.Sin(MathF.PI * s) * MathUtil.Clamp01(dist / 2f);
+        }
+
+        pitch *= scale * (body.V < -0.1f ? 0.3f : 1f);
+        // Raise the ankle so the pivot (toe when toe-down, heel when toe-up) stays on the ground.
+        float rise = pitch > 0f ? 1.7f * MathF.Sin(pitch) : 1.05f * MathF.Sin(-pitch);
+        Vector3 outOffset = MathUtil.RotateY(new Vector3(-leg.Side * outward, 0f, 0f), yaw);
+
+        return new FootTarget
+        {
+            Ankle = cur + outOffset + new Vector3(0f, t.AnkleHeight + rise + lift, 0f),
+            Yaw = yaw,
+            Pitch = pitch,
+            Landing = landing,
+        };
+    }
+}
