@@ -27,6 +27,9 @@ public sealed class LegGait
     /// <summary>Stance fraction for the current step, latched at each landing so a speed change never skips a swing.</summary>
     public float Duty;
 
+    /// <summary>Stride length multiplier for the current swing, chosen at lift-off to find a good foothold.</summary>
+    public float StrideScale = 1f;
+
     public FootPlant Plant;
     public FootPlant From;
     public bool Swing;
@@ -79,6 +82,11 @@ public sealed class GaitController
     /// <summary>Ground the feet are planted on; null = flat at y = 0.</summary>
     public IGround? Ground;
 
+    /// <summary>Stride limit multiplier (shorter strides on slopes); set by the locomotion each tick.</summary>
+    public float ReachScale = 1f;
+
+    private float AMax(MechChassis t) => t.AMax * ReachScale;
+
     public float Phase;
 
     /// <summary>Cycle frequency, Hz.</summary>
@@ -122,7 +130,7 @@ public sealed class GaitController
     {
         float psiL = body.Psi + body.Omega * remaining;
         Vector3 p = body.Position + MathUtil.Forward(body.Psi) * (body.V * remaining);
-        float halfStride = MathUtil.Clamp(body.V / F * Duty / 2f, -t.AMax, t.AMax);
+        float halfStride = MathUtil.Clamp(body.V / F * Duty / 2f, -AMax(t), AMax(t)) * leg.StrideScale;
         Vector3 local = HipOffset(leg, t) + new Vector3(0f, 0f, -halfStride);
         return new FootPlant(Ground.OnGround(p + MathUtil.RotateY(local, psiL)), psiL);
     }
@@ -150,7 +158,7 @@ public sealed class GaitController
         float stanceDuty = Duty;
         foreach (var leg in Legs)
             if (!leg.Swing) stanceDuty = MathF.Max(stanceDuty, leg.Duty);
-        F = MathF.Max(t.FMin, MathF.Max((1f - Run) * spd / t.DMax, spd * stanceDuty / (2f * t.AMax)));
+        F = MathF.Max(t.FMin, MathF.Max((1f - Run) * spd / t.DMax, spd * stanceDuty / (2f * AMax(t))));
         float gT = Active ? MathUtil.Clamp01(0.3f + spd / t.VMax + 0.5f * MathF.Abs(body.Omega) / t.OmegaMax) : 0f;
         G += (gT - G) * MathF.Min(1f, h * 2.5f);
         if (!Active) return;
@@ -166,6 +174,7 @@ public sealed class GaitController
             {
                 leg.Swing = true;
                 leg.From = leg.Plant;
+                leg.StrideScale = ChooseFoothold(leg, body, t, (1f - leg.Duty) / F);
             }
             if (pb < pa)
             {
@@ -185,6 +194,32 @@ public sealed class GaitController
                 });
             }
         }
+    }
+
+    private static readonly float[] StrideOptions = { 1f, 0.85f, 1.15f, 0.7f, 0.55f, 1.3f };
+
+    /// <summary>
+    /// Foothold selection (a shortcut real foot-placement planners use too): of a few stride lengths, take the landing
+    /// whose ground is closest to the height under the body at touchdown and not on a steep face, preferring the
+    /// nominal stride. Keeps feet out of trench bottoms and off crest tops the body is merely passing.
+    /// </summary>
+    private float ChooseFoothold(LegGait leg, BodyState body, MechChassis t, float swingTime)
+    {
+        if (Ground == null) return 1f;
+        Vector3 bodyAt = body.Position + MathUtil.Forward(body.Psi) * (body.V * swingTime);
+        float reference = Ground.Height(bodyAt.X, bodyAt.Z);
+        float best = 1f, bestCost = float.MaxValue;
+        foreach (float s in StrideOptions)
+        {
+            leg.StrideScale = s;
+            var p = Landing(leg, body, t, swingTime).Position;
+            float rise = MathF.Abs(p.Y - reference) / t.LegLength;
+            float cost = rise + (rise > 0.3f ? 1f : 0f) // a step of more than 0.3 leg lengths is a last resort
+                         + 2f * (1f - Ground.NormalAt(p.X, p.Z, t.Scale).Y)
+                         + 0.15f * MathF.Abs(1f - s);
+            if (cost < bestCost) { bestCost = cost; best = s; }
+        }
+        return best;
     }
 
     /// <summary>The sole follows the ground up to 30° of tilt; on steeper walls it stays at 30° (the toes dig in).</summary>

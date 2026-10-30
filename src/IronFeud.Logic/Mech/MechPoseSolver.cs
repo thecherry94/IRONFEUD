@@ -32,24 +32,35 @@ public static class MechPoseSolver
         float hipRaise = 0.25f * s * run;
         float drop = t.CollapseDrop * collapse;
         pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + hipRaise + bob + sec.BounceY.X + 0.09f * s * jn - drop, 0f);
-        // Lean into climbs (and back a little going downhill).
-        pose.PelvisRotation = Rot.Yxz(-0.03f - 0.1f * run - 0.35f * body.Slope - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * walkSway * c0, 0.025f * t.Sway * g * walkSway * cs - collapseRoll * collapse);
+        // Lean into climbs (and back a little going downhill), a hint only: more reads as rocking.
+        float slopeLean = MathUtil.Clamp(0.2f * body.Slope, -0.12f, 0.12f);
+        float pelvisLean = -0.03f - 0.1f * run - slopeLean;
+        pose.PelvisRotation = Rot.Yxz(pelvisLean - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * walkSway * c0, 0.025f * t.Sway * g * walkSway * cs - collapseRoll * collapse);
 
-        // Foot targets first: the pelvis may not ride so high that a leg would have to over-extend to reach its
-        // target (downhill footholds, a long stride over a crest). The cap is continuous and only ever lowers.
+        // Foot targets first. If a planted leg would have to over-extend, the hips crouch (smoothed, at most 30 % of a
+        // leg length) instead of snapping down. Swinging feet don't count: their targets jump around and they may
+        // simply fall short in the air (the target clamp below).
         FootTarget target0 = Target(0, gait, body, t, collapse), target1 = Target(1, gait, body, t, collapse);
-        float reach = 0.97f * t.LegLength;
+        float reach = 0.97f * t.LegLength, need = 0f;
         for (int i = 0; i < 2; i++)
         {
+            if (gait.Legs[i].Swing) continue;
             var target = i == 0 ? target0 : target1;
             Vector3 root = pose.PelvisPosition + Vector3.Transform(new Vector3(-gait.Legs[i].Side * t.HipWidth, t.HipRootY, 0f), pose.PelvisRotation);
             float planar = MathUtil.PlanarDistance(root, target.Ankle);
             float maxRootY = target.Ankle.Y + MathF.Sqrt(MathF.Max(0f, reach * reach - planar * planar));
-            if (root.Y > maxRootY) pose.PelvisPosition.Y -= root.Y - maxRootY;
+            need = MathF.Max(need, root.Y - maxRootY);
         }
+        // Per call (one per 120 Hz tick): ease toward the needed crouch at ~2.4/s, never faster than 1.5 m/s, so it is
+        // a posture over rough ground, not a bob per step (faster tracking only made the body pump).
+        float crouchTarget = MathUtil.Clamp(need, 0f, 0.3f * t.LegLength);
+        pose.Crouch += MathUtil.Clamp((crouchTarget - pose.Crouch) * 0.02f, -0.0125f * t.Scale, 0.0125f * t.Scale);
+        pose.PelvisPosition.Y -= pose.Crouch;
 
+        // Gyro-stabilised torso: it cancels 70 % of the pelvis lean so the cockpit and guns stay steady while the hips
+        // and legs work the slope (not while collapsing).
         pose.TorsoRotation = Rot.Yxz(
-            -(sec.TorsoPitch.X + 0.01f * jn),
+            -(sec.TorsoPitch.X + 0.01f * jn) - 0.7f * pelvisLean,
             body.Twist + sec.TorsoYaw.X,
             -(sec.TorsoRoll.X + 0.015f * jn));
         pose.HeadRotation = Rot.Yxz(body.Aim * 0.85f - 0.006f * jn, 0f, -0.01f * jn);
@@ -95,7 +106,7 @@ public static class MechPoseSolver
 
             Vector3 rootLocal = new(-leg.Side * t.HipWidth, t.HipRootY, 0f);
             Vector3 rootWorld = pose.PelvisPosition + Vector3.Transform(rootLocal, pose.PelvisRotation);
-            Vector3 d = Vector3.Transform(target.Ankle - rootWorld, pelvisInv);
+            Vector3 d = Sanitize(Vector3.Transform(target.Ankle - rootWorld, pelvisInv), t.LegLength, collapse);
 
             // Foot orientation is world-space: it keeps its planted yaw while the body turns over it.
             Quaternion footWorld = Rot.YawOnSlope(target.Yaw, target.Normal) * Rot.X(-target.Pitch);
@@ -104,11 +115,13 @@ public static class MechPoseSolver
             if (t.Legs == LegLayout.Digitigrade)
             {
                 var angles = LegIK.SolveDigitigrade(d, t.L1, t.L2, t.L3);
+                lp.Angles = angles;
                 lp.Hip = LegIK.HipRotation(angles);
                 lp.Knee = LegIK.KneeRotation(angles);
                 lp.Hock = LegIK.HockRotation(angles);
                 Quaternion hockWorld = pose.PelvisRotation * lp.Hip * lp.Knee * lp.Hock;
-                lp.Ankle = Quaternion.Normalize(Quaternion.Inverse(hockWorld) * footWorld);
+                lp.Ankle = LimitAnkle(Quaternion.Normalize(Quaternion.Inverse(hockWorld) * footWorld));
+                footWorld = hockWorld * lp.Ankle;
                 var (knee, hock, toe) = LegIK.ForwardDigitigrade(angles, t.L1, t.L2, t.L3);
                 lp.KneeWorld = rootWorld + Vector3.Transform(knee, pose.PelvisRotation);
                 lp.HockWorld = rootWorld + Vector3.Transform(hock, pose.PelvisRotation);
@@ -117,11 +130,13 @@ public static class MechPoseSolver
             else
             {
                 var angles = LegIK.Solve(d, t.L1, t.L2);
+                lp.Angles = angles;
                 lp.Hip = LegIK.HipRotation(angles);
                 lp.Knee = LegIK.KneeRotation(angles);
                 lp.Hock = Quaternion.Identity;
                 Quaternion kneeWorld = pose.PelvisRotation * lp.Hip * lp.Knee;
-                lp.Ankle = Quaternion.Normalize(Quaternion.Inverse(kneeWorld) * footWorld);
+                lp.Ankle = LimitAnkle(Quaternion.Normalize(Quaternion.Inverse(kneeWorld) * footWorld));
+                footWorld = kneeWorld * lp.Ankle;
                 var (knee, ankle) = LegIK.Forward(angles, t.L1, t.L2);
                 lp.KneeWorld = rootWorld + Vector3.Transform(knee, pose.PelvisRotation);
                 lp.AnkleWorld = rootWorld + Vector3.Transform(ankle, pose.PelvisRotation);
@@ -129,6 +144,37 @@ public static class MechPoseSolver
             }
             lp.FootWorld = footWorld;
         }
+    }
+
+    /// <summary>
+    /// The deliberate cheat: keep the IK's input well-posed instead of trusting it with anything. In the hip-root
+    /// frame the foot stays at least 0.38 leg lengths below the hip (knee at most ~135°, enough to climb a parapet; relaxed to
+    /// 0.25 as a wreck slumps onto its legs), within 20° of hip roll, and within 97 % of the leg's reach (pulled in
+    /// horizontally). The foot may then hover a little or land short in extreme spots; the leg never twists.
+    /// </summary>
+    private static Vector3 Sanitize(Vector3 d, float legLength, float collapse)
+    {
+        float minDown = MathUtil.Lerp(0.38f, 0.25f, collapse) * legLength, reach = 0.97f * legLength;
+        if (-d.Y < minDown) d.Y = -minDown;
+        float side = MathF.Tan(0.35f) * -d.Y;
+        d.X = MathUtil.Clamp(d.X, -side, side);
+        float len = d.Length();
+        if (len > reach)
+        {
+            float horiz = MathF.Sqrt(d.X * d.X + d.Z * d.Z);
+            float want = MathF.Sqrt(MathF.Max(0f, reach * reach - d.Y * d.Y));
+            if (horiz > 1e-4f && want > 0f) { d.X *= want / horiz; d.Z *= want / horiz; }
+            else d *= reach / len;
+        }
+        return d;
+    }
+
+    /// <summary>Ankles bend at most ~45° from the shin's frame; past that the sole stops following the ground.</summary>
+    private static Quaternion LimitAnkle(Quaternion q)
+    {
+        const float max = 0.8f;
+        float angle = 2f * MathF.Acos(MathUtil.Clamp(MathF.Abs(q.W), 0f, 1f));
+        return angle <= max ? q : Quaternion.Slerp(Quaternion.Identity, q.W < 0f ? Quaternion.Negate(q) : q, max / angle);
     }
 
     private static FootTarget Target(int leg, GaitController gait, BodyState body, MechChassis t, float collapse)

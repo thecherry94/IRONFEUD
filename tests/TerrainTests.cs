@@ -82,6 +82,7 @@ public class TerrainTests
         m.Reset(Vector3.Zero, 0f);
         var stance = new Vector3?[2];
         float maxExt = 0f, minSpeed = float.MaxValue, peak = 0f;
+        int stanceTicks = 0, floating = 0;
         for (int i = 0; i < 120 * 30 && m.Body.Position.Z > -300f; i++)
         {
             float throttle = Math.Min(1f, i / 240f);
@@ -92,9 +93,11 @@ public class TerrainTests
             {
                 var leg = m.Gait.Legs[l];
                 var lp = m.Pose.Legs[l];
-                maxExt = MathF.Max(maxExt, Vector3.Distance(lp.HipWorld, lp.Target.Ankle) / c.LegLength);
+                maxExt = MathF.Max(maxExt, Vector3.Distance(lp.HipWorld, lp.AnkleWorld) / c.LegLength);
                 Assert.Equal(map.Height(leg.Plant.Position.X, leg.Plant.Position.Z), leg.Plant.Position.Y, 3);
                 if (leg.Swing) { stance[l] = null; continue; }
+                stanceTicks++;
+                if (Vector3.Distance(lp.Target.Ankle, lp.AnkleWorld) > 0.3f) floating++;
                 bool landed = false;
                 foreach (var f in m.Footfalls) landed |= f.Leg == l;
                 if (stance[l] is { } s && !landed) Assert.True(Vector3.Distance(s, lp.Target.Ankle) < 0.6f * c.Scale + 1e-4f, $"leg {l} slid");
@@ -105,6 +108,7 @@ public class TerrainTests
         Assert.True(peak > 15f, $"never climbed the hill (peak {peak:0.0} m)");
         Assert.True(minSpeed < 0.95f * c.VMax, "climbing should cost speed");
         Assert.True(maxExt < 0.99f, $"{cls} {model} leg overextends on the hill: {maxExt:0.000}");
+        Assert.True(floating < 0.05f * stanceTicks, $"{cls} {model}: planted feet off target {100f * floating / stanceTicks:0}% of the time");
     }
 
     [Fact]
@@ -161,6 +165,7 @@ public class TerrainTests
         var m = new MechLocomotion(c) { Ground = map };
         m.Reset(Vector3.Zero, 0f);
         float maxExt = 0f;
+        int stanceTicks = 0, floating = 0;
         for (int i = 0; i < 120 * 60 && m.Body.Position.Z > -220f; i++)
         {
             m.Step(new MechInput { Throttle = Math.Min(1f, i / 240f) }, H);
@@ -168,11 +173,67 @@ public class TerrainTests
             {
                 var leg = m.Gait.Legs[l];
                 var lp = m.Pose.Legs[l];
-                maxExt = MathF.Max(maxExt, Vector3.Distance(lp.HipWorld, lp.Target.Ankle) / c.LegLength);
+                maxExt = MathF.Max(maxExt, Vector3.Distance(lp.HipWorld, lp.AnkleWorld) / c.LegLength);
                 Assert.Equal(map.Height(leg.Plant.Position.X, leg.Plant.Position.Z), leg.Plant.Position.Y, 3);
+                if (leg.Swing) continue;
+                stanceTicks++;
+                if (Vector3.Distance(lp.Target.Ankle, lp.AnkleWorld) > 0.3f) floating++;
             }
         }
         Assert.True(m.Body.Position.Z < -220f, $"{cls} {model} got stuck at z = {m.Body.Position.Z:0}");
         Assert.True(maxExt < 0.99f, $"{cls} {model} leg overextends: {maxExt:0.000}");
+        Assert.True(floating < 0.1f * stanceTicks, $"{cls} {model}: planted feet off target {100f * floating / stanceTicks:0}% of the time");
+    }
+
+    public static TheoryData<MechModel, float> PoseRuns() => new()
+    {
+        { MechModel.Hauberk, 0.35f }, { MechModel.Hauberk, 1f }, { MechModel.Sicklefoot, 0.35f }, { MechModel.Sicklefoot, 1f },
+    };
+
+    /// <summary>
+    /// Pose quality across No Man's Land (trenches, craters, mounds), walking and at a full run. Pins the fixes for
+    /// "legs twist into impossible poses" and "torso swings like a pendulum". Flat-ground reference values: torso pitch
+    /// −0.12..0.06 rad at ≤ 0.8 rad/s.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PoseRuns))]
+    public void AcrossNoMansLand_PosesStayNatural(MechModel model, float throttle)
+    {
+        var map = ArenaMap.NoMansLand(3);
+        var c = MechChassis.Medium(model);
+        var m = new MechLocomotion(c) { Ground = map };
+        m.Reset(new Vector3(-60, 0, 190), 0f);
+        float maxRoll = 0, minKnee = 9, maxKnee = 0, minPitch = 9, maxPitch = -9, prevPitch = float.NaN, maxPitchRate = 0, minPelvis = 99;
+        int stance = 0, floating = 0;
+        for (int i = 0; i < 120 * 40 && m.Body.Position.Z > -190f; i++)
+        {
+            m.Step(new MechInput { Throttle = throttle, Turn = 0.15f * MathF.Sin(i / 300f) }, H);
+            var p = m.Pose;
+            float pitch = MathF.Asin(Vector3.Transform(-Vector3.UnitZ, p.PelvisRotation * p.TorsoRotation).Y);
+            if (!float.IsNaN(prevPitch)) maxPitchRate = MathF.Max(maxPitchRate, MathF.Abs(pitch - prevPitch) / H);
+            prevPitch = pitch;
+            minPitch = MathF.Min(minPitch, pitch);
+            maxPitch = MathF.Max(maxPitch, pitch);
+            minPelvis = MathF.Min(minPelvis, p.PelvisPosition.Y - map.Height(m.Body.Position.X, m.Body.Position.Z));
+            for (int l = 0; l < 2; l++)
+            {
+                var lp = p.Legs[l];
+                maxRoll = MathF.Max(maxRoll, MathF.Abs(lp.Angles.Roll));
+                minKnee = MathF.Min(minKnee, -lp.Angles.Knee);
+                maxKnee = MathF.Max(maxKnee, -lp.Angles.Knee);
+                Assert.True(2f * MathF.Acos(MathF.Min(1f, MathF.Abs(lp.Ankle.W))) < 0.81f, "ankle bent past its limit");
+                if (m.Gait.Legs[l].Swing) continue;
+                stance++;
+                if (Vector3.Distance(lp.Target.Ankle, lp.AnkleWorld) > 0.3f) floating++;
+            }
+        }
+        string what = $"{model} at throttle {throttle}";
+        Assert.True(maxRoll < 0.36f, $"{what}: hip roll {maxRoll:0.00} rad");
+        Assert.InRange(minKnee, 0.3f, 3f);
+        Assert.True(maxKnee < 2.5f, $"{what}: knee folds to {maxKnee:0.00} rad");
+        Assert.True(minPitch > -0.4f && maxPitch < 0.25f, $"{what}: torso pitch {minPitch:0.00}..{maxPitch:0.00} rad");
+        Assert.True(maxPitchRate < 3f, $"{what}: torso pitches at up to {maxPitchRate:0.0} rad/s");
+        Assert.True(minPelvis > 0.3f * c.HipHeight, $"{what}: pelvis {minPelvis:0.0} m over the ground");
+        Assert.True(floating < 0.1f * stance, $"{what}: planted feet off target {100f * floating / stance:0}% of the time");
     }
 }

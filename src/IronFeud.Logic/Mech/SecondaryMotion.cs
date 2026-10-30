@@ -35,7 +35,10 @@ public sealed class SecondaryMotion
 
         TorsoYaw.Step(0.13f * t.Sway * g * c0, h);
         TorsoRoll.Step(-0.05f * t.Sway * g * cs + 0.18f * body.Omega * spF, h);
-        TorsoPitch.Step(0.05f + 0.02f * t.Bob * g * MathF.Cos(MathUtil.Tau * (2f * p - 0.1f)) - 0.06f * body.Acc, h);
+        // Lean against acceleration, capped: at genre speeds (10 m/s² braking) the prototype's 0.06·acc pitched the
+        // torso by over 30° and the spring rocked it like a pendulum on every hill.
+        float accLean = MathUtil.Clamp(0.06f * body.Acc, -0.1f, 0.1f);
+        TorsoPitch.Step(0.05f + 0.02f * t.Bob * g * MathF.Cos(MathUtil.Tau * (2f * p - 0.1f)) - accLean, h);
         Arms[0].Step(0.14f * t.ArmSwing * t.Sway * g * c0, h);
         Arms[1].Step(-0.14f * t.ArmSwing * t.Sway * g * c0, h);
         Elbows[0].Step(0f, h);

@@ -34,6 +34,9 @@ public sealed class MechPose
 
     /// <summary>Signed shake this tick, for cameras.</summary>
     public float Jank;
+
+    /// <summary>How far the hips are lowered so the legs reach their footholds (smoothed, metres).</summary>
+    public float Crouch;
 }
 
 /// <summary>
@@ -44,6 +47,9 @@ public sealed class LegPose
 {
     public Quaternion Hip = Quaternion.Identity;
     public Quaternion Knee = Quaternion.Identity;
+
+    /// <summary>The solved joint angles behind the rotations (for debugging and the pose-quality tests).</summary>
+    public LegAngles Angles;
 
     /// <summary>Digitigrade only: the backward-pointing joint between shin and raised foot bone.</summary>
     public Quaternion Hock = Quaternion.Identity;

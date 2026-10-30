@@ -559,7 +559,16 @@ public sealed class AiPilot
                 point.Y += 0.5f * spec.Gravity * t * t;
             }
             if (!Aligned(sim.Pose, point, 0.02f)) continue;
-            switch (LineOfFire(b, me, weapons.MuzzlePosition(i, sim.Pose), point))
+            // Check the shot that would actually leave: toward the convergence point on the current aim ray (minus the
+            // shell's drop: the chord to the impact lies below the arc). Alignment tolerates metres of error at range,
+            // which is fine on flat ground but puts the round into a crest the mech is firing over.
+            Vector3 aimed = sim.Pose.AimOrigin + sim.Pose.AimDirection * input.Convergence;
+            if (projectile)
+            {
+                float t = input.Convergence / spec.MuzzleVelocity;
+                aimed.Y -= 0.5f * spec.Gravity * t * t;
+            }
+            switch (LineOfFire(b, me, weapons.MuzzlePosition(i, sim.Pose), aimed))
             {
                 case FireLine.Clear:
                     input.FireMask |= 1u << i;

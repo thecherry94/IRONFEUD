@@ -161,12 +161,26 @@ Ground is an `IGround` (the `ArenaMap`, backed by a `HeightField`: 4 m grid, bil
 140 m wavelength, fading to 0 at the map edge, flattened at spawns). Null ground = flat y = 0 (tests, range).
 - **Feet:** plants and predicted landings get the ground height; a swinging foot is lifted over any crest between its
   footholds; soles align to the ground normal (`Rot.YawOnSlope`), blended from take-off to landing.
-- **Body height:** rides exactly on the ground under it (any smoothing lags ~1 m at running speed on a 17° slope)
-  minus a smoothed drop toward the lowest *stance* foot and `0.5·|grade|·AMAX` on slopes. The swinging leg is
-  ignored: its last plant can be a whole stride behind.
-- **Reach cap:** the pose solver evaluates both foot targets first and lowers the pelvis so no leg needs more than
-  97 % of its length. Continuous, only ever lowers; it is what keeps long running strides over crests and down
-  slopes in reach.
+**Exact IK, cheated inputs.** The analytic solvers stay exact; the "make it look right" shortcuts live in what they
+are fed. First attempt tracked the ground exactly and hard-clamped the pelvis each tick so no leg over-extended: on
+steep ground hip roll flipped to 180°, knees folded, ankles spun, the pelvis jumped at up to 58 m/s and the torso
+pitched -57°..+23°. Measured fixes, pinned by `TerrainTests.AcrossNoMansLand_PosesStayNatural`:
+- **Body height:** ground averaged over the footprint (centre + ring at half a leg length, now and 0.25 s ahead)
+  through a critically damped spring (ω = 9); never below 0.3 hip heights under the local ground.
+- **Crouch:** driven only by *planted* feet that would over-extend; eased (~2.4/s, ≤ 1.5 m/s, ≤ 0.3 leg lengths), a
+  posture over rough ground rather than a bob per step. Faster tracking only made the body pump.
+- **Target sanitizing** (hip-root frame, before the solve): foot ≥ 0.38 leg lengths below the hip (knee ≤ ~135°;
+  0.25 while collapsing), hip roll ≤ 20°, distance ≤ 97 % of the leg. The foot may hover or land short in extreme
+  spots; the leg never twists. Ankles bend ≤ ~45°.
+- **Foothold selection:** at lift-off try strides of 0.55-1.3x and take the landing closest to the ground height
+  under the body at touchdown, off steep faces, near nominal (latched for the swing).
+- **Shorter strides on slopes** (stride limit / (1 + 1.5·|grade|)), so cadence rises instead of reach.
+- **Gyro torso:** the torso cancels 70 % of the pelvis lean; acceleration lean capped at ±0.1 rad (the prototype's
+  0.06·acc meant 30°+ at genre braking rates), slope lean at ±0.12 rad.
+- **Rough-ground speed cap:** the steepest 3 m step within braking distance ahead caps speed (grade 0.2 free, a
+  trench wall ~35 %). Without it a light crossed a 12 m trench at 35 m/s with its feet dangling.
+- Result across No Man's Land: hip roll ≤ 8°, knee ≤ 2.3 rad, torso pitch about −0.3..+0.13 rad at ≤ 2 rad/s,
+  planted feet within 0.3 m of their footholds > 90 % of the time even at a full run.
 - **Slopes:** climbing costs top speed (−14 % per 10 % grade, down to a 20 % crawl up the steepest walls); the pelvis
   leans 0.35·slope into climbs. Soles follow the ground up to 30° of tilt and stay at 30° on steeper faces.
 - **Maps:** `HeightField` composes ridged/rolling noise, mounds and ridges with a bounded flank slope, craters with
