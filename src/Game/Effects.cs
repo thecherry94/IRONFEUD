@@ -151,7 +151,7 @@ public partial class Effects : Node3D
             var b = new Beam
             {
                 Core = new MeshInstance3D { Mesh = coreMesh, MaterialOverride = coreMat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Visible = false },
-                Glow = new MeshInstance3D { Mesh = glowMesh, MaterialOverride = glowMat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Visible = false },
+                Glow = new MeshInstance3D { Mesh = glowMesh, MaterialOverride = (Material)glowMat.Duplicate(), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, Visible = false },
             };
             AddChild(b.Core);
             AddChild(b.Glow);
@@ -172,9 +172,10 @@ public partial class Effects : Node3D
         DisableReceiveShadows = true,
     };
 
-    public void Footfall(in Footfall f)
+    /// <param name="scale">Chassis scale: smaller mechs kick up less dust and leave smaller prints.</param>
+    public void Footfall(in Footfall f, float scale = 1f)
     {
-        float amt = f.Strength * (0.5f + f.SpeedFraction);
+        float amt = f.Strength * (0.5f + f.SpeedFraction) * scale;
         Vector3 pos = f.Position.ToGodot();
         if (amt > 0.01f)
         {
@@ -188,7 +189,7 @@ public partial class Effects : Node3D
             }
         }
         var print = _prints[_nextPrint++ % _prints.Length];
-        print.Transform = new Transform3D(new Basis(Vector3.Up, f.Yaw), pos + new Vector3(0, 0.05f, 0));
+        print.Transform = new Transform3D(new Basis(Vector3.Up, f.Yaw).Scaled(new Vector3(scale, 1f, scale)), pos + new Vector3(0, 0.05f, 0));
         print.Visible = true;
     }
 
@@ -238,9 +239,11 @@ public partial class Effects : Node3D
         }
     }
 
-    public void BeamShot(Vector3 from, Vector3 to, float duration)
+    /// <param name="glow">Beam glow colour (team accent); default red.</param>
+    public void BeamShot(Vector3 from, Vector3 to, float duration, Color? glow = null)
     {
         var b = _beams[_nextBeam++ % _beams.Length];
+        ((StandardMaterial3D)b.Glow.MaterialOverride).AlbedoColor = glow?.Lightened(0.15f) ?? new Color("ff2a1a");
         b.Core.Transform = GodotConv.Segment(from, to);
         b.Glow.Transform = b.Core.Transform;
         b.Core.Visible = b.Glow.Visible = true;

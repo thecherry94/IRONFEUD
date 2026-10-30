@@ -15,11 +15,10 @@ public partial class Hud : CanvasLayer
     public MechNode? Mech;
     public CameraRig? Camera;
     public PlayerMechController? Pilot;
-    public GaitDebugDraw? Debug;
     public Battlefield? Battlefield;
 
-    private Label _stat = null!, _target = null!, _feed = null!;
-    private ColorRect _heatBar = null!;
+    private Label _stat = null!, _target = null!, _feed = null!, _banner = null!;
+    private ColorRect _heatBar = null!, _heatBack = null!;
     private Reticle _reticle = null!;
     private double _uiTimer, _time;
     private readonly List<(double Time, string Text)> _feedLines = new();
@@ -28,9 +27,7 @@ public partial class Hud : CanvasLayer
     private const double FeedLifetime = 8.0;
     private static readonly Color HeatColor = new("ff8a2a"), HeatLockedColor = new("ff3a2a");
 
-    private const string Help =
-        "W/S throttle (holds) · X full stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso\n" +
-        "LMB/Space cannon · RMB/F laser · 1/2/3 chase / cockpit / orbit · F3 debug · R reset targets · P pause · O slow-mo · Esc release mouse";
+    public string HelpText = "";
 
     private static readonly Dictionary<MechSection, string> SectionNames = new()
     {
@@ -60,7 +57,8 @@ public partial class Hud : CanvasLayer
     {
         ProcessMode = ProcessModeEnum.Always;
 
-        AddChild(new ColorRect { Position = new Vector2(10, 8), Size = new Vector2(HeatBarWidth, 5), Color = new Color(1, 1, 1, 0.1f) });
+        _heatBack = new ColorRect { Position = new Vector2(10, 8), Size = new Vector2(HeatBarWidth, 5), Color = new Color(1, 1, 1, 0.1f) };
+        AddChild(_heatBack);
         _heatBar = new ColorRect { Position = new Vector2(10, 8), Size = new Vector2(0, 5), Color = HeatColor };
         AddChild(_heatBar);
 
@@ -75,12 +73,24 @@ public partial class Hud : CanvasLayer
         _target.Position += new Vector2(0, 12);
 
         var help = NewLabel(Vector2.Zero);
-        help.Text = Help;
+        help.Text = HelpText;
         help.HorizontalAlignment = HorizontalAlignment.Center;
         help.AddThemeFontSizeOverride("font_size", 13);
         help.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.CenterBottom);
         help.GrowHorizontal = Control.GrowDirection.Both;
         help.Position += new Vector2(0, -12);
+
+        _banner = NewLabel(Vector2.Zero);
+        _banner.AddThemeFontSizeOverride("font_size", 40);
+        _banner.HorizontalAlignment = HorizontalAlignment.Center;
+        _banner.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+        _banner.GrowHorizontal = Control.GrowDirection.Both;
+        _banner.GrowVertical = Control.GrowDirection.Both;
+        _banner.Visible = false;
+
+        bool player = Mech != null;
+        _heatBack.Visible = _heatBar.Visible = _stat.Visible = _target.Visible = player;
+        if (!player) _feed.Position = new Vector2(10, 10);
 
         _reticle = new Reticle { MouseFilter = Control.MouseFilterEnum.Ignore };
         AddChild(_reticle);
@@ -111,26 +121,30 @@ public partial class Hud : CanvasLayer
         if (_feedLines.Count > 8) _feedLines.RemoveAt(0);
     }
 
-    public override void _UnhandledInput(InputEvent e)
-    {
-        if (Debug != null && e.IsActionPressed("debug_draw")) Debug.Visible = !Debug.Visible;
-    }
-
     public override void _Process(double delta)
     {
         _time += delta;
-        if (Camera == null || Pilot == null || Mech?.Sim is not { } sim) return;
+        _uiTimer += delta;
+        bool refresh = _uiTimer >= 0.1;
+        if (refresh)
+        {
+            _uiTimer = 0;
+            var feed = new StringBuilder();
+            foreach (var (t, line) in _feedLines)
+                if (_time - t < FeedLifetime) feed.Append(line).Append('\n');
+            _feed.Text = feed.ToString();
+        }
+        _reticle.Visible = false;
+        if (Camera == null || Pilot == null || !IsInstanceValid(Mech) || Mech!.Sim is not { } sim) return;
         var weapons = sim.Weapons;
 
         Vector3 aim = Pilot.AimPoint;
-        bool visible = Camera.Mode != CameraMode.Orbit && !Camera.IsPositionBehind(aim) && !sim.IsOut;
+        bool visible = Camera.Mode is CameraMode.Chase or CameraMode.Cockpit && Camera.Target == Mech && !Camera.IsPositionBehind(aim) && !sim.IsOut;
         _reticle.Visible = visible;
         if (visible) _reticle.Position = Camera.UnprojectPosition(aim);
         _reticle.Hot = weapons.HeatLocked;
 
-        _uiTimer += delta;
-        if (_uiTimer < 0.1) return;
-        _uiTimer = 0;
+        if (!refresh) return;
 
         var body = sim.Locomotion.Body;
         var dmg = sim.Damage;
@@ -160,11 +174,14 @@ public partial class Hud : CanvasLayer
             _target.Text = $"{hit.Mech.Name} · {hit.Distance:0} m · on {SectionNames[hit.Section].ToUpperInvariant()}{status}\n{SectionLine(td)}";
         }
         else _target.Text = "";
+    }
 
-        var feed = new StringBuilder();
-        foreach (var (t, line) in _feedLines)
-            if (_time - t < FeedLifetime) feed.Append(line).Append('\n');
-        _feed.Text = feed.ToString();
+    /// <summary>Big centred message (match result); null hides it.</summary>
+    public void ShowBanner(string? text, Color color)
+    {
+        _banner.Visible = text != null;
+        _banner.Text = text ?? "";
+        _banner.AddThemeColorOverride("font_color", color);
     }
 
     private static string SectionLine(MechDamage d) =>

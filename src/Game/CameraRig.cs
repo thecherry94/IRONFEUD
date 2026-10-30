@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Core;
@@ -5,53 +6,88 @@ using IronFeud.Mech;
 
 namespace IronFeud.Game;
 
-public enum CameraMode { Chase, Cockpit, Orbit }
+public enum CameraMode { Chase, Cockpit, Orbit, Overview }
 
 /// <summary>
-/// Chase (over the right shoulder, follows torso yaw), cockpit (head mount) and orbit (mouse drag / wheel) views.
-/// Runs after the mech's physics tick and relies on physics interpolation for smooth rendering.
+/// Chase (over the right shoulder, follows torso yaw), cockpit (head mount), orbit (around the target; drag / wheel)
+/// and overview (frames every mech still fighting, drifts slowly around them; drag / wheel).
+/// Runs after the battle tick and relies on physics interpolation for smooth rendering.
 /// </summary>
 public partial class CameraRig : Camera3D
 {
-    public MechNode? Target;
     public CameraMode Mode { get; private set; } = CameraMode.Chase;
 
-    private Vector3 _chasePos, _chaseLook;
-    private bool _chaseInit;
+    /// <summary>Mechs the overview frames.</summary>
+    public IReadOnlyList<MechNode>? Mechs;
+
+    private MechNode? _target;
+    private Vector3 _chasePos, _chaseLook, _overviewCenter;
+    private bool _chaseInit, _overviewInit;
     private float _theta = Mathf.Pi + 1.2f, _phi = 1.3f, _radius = 27f;
+    private float _ovTheta = 0.7f, _ovPhi = 0.95f, _ovZoom = 1f, _lastDrag = -99f, _clock;
     private bool _dragging;
+
+    public MechNode? Target
+    {
+        get => _target;
+        set
+        {
+            if (_target == value) return;
+            if (IsInstanceValid(_target) && _target!.IsNodeReady())
+            {
+                _target.Rig.SetHeadHidden(false);
+                _target.Tag.Visible = true;
+            }
+            _target = value;
+            SetMode(Mode);
+        }
+    }
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;
         ProcessPhysicsPriority = 100;
         Near = 0.1f;
-        Far = 600f;
-        SetMode(CameraMode.Chase);
+        Far = 900f;
+        SetMode(Mode);
     }
 
     public void SetMode(CameraMode mode)
     {
         Mode = mode;
-        Fov = mode == CameraMode.Cockpit ? 68f : 55f;
-        CullMask = mode == CameraMode.Cockpit ? 0xFFFFFu & ~MechRig.HeadLayer : 0xFFFFFu;
+        Fov = mode == CameraMode.Cockpit ? 68f : mode == CameraMode.Overview ? 50f : 55f;
+        bool cockpit = mode == CameraMode.Cockpit;
+        CullMask = cockpit ? 0xFFFFFu & ~MechRig.HeadLayer : 0xFFFFFu;
+        if (IsInstanceValid(_target) && _target!.IsNodeReady())
+        {
+            _target.Rig.SetHeadHidden(cockpit);
+            _target.Tag.Visible = mode is CameraMode.Orbit or CameraMode.Overview; // no own tag in your face
+        }
         _chaseInit = false;
         ResetPhysicsInterpolation();
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (Mode != CameraMode.Orbit) return;
+        if (Mode is not (CameraMode.Orbit or CameraMode.Overview)) return;
+        bool ov = Mode == CameraMode.Overview;
         switch (e)
         {
             case InputEventMouseButton { ButtonIndex: MouseButton.Left or MouseButton.Right } b:
                 _dragging = b.Pressed;
                 break;
             case InputEventMouseButton { ButtonIndex: MouseButton.WheelUp, Pressed: true }:
-                _radius = Mathf.Clamp(_radius * 0.9f, 8f, 90f);
+                if (ov) _ovZoom = Mathf.Clamp(_ovZoom * 0.9f, 0.3f, 2.5f);
+                else _radius = Mathf.Clamp(_radius * 0.9f, 8f, 90f);
                 break;
             case InputEventMouseButton { ButtonIndex: MouseButton.WheelDown, Pressed: true }:
-                _radius = Mathf.Clamp(_radius / 0.9f, 8f, 90f);
+                if (ov) _ovZoom = Mathf.Clamp(_ovZoom / 0.9f, 0.3f, 2.5f);
+                else _radius = Mathf.Clamp(_radius / 0.9f, 8f, 90f);
+                break;
+            case InputEventMouseMotion m when _dragging && ov:
+                _ovTheta -= m.Relative.X * 0.005f;
+                _ovPhi = Mathf.Clamp(_ovPhi - m.Relative.Y * 0.004f, 0.2f, 1.45f);
+                _lastDrag = _clock;
                 break;
             case InputEventMouseMotion m when _dragging:
                 _theta -= m.Relative.X * 0.006f;
@@ -62,8 +98,14 @@ public partial class CameraRig : Camera3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Target?.Locomotion is not { } loco) return;
         float dt = (float)delta;
+        _clock += dt;
+        if (Mode == CameraMode.Overview)
+        {
+            Overview(dt);
+            return;
+        }
+        if (!IsInstanceValid(_target) || _target!.Locomotion is not { } loco) return;
         var pose = loco.Pose;
         var body = loco.Body;
         Vector3 pelvis = pose.PelvisPosition.ToGodot();
@@ -97,8 +139,41 @@ public partial class CameraRig : Camera3D
                 break;
             }
             case CameraMode.Cockpit:
-                GlobalTransform = Target.Rig.CamMount.GlobalTransform.Orthonormalized();
+                GlobalTransform = _target.Rig.CamMount.GlobalTransform.Orthonormalized();
                 break;
         }
+    }
+
+    /// <summary>The prototype's overview: centroid of the mechs still fighting, distance grows with their spread.</summary>
+    private void Overview(float dt)
+    {
+        if (Mechs == null || Mechs.Count == 0) return;
+        Vector3 sum = Vector3.Zero;
+        int n = 0;
+        bool anyAlive = false;
+        foreach (var m in Mechs) anyAlive |= !m.Sim.IsOut;
+        foreach (var m in Mechs)
+        {
+            if (anyAlive && m.Sim.IsOut) continue;
+            sum += m.GlobalPosition;
+            n++;
+        }
+        Vector3 c = sum / n;
+        float sep = 0f;
+        foreach (var a in Mechs)
+        foreach (var b in Mechs)
+            if (!anyAlive || !a.Sim.IsOut && !b.Sim.IsOut) sep = Mathf.Max(sep, a.GlobalPosition.DistanceTo(b.GlobalPosition));
+
+        if (!_overviewInit)
+        {
+            _overviewCenter = c;
+            _overviewInit = true;
+        }
+        _overviewCenter = _overviewCenter.Lerp(c, 1f - Mathf.Exp(-dt * 1.5f));
+        float r = Mathf.Clamp(sep * 0.85f + 45f, 55f, 175f) * _ovZoom;
+        if (_clock - _lastDrag > 5f) _ovTheta += dt * 0.04f;
+        var look = new Vector3(_overviewCenter.X, 4f, _overviewCenter.Z);
+        var offset = new Vector3(Mathf.Sin(_ovPhi) * Mathf.Sin(_ovTheta), Mathf.Cos(_ovPhi), Mathf.Sin(_ovPhi) * Mathf.Cos(_ovTheta));
+        LookAtFromPosition(look + offset * r, look, Vector3.Up);
     }
 }

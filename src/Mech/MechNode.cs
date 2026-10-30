@@ -1,6 +1,7 @@
-using System;
 using Godot;
 using IronFeud.Core;
+using IronFeud.Logic.AI;
+using IronFeud.Logic.Battle;
 using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
 using IronFeud.Logic.Mech.Weapons;
@@ -8,8 +9,8 @@ using IronFeud.Logic.Mech.Weapons;
 namespace IronFeud.Mech;
 
 /// <summary>
-/// Thin Godot adapter around <see cref="MechSim"/>. A pilot (player or AI) writes <see cref="PilotInput"/>
-/// before this node's physics tick; the node steps the simulation, poses the rig and reports footfalls and shots.
+/// Renders one <see cref="BattleUnit"/>: builds the rig, poses it after every battle tick and shows a name tag.
+/// The simulation lives in <see cref="BattleSim"/>; a pilot (player or AI) writes <see cref="PilotInput"/>.
 /// The node's own transform tracks the body (ground position + leg heading).
 /// </summary>
 public partial class MechNode : Node3D
@@ -21,34 +22,46 @@ public partial class MechNode : Node3D
     [Export(PropertyHint.Range, "0,2,0.01")] public float Impact { get; set; } = 1f;
     [Export(PropertyHint.Range, "0,2.5,0.01")] public float Jank { get; set; } = 1f;
 
-    [ExportGroup("")]
-    [Export] public ChassisClass Chassis { get; set; } = ChassisClass.Medium;
-    [Export] public uint Seed { get; set; } = 1;
+    /// <summary>Set before the node enters the tree.</summary>
+    public BattleUnit Unit = null!;
+    public Color Accent = MechRig.DefaultAccent;
 
-    /// <summary>Carried-over damage (e.g. from a previous battle); set before the node enters the tree.</summary>
-    public MechDamage? InitialDamage;
-
-    public MechInput PilotInput;
-    public MechSim Sim { get; private set; } = null!;
+    public MechSim Sim => Unit.Sim;
     public MechLocomotion Locomotion => Sim.Locomotion;
     public MechWeapons Weapons => Sim.Weapons;
     public MechRig Rig { get; private set; } = null!;
+    public Label3D Tag { get; private set; } = null!;
 
-    public event Action<Footfall>? Footfall;
-    public event Action<ShotFired>? ShotFired;
+    public MechInput PilotInput
+    {
+        get => Unit.Input;
+        set => Unit.Input = value;
+    }
 
-    /// <summary>A hit was applied: report, world point, attacker (if known).</summary>
-    public event Action<DamageReport, Vector3, MechNode?>? Damaged;
+    private double _tagTimer;
 
     public override void _Ready()
     {
-        var chassis = MechChassis.Create(Chassis);
-        Sim = new MechSim(chassis, Seed, InitialDamage);
-        var start = GlobalPosition;
-        Locomotion.Reset(new System.Numerics.Vector3(start.X, 0f, start.Z), Rotation.Y);
-
-        Rig = MechRig.Build(this, chassis);
+        Name = Unit.Name;
+        ProcessPhysicsPriority = -10; // after pilots, before the battle tick
+        Rig = MechRig.Build(this, Sim.Chassis, Accent);
         SyncSectionVisibility();
+
+        Tag = new Label3D
+        {
+            Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+            NoDepthTest = true,
+            FixedSize = true,
+            PixelSize = 0.0011f,
+            FontSize = 26,
+            OutlineSize = 8,
+            Modulate = Accent.Lightened(0.35f),
+            Position = new Vector3(0f, 13f * Sim.Chassis.Scale, 0f),
+            RenderPriority = 10,
+            OutlineRenderPriority = 9,
+        };
+        AddChild(Tag);
+        UpdateTag();
 
         SyncFromSimulation();
         ResetPhysicsInterpolation();
@@ -63,20 +76,28 @@ public partial class MechNode : Node3D
         t.Lift = Lift;
         t.Impact = Impact;
         t.Jank = Jank;
-
-        Sim.Step(PilotInput, (float)delta);
-        SyncFromSimulation();
-        foreach (var f in Locomotion.Footfalls) Footfall?.Invoke(f);
-        foreach (var s in Sim.Shots) ShotFired?.Invoke(s);
     }
 
-    public DamageReport ApplyHit(MechSection section, float amount, Vector3 at, MechNode? attacker)
+    public override void _Process(double delta)
     {
-        var report = Sim.ApplyHit(section, amount);
-        if (report.Ignored) return report;
+        _tagTimer -= delta;
+        if (_tagTimer > 0) return;
+        _tagTimer = 0.15;
+        UpdateTag();
+    }
+
+    /// <summary>Called by the battlefield after each battle tick.</summary>
+    public void SyncFromSimulation()
+    {
+        var body = Locomotion.Body;
+        GlobalTransform = new Transform3D(new Basis(Vector3.Up, body.Psi), body.Position.ToGodot());
+        Rig.Apply(Sim.Pose);
+    }
+
+    public void OnDamaged(in DamageReport report)
+    {
         if (report.SectionDestroyed) SyncSectionVisibility();
-        Damaged?.Invoke(report, at, attacker);
-        return report;
+        UpdateTag();
     }
 
     private void SyncSectionVisibility()
@@ -85,10 +106,19 @@ public partial class MechNode : Node3D
         Rig.Arms[1].Shoulder.Visible = !Sim.Damage.IsDestroyed(MechSection.ArmRight);
     }
 
-    private void SyncFromSimulation()
+    private void UpdateTag()
     {
-        var body = Locomotion.Body;
-        GlobalTransform = new Transform3D(new Basis(Vector3.Up, body.Psi), body.Position.ToGodot());
-        Rig.Apply(Sim.Pose);
+        var d = Sim.Damage;
+        string who = Unit.Ai is { } ai ? $"{Unit.Name} · {ai.Personality.Name}" : Unit.Name;
+        if (Sim.Chassis.Class != ChassisClass.Medium) who += $" · {Sim.Chassis.Name}";
+        string state = d.Status switch
+        {
+            MechStatus.Destroyed => "DESTROYED",
+            MechStatus.PilotKilled => "PILOT KILLED",
+            _ => Unit.Ai is { } a ? AiPilot.Name(a.Action) + (a.TwistingAway ? " · twist-away" : "") : "",
+        };
+        int bars = Mathf.CeilToInt(d.Fraction(MechSection.Torso) * 10f);
+        Tag.Text = $"{who}\n{new string('▮', bars)}{new string('▯', 10 - bars)}\n{state}";
+        Tag.Modulate = d.IsOut ? new Color(0.6f, 0.6f, 0.6f, 0.7f) : Accent.Lightened(0.35f);
     }
 }

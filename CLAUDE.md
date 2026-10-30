@@ -50,9 +50,12 @@ dotnet build IRONFEUD.sln          # compile everything (bare `dotnet build` fai
 godot --path . &                   # run the editor/game (Godot .NET build on PATH)
 godot --path . --headless --quit   # import/validate project in CI or before commits
 dotnet test tests/                 # pure-logic unit tests (xUnit)
-# Unattended captures: --autopilot (scripted walk, fires 3-9 s) or --range-demo (scripted shooting at the
-# targets); --camera=orbit|cockpit (default chase); --debug shows gait and hit spheres:
-godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --autopilot --camera=orbit
+# Modes: --watch=1v1|2v2|lights (AI vs AI, default 1v1), --play=1v1|2v2, --range (firing range); in game F5-F10.
+# Captures: --autopilot (range, scripted walk, fires 3-9 s), --range-demo (range, scripted shooting);
+# --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light puts the player in a light mech;
+# --seed=N picks the arena layout:
+godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --watch=2v2
+dotnet test tests/ --filter AiDuels --logger "console;verbosity=detailed"   # headless AI duel summary
 ```
 Pinned: `Godot 4.7.2 .NET` (Godot.NET.Sdk 4.7.2), all projects target `net8.0` (built with .NET SDK 10).
 
@@ -61,13 +64,17 @@ Pinned: `Godot 4.7.2 .NET` (Godot.NET.Sdk 4.7.2), all projects target `net8.0` (
 src/
   IronFeud.Logic/   separate class library, NO Godot reference (enforced by the compiler). Hidden from Godot via .gdignore.
     Core/           MathUtil, Rot (Godot-convention quaternions), Spring, DeterministicRng
-    Mech/           MechInput, MechChassis, BodyKinematics, GaitController, LegIK, SecondaryMotion,
-                    MechPoseSolver, MechLocomotion (facade); later HeatSystem, DamageModel, Weapons/
-    AI/ Campaign/   (later) utility brain, perception math; the campaign sim
+    Mech/           MechInput, MechChassis (classes), BodyKinematics, GaitController, LegIK, SecondaryMotion,
+                    MechPoseSolver, MechLocomotion, MechSim (whole mech), AimSolver; Weapons/, Damage/
+    Battle/         ArenaMap (blocks, cover, rays), BattleSim (headless battle: units, shots, damage, collision)
+    AI/             AiPilot (the prototype's utility AI), Personality
+    Campaign/       (later) the campaign sim
   Core/             Godot-side helpers: GodotConv (System.Numerics <-> Godot), ProceduralTextures
-  Mech/             MechNode (adapter), MechRig (builds the node hierarchy), FootfallFx, GaitDebugDraw
-  AI/ Audio/        (later) Godot adapters for AI pilots, SfxBank, ProceduralServo, WarningVoice
-  Game/             Main, Arena, CameraRig (chase/cockpit/orbit), PlayerMechController, Hud
+  Mech/             MechNode (view of a BattleUnit), MechRig (builds the node hierarchy), GaitDebugDraw
+  AI/               AiDebugDraw (overlay), AiPanel (inspector)
+  Audio/            (later) SfxBank, ProceduralServo, WarningVoice
+  Game/             Main (modes/sessions), Battlefield (steps + renders BattleSim), Arena (renders ArenaMap),
+                    CameraRig (chase/cockpit/orbit/overview), PlayerMechController, Hud, Effects, GameInput
 scenes/             main.tscn (thin: just the Main script)
 tests/              xUnit project referencing IronFeud.Logic
 docs/               design notes (read on demand)

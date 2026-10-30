@@ -40,6 +40,7 @@ public partial class GaitDebugDraw : MeshInstance3D
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             VertexColorUseAsAlbedo = true,
             NoDepthTest = true,
+            DisableFog = true,
         };
     }
 

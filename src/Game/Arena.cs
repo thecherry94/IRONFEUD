@@ -1,57 +1,56 @@
 using Godot;
 using IronFeud.Core;
+using IronFeud.Logic.Battle;
 using IronFeud.Logic.Core;
 
 namespace IronFeud.Game;
 
 /// <summary>
-/// Flat test ground with scattered blocks and rocks, environment and sun. Placeholder for step 4's arena.
-/// Blocks avoid the <c>clear</c> (x/z rectangle) so a firing range can stay open.
+/// Renders an <see cref="ArenaMap"/>: environment, ground, its blocks, cosmetic rocks and the boundary ring.
+/// Collision and line of sight come from the map itself, so nothing here has a physics body.
 /// </summary>
 public static class Arena
 {
     private const float GroundSize = 2000f;
-    private const float Scatter = 160f;
     private static readonly Color Fog = new("8d98a0");
 
-    public static void Build(Node3D root, uint seed, Rect2? clear = null)
+    public static void Build(Node3D root, ArenaMap map, uint seed)
     {
         var rng = new DeterministicRng(seed);
         BuildEnvironment(root);
         BuildGround(root, seed);
 
+        var panel = ProceduralTextures.ArmorPanel(seed);
         var propMats = new[]
         {
-            new StandardMaterial3D { AlbedoColor = new Color("6d675e"), Roughness = 0.9f },
-            new StandardMaterial3D { AlbedoColor = new Color("5a5f63"), Roughness = 0.8f, Metallic = 0.2f },
-            new StandardMaterial3D { AlbedoColor = new Color("7b6f60"), Roughness = 0.95f },
+            Prop("6d675e", 0.9f, 0f, panel),
+            Prop("5a5f63", 0.8f, 0.2f, panel),
+            Prop("7b6f60", 0.95f, 0f, panel),
         };
 
         var blocks = new Node3D { Name = "Blocks" };
         root.AddChild(blocks);
-        for (int i = 0; i < 150; i++)
+        for (int i = 0; i < map.Blocks.Count; i++)
         {
-            float h = 3f + rng.NextFloat() * rng.NextFloat() * 26f, w = 3f + rng.NextFloat() * 9f, d = 3f + rng.NextFloat() * 9f;
-            Vector2 p = RandomSpot(rng, 16f);
-            while (clear is { } c && c.Grow(Mathf.Max(w, d) * 0.75f).HasPoint(p)) p = RandomSpot(rng, 16f);
-            var body = new StaticBody3D
+            var b = map.Blocks[i];
+            blocks.AddChild(new MeshInstance3D
             {
-                Position = new Vector3(p.X, h / 2f, p.Y),
-                Rotation = new Vector3(0, rng.NextFloat() * 3f, 0),
-            };
-            var size = new Vector3(w, h, d);
-            body.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = size }, MaterialOverride = propMats[i % 3] });
-            body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
-            blocks.AddChild(body);
+                Mesh = new BoxMesh { Size = b.Size.ToGodot() },
+                MaterialOverride = propMats[i % 3],
+                Position = b.Center.ToGodot(),
+            });
         }
 
         var rocks = new Node3D { Name = "Rocks" };
         root.AddChild(rocks);
         var rockMesh = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 7, Rings = 3 };
+        float spread = map.Radius > 0f ? map.Radius + 40f : 160f;
         for (int i = 0; i < 110; i++)
         {
             float s = 0.3f + rng.NextFloat() * 1.3f;
-            Vector2 p = RandomSpot(rng, 6f);
+            float a = rng.NextFloat() * Mathf.Tau, r = 6f + rng.NextFloat() * spread;
+            Vector2 p = new(Mathf.Cos(a) * r, Mathf.Sin(a) * r);
+            if (map.InsideAnyBlock(p.X, p.Y, 1f)) continue;
             rocks.AddChild(new MeshInstance3D
             {
                 Mesh = rockMesh,
@@ -61,16 +60,36 @@ public static class Arena
                 Scale = new Vector3(s * (1f + rng.NextFloat()), s, s * (1f + rng.NextFloat())),
             });
         }
-    }
 
-    private static Vector2 RandomSpot(DeterministicRng rng, float minRadius)
-    {
-        while (true)
+        if (map.Radius > 0f)
         {
-            var p = new Vector2(rng.Range(-Scatter, Scatter), rng.Range(-Scatter, Scatter));
-            if (p.Length() > minRadius) return p;
+            root.AddChild(new MeshInstance3D
+            {
+                Name = "Boundary",
+                Mesh = new TorusMesh { InnerRadius = map.Radius + 4f, OuterRadius = map.Radius + 6f, Rings = 96, RingSegments = 4 },
+                Scale = new Vector3(1f, 0.05f, 1f),
+                Position = new Vector3(0f, 0.05f, 0f),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                MaterialOverride = new StandardMaterial3D
+                {
+                    AlbedoColor = new Color(1f, 0.54f, 0.16f, 0.35f),
+                    Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                    ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                },
+            });
         }
     }
+
+    private static StandardMaterial3D Prop(string color, float rough, float metal, Texture2D panel) => new()
+    {
+        AlbedoColor = new Color(color),
+        AlbedoTexture = panel,
+        Roughness = rough,
+        Metallic = metal,
+        Uv1Triplanar = true,
+        Uv1Scale = new Vector3(0.25f, 0.25f, 0.25f),
+        TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+    };
 
     private static void BuildGround(Node3D root, uint seed)
     {
@@ -114,8 +133,8 @@ public static class Arena
             FogMode = Godot.Environment.FogModeEnum.Depth,
             FogLightColor = Fog,
             FogDensity = 1f,
-            FogDepthBegin = 70f,
-            FogDepthEnd = 280f,
+            FogDepthBegin = 120f,
+            FogDepthEnd = 420f,
             FogSkyAffect = 1f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
@@ -126,7 +145,7 @@ public static class Arena
             LightColor = new Color("fff0dd"),
             LightEnergy = 1.4f,
             ShadowEnabled = true,
-            DirectionalShadowMaxDistance = 160f,
+            DirectionalShadowMaxDistance = 220f,
         };
         root.AddChild(sun);
         sun.LookAtFromPosition(new Vector3(-30, 55, -22), Vector3.Zero, Vector3.Up);

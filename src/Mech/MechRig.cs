@@ -16,8 +16,11 @@ namespace IronFeud.Mech;
 /// </summary>
 public sealed class MechRig
 {
-    /// <summary>Render layer for the head, hidden from the cockpit camera.</summary>
+    /// <summary>Render layer for the cockpit camera's own head, which that camera culls (see <see cref="SetHeadHidden"/>).</summary>
     public const uint HeadLayer = 1u << 1;
+
+    /// <summary>Default accent (orange); teams pass their own.</summary>
+    public static readonly Color DefaultAccent = new("c46a2c");
 
     public sealed class LegNodes
     {
@@ -41,13 +44,13 @@ public sealed class MechRig
     {
         public readonly StandardMaterial3D Armor, ArmorDark, Frame, Accent, Chrome, Glow, Glass, Lens, Hole;
 
-        public Mats()
+        public Mats(Color accent)
         {
             var panel = ProceduralTextures.ArmorPanel(11);
             Armor = Lit("9aa1a8", 0.25f, 0.55f, panel);
             ArmorDark = Lit("6a7077", 0.3f, 0.6f, panel);
             Frame = Lit("3e4249", 0.45f, 0.5f);
-            Accent = Lit("c46a2c", 0.2f, 0.55f);
+            Accent = Lit(accent.ToHtml(false), 0.2f, 0.55f);
             Chrome = Lit("c8cdd2", 0.6f, 0.25f);
             Glow = Emissive("221100", "ff7a1a", 2.2f);
             Glass = Lit("0c1820", 0.9f, 0.08f);
@@ -77,11 +80,11 @@ public sealed class MechRig
         }
     }
 
-    public static MechRig Build(Node3D owner, MechChassis t)
+    public static MechRig Build(Node3D owner, MechChassis t, Color? accent = null)
     {
         float s = t.Scale;
         var r = new MechRig { Scale = s };
-        var m = new Mats();
+        var m = new Mats(accent ?? DefaultAccent);
         float l1 = t.L1 / s, l2 = t.L2 / s;
         const float halfPi = Mathf.Pi / 2f;
 
@@ -163,8 +166,6 @@ public sealed class MechRig
         Box(head, 1.9f, 0.18f, 2.0f, m.Armor, 0, 0.5f, 0);
         Cyl(head, 0.04f, 0.04f, 1.8f, m.Chrome, 0.7f, 1.3f, 0.6f);
         Cyl(head, 0.03f, 0.03f, 1.1f, m.Chrome, 0.5f, 1.0f, 0.7f);
-        foreach (var child in head.GetChildren())
-            if (child is VisualInstance3D vi) vi.Layers = HeadLayer;
         r.CamMount = Group(head, "CamMount", 0, 0, -1.25f);
 
         var launcher = Group(torso, "Launcher", 1.3f, 2.95f, -0.1f);
@@ -208,6 +209,13 @@ public sealed class MechRig
         }
 
         return r;
+    }
+
+    /// <summary>Moves the head meshes onto <see cref="HeadLayer"/> so a camera sitting inside this head can cull them.</summary>
+    public void SetHeadHidden(bool hidden)
+    {
+        foreach (var child in Head.GetChildren())
+            if (child is VisualInstance3D vi) vi.Layers = hidden ? HeadLayer : 1u;
     }
 
     public void Apply(MechPose pose)
