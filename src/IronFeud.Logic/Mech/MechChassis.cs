@@ -5,20 +5,44 @@ namespace IronFeud.Logic.Mech;
 
 public enum ChassisClass { Light, Medium, Heavy, Assault }
 
+/// <summary>Body plan and look. Independent of the weight class, which sets size, speed and armour.</summary>
+public enum MechModel
+{
+    /// <summary>The prototype's upright biped: boxy torso, hanging arms, forward knees.</summary>
+    Hauberk,
+
+    /// <summary>Chicken walker: a long, low hull with a nose cockpit, weapon pods instead of arms, digitigrade legs.</summary>
+    Sicklefoot,
+}
+
+public enum LegLayout
+{
+    /// <summary>Thigh, shin, flat foot; the knee points forward.</summary>
+    Plantigrade,
+
+    /// <summary>
+    /// Thigh, shin, and a long raised foot bone (L3) held parallel to the thigh, walking on the toes: the knee points
+    /// forward and the hock (ankle) backward, the "Z" leg of birds and chicken walkers.
+    /// </summary>
+    Digitigrade,
+}
+
 /// <summary>
-/// Everything that differs between mech classes: kinematics, gait, rig dimensions, hit volumes, armour, hardpoints,
+/// Everything that differs between mechs: kinematics, gait, rig dimensions, hit volumes, armour, hardpoints,
 /// heat, plus the feel multipliers from the prototype's sliders. Each mech owns its own instance (the Godot side
 /// writes the feel multipliers for live tuning). See docs/locomotion.md for what the gait constants mean.
-/// Field defaults are the web prototype's walker (4.2 m/s); the class presets below are the game's mechs.
+/// Field defaults are the web prototype's walker (4.2 m/s); <see cref="Create"/> builds the game's mechs from a
+/// model (body plan) and a weight class.
 /// </summary>
 public sealed class MechChassis
 {
     public string Name = "Prototype";
     public ChassisClass Class = ChassisClass.Medium;
+    public MechModel Model = MechModel.Hauberk;
 
     /// <summary>
-    /// Rig size relative to the prototype mech. All lengths below are already scaled; the gait's built-in lengths
-    /// (lift, sway, foot size) and the rig's meshes are multiplied by it.
+    /// Rig size relative to the model's medium. All lengths below are already scaled; the gait's built-in lengths
+    /// (lift, sway) and the rig's meshes are multiplied by it.
     /// </summary>
     public float Scale = 1f;
 
@@ -45,13 +69,22 @@ public sealed class MechChassis
     public float FMin = 0.36f;
     public float AMax = 1.95f;
 
-    // Rig dimensions
+    // Legs. L3 is the raised foot bone of a digitigrade leg (0 for plantigrade). AnkleHeight is the height of the
+    // IK end point above the ground when the foot is flat: the ankle, or the toe joint of a digitigrade leg.
+    public LegLayout Legs = LegLayout.Plantigrade;
     public float L1 = 3.2f;
     public float L2 = 3.3f;
+    public float L3;
     public float AnkleHeight = 0.62f;
     public float HipWidth = 1.6f;
     public float HipHeight = 5.75f;
     public float HipRootY = -0.15f;
+
+    /// <summary>Foot pivots for heel-strike / toe-off: toe ahead of and heel behind the IK end point.</summary>
+    public float ToeLength = 1.7f, HeelLength = 1.05f;
+
+    /// <summary>Leg extension (hip-to-foot distance / leg length) with the foot under the hip; sets the hip height.</summary>
+    public float StanceExtension = 0.766f;
 
     // Upper-body attachment points (MechRig builds the same hierarchy from these)
     public float TorsoBaseY = 0.55f;
@@ -61,12 +94,15 @@ public sealed class MechChassis
     public float AimOriginY = 1.2f;                            // torso-local height of the aim ray origin
     public Vector3 HeadOffset = new(0f, 2.75f, -1.0f);         // torso-local
 
+    /// <summary>Gait arm swing multiplier (weapon pods on a hull barely swing).</summary>
+    public float ArmSwing = 1f;
+
     // Hardpoints: muzzle positions in the elbow frame. The rig carries a cannon on the right arm, a laser on the left.
     public Vector3 RightArmMuzzle = new(0f, 0.05f, -5.4f);
     public Vector3 LeftArmMuzzle = new(0f, 0.1f, -3.5f);
 
     // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
-    public float TorsoHitY = 1.2f;
+    public Vector3 TorsoHitOffset = new(0f, 1.2f, 0f);         // torso-local
     public float TorsoHitRadius = 2.4f;
     public Vector3 ArmHitOffset = new(0f, 0f, -1.7f);           // elbow-local (forearm)
     public float ArmHitRadius = 1.4f;
@@ -99,101 +135,137 @@ public sealed class MechChassis
     public float Impact = 1f;
     public float Jank = 1f;
 
+    public float LegLength => L1 + L2 + L3;
+
     /// <summary>0 = walking, 1 = fully running.</summary>
     public float RunBlend(float speed) => Core.MathUtil.Smoothstep(RunStartSpeed, RunFullSpeed, speed);
 
     /// <summary>Stance fraction at a given speed.</summary>
     public float DutyAt(float speed) => Core.MathUtil.Lerp(Duty, DutyRun, RunBlend(speed));
 
-    public static MechChassis Create(ChassisClass c) => c switch
-    {
-        ChassisClass.Light => Light(),
-        ChassisClass.Medium => Medium(),
-        ChassisClass.Heavy => Heavy(),
-        ChassisClass.Assault => Assault(),
-        _ => throw new ArgumentOutOfRangeException(nameof(c)),
-    };
-
     /// <summary>The web prototype's walker, unchanged (4.2 m/s). Tests pin conventions against it.</summary>
     public static MechChassis Prototype() => new();
 
-    // Class presets. Speed bands: light 100-150 km/h, medium 60-100, heavy 50-70, assault 30-50.
-    // Everything except the prototype's geometry is a first guess for feel tuning.
+    public static MechChassis Light(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Light, model);
+    public static MechChassis Medium(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Medium, model);
+    public static MechChassis Heavy(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Heavy, model);
+    public static MechChassis Assault(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Assault, model);
 
-    /// <summary>The prototype's body at 80 km/h.</summary>
-    public static MechChassis Medium()
+    /// <summary>
+    /// A game mech: the model's body at medium size, then the class's scale, speed and armour.
+    /// Speed bands: light 100-150 km/h, medium 60-100, heavy 50-70, assault 30-50.
+    /// Everything except the prototype's geometry is a first guess for feel tuning.
+    /// </summary>
+    public static MechChassis Create(ChassisClass cls, MechModel model = MechModel.Hauberk)
     {
-        var c = new MechChassis { Name = "Medium" };
-        c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
-        c.TurnSpeedPenalty = 0.5f;
-        c.AMax = 2.6f; // ~70 % of the leg's horizontal reach, for running strides
+        var c = model switch
+        {
+            MechModel.Hauberk => new MechChassis(),
+            MechModel.Sicklefoot => SicklefootBody(),
+            _ => throw new ArgumentOutOfRangeException(nameof(model)),
+        };
+        c.Model = model;
+        c.Class = cls;
+        c.Name = $"{model} {cls}";
+        switch (cls)
+        {
+            case ChassisClass.Light:
+                // Small, leggy and very fast: quick turns and twist, thin armour. Legs 10 % longer relative to the body.
+                c.Scaled(0.72f);
+                c.L1 *= 1.1f;
+                c.L2 *= 1.1f;
+                c.L3 *= 1.1f;
+                c.FMin = 0.6f;
+                c.SetSpeed(36f, rev: 8f, accel: 10f, decel: 16f, omega: 1.8f, omegaAccel: 5f, twistRate: 3f, aimRate: 1.6f);
+                c.TurnSpeedPenalty = 0.55f;
+                c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
+                c.SetArmour(60f, 30f, 45f, 4f);
+                c.HeatDissipation = 0.06f;
+                c.CollapseTime = 1.1f;
+                break;
+            case ChassisClass.Medium:
+                c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
+                c.TurnSpeedPenalty = 0.5f;
+                break;
+            case ChassisClass.Heavy:
+                // Bigger and tougher, a ponderous run.
+                c.Scaled(1.15f);
+                c.SetSpeed(16.5f, rev: 4.5f, accel: 4f, decel: 7f, omega: 0.8f, omegaAccel: 2f, twistRate: 1.5f, aimRate: 1f);
+                c.TurnSpeedPenalty = 0.45f;
+                c.SetArmour(140f, 60f, 95f, 6f);
+                c.HeatDissipation = 0.05f;
+                c.CollapseTime = 1.7f;
+                break;
+            case ChassisClass.Assault:
+                // The wall: never quite breaks into a run, heaviest armour.
+                c.Scaled(1.3f);
+                c.SetSpeed(11f, rev: 3.5f, accel: 2.8f, decel: 5f, omega: 0.6f, omegaAccel: 1.5f, twistRate: 1.2f, aimRate: 0.9f);
+                c.TurnSpeedPenalty = 0.4f;
+                c.SetArmour(180f, 75f, 120f, 7f);
+                c.HeatDissipation = 0.045f;
+                c.CollapseTime = 2f;
+                break;
+        }
+        c.FitGaitToLegs();
         return c;
     }
 
-    /// <summary>Small, leggy and very fast: 130 km/h, quick turns and twist, thin armour.</summary>
-    public static MechChassis Light()
+    /// <summary>
+    /// Sicklefoot at medium size: a long, low hull carried forward of the hips, cockpit in the nose, weapon pods on
+    /// short side pylons, digitigrade legs. About a metre lower than the Hauberk but longer.
+    /// </summary>
+    private static MechChassis SicklefootBody() => new()
     {
-        var c = new MechChassis().Scaled(0.72f);
-        c.Name = "Light";
-        c.Class = ChassisClass.Light;
+        Legs = LegLayout.Digitigrade,
+        L1 = 2.3f,
+        L2 = 3.0f,
+        L3 = 1.9f,
+        AnkleHeight = 0.35f,
+        HipWidth = 1.45f,
+        HipRootY = -0.1f,
+        StanceExtension = 0.72f,
+        ToeLength = 1.0f,
+        HeelLength = 0.35f,
 
-        // Legs 10 % longer relative to the body; hips at the same ~75 % leg extension as the medium.
-        c.L1 *= 1.1f;
-        c.L2 *= 1.1f;
-        c.HipHeight = c.AnkleHeight + 0.75f * (c.L1 + c.L2) - c.HipRootY;
-        c.AMax = 2.15f;
-        c.FMin = 0.6f;
-        c.SetRunSpeedsFromLegs();
+        TorsoBaseY = 0.45f,
+        TorsoY = 0.55f,
+        ShoulderOffset = new Vector3(2.05f, 0.75f, -0.7f),
+        ElbowOffset = new Vector3(0.5f, -0.15f, 0f),
+        AimOriginY = 0.9f,
+        HeadOffset = new Vector3(0f, 0.55f, -2.75f),
+        ArmSwing = 0.25f,
+        TwistMax = 1.9f,
 
-        c.SetSpeed(36f, rev: 8f, accel: 10f, decel: 16f, omega: 1.8f, omegaAccel: 5f, twistRate: 3f, aimRate: 1.6f);
-        c.TurnSpeedPenalty = 0.55f;
-        c.TwistMax = 1.5f;
+        RightArmMuzzle = new Vector3(0f, 0f, -3.9f),
+        LeftArmMuzzle = new Vector3(0f, 0.05f, -2.7f),
 
-        c.TorsoHp = 60f;
-        c.ArmHp = 30f;
-        c.LegsHp = 45f;
-        c.CockpitHp = 4f;
-        c.HeatDissipation = 0.06f;
-        c.CollapseTime = 1.1f;
-        return c;
+        TorsoHitOffset = new Vector3(0f, 0.9f, -0.4f),
+        TorsoHitRadius = 2.2f,
+        ArmHitOffset = new Vector3(0f, 0f, -1.3f),
+        ArmHitRadius = 1.15f,
+        LegsHitDrop = 2.6f,
+        CockpitHitOffset = new Vector3(0f, 0.1f, -0.8f),
+        CollapseDrop = 2.8f,
+    };
+
+    /// <summary>
+    /// Hip height from the stance extension, stride limit from the leg's horizontal reach (70 % of it at 95 %
+    /// extension), walk-to-run speeds from the Froude number.
+    /// </summary>
+    private void FitGaitToLegs()
+    {
+        float l = LegLength, h = StanceExtension * l;
+        HipHeight = AnkleHeight + h - HipRootY;
+        AMax = 0.7f * MathF.Sqrt((0.95f * l) * (0.95f * l) - h * h);
+        SetRunSpeedsFromLegs();
     }
 
-    /// <summary>Bigger and tougher: 60 km/h, a ponderous run.</summary>
-    public static MechChassis Heavy()
+    private void SetArmour(float torso, float arm, float legs, float cockpit)
     {
-        var c = new MechChassis().Scaled(1.15f);
-        c.Name = "Heavy";
-        c.Class = ChassisClass.Heavy;
-        c.AMax = 3f;
-        c.SetRunSpeedsFromLegs();
-        c.SetSpeed(16.5f, rev: 4.5f, accel: 4f, decel: 7f, omega: 0.8f, omegaAccel: 2f, twistRate: 1.5f, aimRate: 1f);
-        c.TurnSpeedPenalty = 0.45f;
-        c.TorsoHp = 140f;
-        c.ArmHp = 60f;
-        c.LegsHp = 95f;
-        c.CockpitHp = 6f;
-        c.HeatDissipation = 0.05f;
-        c.CollapseTime = 1.7f;
-        return c;
-    }
-
-    /// <summary>The wall: 40 km/h, never quite breaks into a run, heaviest armour.</summary>
-    public static MechChassis Assault()
-    {
-        var c = new MechChassis().Scaled(1.3f);
-        c.Name = "Assault";
-        c.Class = ChassisClass.Assault;
-        c.AMax = 3.3f;
-        c.SetRunSpeedsFromLegs();
-        c.SetSpeed(11f, rev: 3.5f, accel: 2.8f, decel: 5f, omega: 0.6f, omegaAccel: 1.5f, twistRate: 1.2f, aimRate: 0.9f);
-        c.TurnSpeedPenalty = 0.4f;
-        c.TorsoHp = 180f;
-        c.ArmHp = 75f;
-        c.LegsHp = 120f;
-        c.CockpitHp = 7f;
-        c.HeatDissipation = 0.045f;
-        c.CollapseTime = 2f;
-        return c;
+        TorsoHp = torso;
+        ArmHp = arm;
+        LegsHp = legs;
+        CockpitHp = cockpit;
     }
 
     private void SetSpeed(float vMax, float rev, float accel, float decel, float omega, float omegaAccel, float twistRate, float aimRate)
@@ -227,7 +299,10 @@ public sealed class MechChassis
         AMax *= s;
         L1 *= s;
         L2 *= s;
+        L3 *= s;
         AnkleHeight *= s;
+        ToeLength *= s;
+        HeelLength *= s;
         HipWidth *= s;
         HipHeight *= s;
         HipRootY *= s;
@@ -239,7 +314,7 @@ public sealed class MechChassis
         HeadOffset *= s;
         RightArmMuzzle *= s;
         LeftArmMuzzle *= s;
-        TorsoHitY *= s;
+        TorsoHitOffset *= s;
         TorsoHitRadius *= s;
         ArmHitOffset *= s;
         ArmHitRadius *= s;

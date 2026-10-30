@@ -211,7 +211,7 @@ public sealed class GaitController
             // Walking: fast lift, hang, hard drop. Running: a much higher, earlier arc (the foot is pulled up under
             // the hip as it recovers) instead of skimming the ground.
             float walkLift = 0.95f * s0 * MathUtil.Clamp(dist / (1.6f * s0), 0.35f, 1f);
-            float runLift = 0.28f * (t.L1 + t.L2);
+            float runLift = 0.28f * t.LegLength;
             lift = t.Lift * MathUtil.Lerp(walkLift, runLift, Run) * MathF.Sin(MathF.PI * MathF.Pow(s, MathUtil.Lerp(0.75f, 0.55f, Run)));
             pitch = MathUtil.Lerp(0.38f, -0.14f, MathUtil.Smoothstep(0f, 0.75f, s));
             outward = 0.22f * s0 * MathF.Sin(MathF.PI * s) * MathUtil.Clamp01(dist / (2f * s0));
@@ -219,7 +219,7 @@ public sealed class GaitController
 
         pitch *= scale * (body.V < -0.1f ? 0.3f : 1f);
         // Raise the ankle so the pivot (toe when toe-down, heel when toe-up) stays on the ground.
-        float rise = s0 * (pitch > 0f ? 1.7f * MathF.Sin(pitch) : 1.05f * MathF.Sin(-pitch));
+        float rise = pitch > 0f ? t.ToeLength * MathF.Sin(pitch) : t.HeelLength * MathF.Sin(-pitch);
         Vector3 outOffset = MathUtil.RotateY(new Vector3(-leg.Side * outward, 0f, 0f), yaw);
 
         return new FootTarget

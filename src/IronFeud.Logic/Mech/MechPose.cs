@@ -36,16 +36,26 @@ public sealed class MechPose
     public float Jank;
 }
 
+/// <summary>
+/// Joint rotations, each local to its parent: hip → knee → (hock, digitigrade only) → ankle. The ankle is the foot
+/// joint at the IK end point: the ankle of a plantigrade leg, the toe joint of a digitigrade one.
+/// </summary>
 public sealed class LegPose
 {
     public Quaternion Hip = Quaternion.Identity;
     public Quaternion Knee = Quaternion.Identity;
+
+    /// <summary>Digitigrade only: the backward-pointing joint between shin and raised foot bone.</summary>
+    public Quaternion Hock = Quaternion.Identity;
     public Quaternion Ankle = Quaternion.Identity;
 
     // World-space values for debug drawing and tests.
     public FootTarget Target;
     public Vector3 HipWorld;
     public Vector3 KneeWorld;
+
+    /// <summary>Digitigrade: the hock joint; plantigrade: equal to <see cref="AnkleWorld"/>.</summary>
+    public Vector3 HockWorld;
     public Vector3 AnkleWorld;
     public Quaternion FootWorld = Quaternion.Identity;
 }

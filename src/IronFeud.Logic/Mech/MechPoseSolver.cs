@@ -66,7 +66,7 @@ public static class MechPoseSolver
 
         Quaternion headRot = torsoRot * pose.HeadRotation;
         Vector3 headPos = torsoPos + Vector3.Transform(t.HeadOffset, torsoRot);
-        pose.HitVolumes[(int)MechSection.Torso] = Sphere(MechSection.Torso, torsoPos + Vector3.Transform(new Vector3(0f, t.TorsoHitY, 0f), torsoRot), t.TorsoHitRadius);
+        pose.HitVolumes[(int)MechSection.Torso] = Sphere(MechSection.Torso, torsoPos + Vector3.Transform(t.TorsoHitOffset, torsoRot), t.TorsoHitRadius);
         pose.HitVolumes[(int)MechSection.ArmLeft] = Sphere(MechSection.ArmLeft, Elbow(pose, 0, t.ArmHitOffset), t.ArmHitRadius);
         pose.HitVolumes[(int)MechSection.ArmRight] = Sphere(MechSection.ArmRight, Elbow(pose, 1, t.ArmHitOffset), t.ArmHitRadius);
         pose.HitVolumes[(int)MechSection.Legs] = Sphere(MechSection.Legs, pose.PelvisPosition - new Vector3(0f, t.LegsHitDrop, 0f), t.LegsHitRadius);
@@ -89,20 +89,36 @@ public static class MechPoseSolver
             Vector3 rootWorld = pose.PelvisPosition + Vector3.Transform(rootLocal, pose.PelvisRotation);
             Vector3 d = Vector3.Transform(target.Ankle - rootWorld, pelvisInv);
 
-            var angles = LegIK.Solve(d, t.L1, t.L2);
-            lp.Hip = LegIK.HipRotation(angles);
-            lp.Knee = LegIK.KneeRotation(angles);
-
             // Foot orientation is world-space: it keeps its planted yaw while the body turns over it.
-            Quaternion kneeWorld = pose.PelvisRotation * lp.Hip * lp.Knee;
             Quaternion footWorld = Rot.Y(target.Yaw) * Rot.X(-target.Pitch);
-            lp.Ankle = Quaternion.Normalize(Quaternion.Inverse(kneeWorld) * footWorld);
-
-            var (knee, ankle) = LegIK.Forward(angles, t.L1, t.L2);
             lp.Target = target;
             lp.HipWorld = rootWorld;
-            lp.KneeWorld = rootWorld + Vector3.Transform(knee, pose.PelvisRotation);
-            lp.AnkleWorld = rootWorld + Vector3.Transform(ankle, pose.PelvisRotation);
+            if (t.Legs == LegLayout.Digitigrade)
+            {
+                var angles = LegIK.SolveDigitigrade(d, t.L1, t.L2, t.L3);
+                lp.Hip = LegIK.HipRotation(angles);
+                lp.Knee = LegIK.KneeRotation(angles);
+                lp.Hock = LegIK.HockRotation(angles);
+                Quaternion hockWorld = pose.PelvisRotation * lp.Hip * lp.Knee * lp.Hock;
+                lp.Ankle = Quaternion.Normalize(Quaternion.Inverse(hockWorld) * footWorld);
+                var (knee, hock, toe) = LegIK.ForwardDigitigrade(angles, t.L1, t.L2, t.L3);
+                lp.KneeWorld = rootWorld + Vector3.Transform(knee, pose.PelvisRotation);
+                lp.HockWorld = rootWorld + Vector3.Transform(hock, pose.PelvisRotation);
+                lp.AnkleWorld = rootWorld + Vector3.Transform(toe, pose.PelvisRotation);
+            }
+            else
+            {
+                var angles = LegIK.Solve(d, t.L1, t.L2);
+                lp.Hip = LegIK.HipRotation(angles);
+                lp.Knee = LegIK.KneeRotation(angles);
+                lp.Hock = Quaternion.Identity;
+                Quaternion kneeWorld = pose.PelvisRotation * lp.Hip * lp.Knee;
+                lp.Ankle = Quaternion.Normalize(Quaternion.Inverse(kneeWorld) * footWorld);
+                var (knee, ankle) = LegIK.Forward(angles, t.L1, t.L2);
+                lp.KneeWorld = rootWorld + Vector3.Transform(knee, pose.PelvisRotation);
+                lp.AnkleWorld = rootWorld + Vector3.Transform(ankle, pose.PelvisRotation);
+                lp.HockWorld = lp.AnkleWorld;
+            }
             lp.FootWorld = footWorld;
         }
     }

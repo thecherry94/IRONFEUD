@@ -42,14 +42,20 @@ public class ChassisTests
         Assert.Equal(m.RightArmMuzzle * l.Scale, l.RightArmMuzzle);
     }
 
-    [Theory]
-    [InlineData(ChassisClass.Light)]
-    [InlineData(ChassisClass.Medium)]
-    [InlineData(ChassisClass.Heavy)]
-    [InlineData(ChassisClass.Assault)]
-    public void TopSpeedWithTurns_FeetStayPlanted_AndLegsStayInReach(ChassisClass cls)
+    public static TheoryData<ChassisClass, MechModel> AllMechs()
     {
-        var c = MechChassis.Create(cls);
+        var data = new TheoryData<ChassisClass, MechModel>();
+        foreach (var cls in Enum.GetValues<ChassisClass>())
+        foreach (var model in Enum.GetValues<MechModel>())
+            data.Add(cls, model);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllMechs))]
+    public void TopSpeedWithTurns_FeetStayPlanted_AndLegsStayInReach(ChassisClass cls, MechModel model)
+    {
+        var c = MechChassis.Create(cls, model);
         var m = new MechLocomotion(c);
         var stance = new Vector3?[2];
         float maxExtension = 0f, time = 0f;
@@ -60,17 +66,17 @@ public class ChassisTests
             for (int l = 0; l < 2; l++)
             {
                 var lp = m.Pose.Legs[l];
-                maxExtension = MathF.Max(maxExtension, Vector3.Distance(lp.HipWorld, lp.Target.Ankle) / (c.L1 + c.L2));
+                maxExtension = MathF.Max(maxExtension, Vector3.Distance(lp.HipWorld, lp.Target.Ankle) / c.LegLength);
                 if (m.Gait.Legs[l].Swing) { stance[l] = null; continue; }
                 var ground = new Vector3(lp.Target.Ankle.X, 0f, lp.Target.Ankle.Z);
                 bool landed = false;
                 foreach (var f in m.Footfalls) landed |= f.Leg == l;
-                if (stance[l] is { } s && !landed) Assert.True(Vector3.Distance(s, ground) < 1e-5f, $"{cls} leg {l} slid at t={time}");
+                if (stance[l] is { } s && !landed) Assert.True(Vector3.Distance(s, ground) < 1e-5f, $"{cls} {model} leg {l} slid at t={time}");
                 stance[l] = ground;
             }
         }
         Assert.True(MathF.Abs(m.Body.V) > 0.6f * c.VMax, $"{cls} only reached {m.Body.V:0.0} m/s"); // turning costs speed
-        Assert.True(maxExtension < 0.99f, $"{cls} leg overextends: {maxExtension:0.000} of full length");
+        Assert.True(maxExtension < 0.99f, $"{cls} {model} leg overextends: {maxExtension:0.000} of full length");
     }
 
     [Fact]
@@ -82,13 +88,15 @@ public class ChassisTests
     }
 
     [Theory]
-    [InlineData(ChassisClass.Light)]
-    [InlineData(ChassisClass.Medium)]
-    [InlineData(ChassisClass.Heavy)]
-    public void AtTopSpeed_StrideIsSetByLegReach_NotByAShuffle(ChassisClass cls)
+    [InlineData(ChassisClass.Light, MechModel.Hauberk)]
+    [InlineData(ChassisClass.Medium, MechModel.Hauberk)]
+    [InlineData(ChassisClass.Heavy, MechModel.Hauberk)]
+    [InlineData(ChassisClass.Light, MechModel.Sicklefoot)]
+    [InlineData(ChassisClass.Medium, MechModel.Sicklefoot)]
+    public void AtTopSpeed_StrideIsSetByLegReach_NotByAShuffle(ChassisClass cls, MechModel model)
     {
         // Regression: the walking stride cap (DMax) once stayed on at a run and made the light take 16 steps/s.
-        var c = MechChassis.Create(cls);
+        var c = MechChassis.Create(cls, model);
         var m = new MechLocomotion(c);
         for (int i = 0; i < 120 * 10; i++) m.Step(new MechInput { Throttle = 1f }, H);
         float reachLimited = c.VMax * m.Gait.Duty / (2f * c.AMax);
