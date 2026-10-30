@@ -103,10 +103,27 @@ Tunable "Jank" multiplier. Recoil and hits also add trauma.
 - Mid-stride speed changes can shift the predicted landing by a few cm. Fine so far.
 - Mech-vs-geometry collision in the prototype is AABB push-out; use `CharacterBody3D` or a custom capsule sweep.
 
-## Chassis classes (Godot addition)
-All constants above are the **medium** chassis (`MechChassis.Medium()`, the prototype mech).
-`MechChassis.Light()` is the prototype rig scaled by 0.72 with 10 % longer legs, ~9 m/s top speed, faster
-turn/twist, duty 0.5 (a jog), FMIN 0.6, DMAX 5 m and thinner armour. Its numbers are first guesses for feel tuning.
+## Chassis classes and running (Godot addition)
+All constants above are the web prototype's walker, kept as `MechChassis.Prototype()` (field defaults) and pinned by
+tests. The game's classes run at genre speeds:
+
+| class | top speed | scale | notes |
+|---|---|---|---|
+| Light | 36 m/s (130 km/h) | 0.72, legs +10 % | quick turns/twist, thin armour |
+| Medium | 22 m/s (80 km/h) | 1.0 | the prototype's body |
+| Heavy | 16.5 m/s (60 km/h) | 1.15 | |
+| Assault | 11 m/s (40 km/h) | 1.3 | only half-breaks into a run |
+
+**Walk → run:** duty blends from `Duty` (0.62) to `DutyRun` (0.32, a flight phase: both feet up between steps) between
+`RunStartSpeed` and `RunFullSpeed`, set from the hip height h by the Froude number v²/(g·h) = 0.5 … 2.5
+(where animals switch gaits). Each leg **latches its duty at landing**, so a speed change mid-step never skips or
+truncates a swing.
+
+**Cadence:** `f = max(FMIN, |v|/DMAX, |v|·duty/(2·AMAX))`. The last term caps stance travel at the leg's reach, so at
+speed the frequency rises instead of the leg over-extending. Light at top speed ≈ 2.5 Hz (5 steps/s), medium ≈ 1.35 Hz.
+**Footfall impulses** are scaled by `min(1, 0.7 Hz / f)` so fast cadences don't saturate the springs and trauma.
+
 `MechChassis.Scale` multiplies the gait's built-in lengths (lift, outward arc, foot pivot lengths, settle threshold,
 pelvis sway/bob, footfall bounce); the rig builds prototype-size meshes and scales the pelvis node.
-Spring frequencies are not scaled yet (a smaller mech should probably ring faster).
+Not yet: spring frequencies don't scale with size, the pelvis doesn't drop or bounce for a running flight phase,
+and heavier classes are scaled copies of the same body.

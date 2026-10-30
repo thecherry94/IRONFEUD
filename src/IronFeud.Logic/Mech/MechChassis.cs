@@ -3,16 +3,17 @@ using System.Numerics;
 
 namespace IronFeud.Logic.Mech;
 
-public enum ChassisClass { Light, Medium }
+public enum ChassisClass { Light, Medium, Heavy, Assault }
 
 /// <summary>
 /// Everything that differs between mech classes: kinematics, gait, rig dimensions, hit volumes, armour, hardpoints,
 /// heat, plus the feel multipliers from the prototype's sliders. Each mech owns its own instance (the Godot side
 /// writes the feel multipliers for live tuning). See docs/locomotion.md for what the gait constants mean.
+/// Field defaults are the web prototype's walker (4.2 m/s); the class presets below are the game's mechs.
 /// </summary>
 public sealed class MechChassis
 {
-    public string Name = "Medium";
+    public string Name = "Prototype";
     public ChassisClass Class = ChassisClass.Medium;
 
     /// <summary>
@@ -35,8 +36,11 @@ public sealed class MechChassis
     public float AimMax = 0.45f;
     public float AimRate = 0.8f;
 
-    // Gait
+    // Gait. Duty blends from walking (Duty) to running (DutyRun) between RunStartSpeed and RunFullSpeed.
     public float Duty = 0.62f;
+    public float DutyRun = 0.32f;
+    public float RunStartSpeed = 5.2f;
+    public float RunFullSpeed = 11.7f;
     public float DMax = 6.2f;
     public float FMin = 0.36f;
     public float AMax = 1.95f;
@@ -95,20 +99,35 @@ public sealed class MechChassis
     public float Impact = 1f;
     public float Jank = 1f;
 
+    /// <summary>Stance fraction at a given speed.</summary>
+    public float DutyAt(float speed) => Core.MathUtil.Lerp(Duty, DutyRun, Core.MathUtil.Smoothstep(RunStartSpeed, RunFullSpeed, speed));
+
     public static MechChassis Create(ChassisClass c) => c switch
     {
         ChassisClass.Light => Light(),
         ChassisClass.Medium => Medium(),
+        ChassisClass.Heavy => Heavy(),
+        ChassisClass.Assault => Assault(),
         _ => throw new ArgumentOutOfRangeException(nameof(c)),
     };
 
-    /// <summary>The prototype mech.</summary>
-    public static MechChassis Medium() => new();
+    /// <summary>The web prototype's walker, unchanged (4.2 m/s). Tests pin conventions against it.</summary>
+    public static MechChassis Prototype() => new();
 
-    /// <summary>
-    /// Small, leggy and fast: ~32 km/h, quick turns and twist, a jogging gait (duty 0.5), thin armour.
-    /// Not in the prototype; numbers are first guesses for feel tuning.
-    /// </summary>
+    // Class presets. Speed bands: light 100-150 km/h, medium 60-100, heavy 50-70, assault 30-50.
+    // Everything except the prototype's geometry is a first guess for feel tuning.
+
+    /// <summary>The prototype's body at 80 km/h.</summary>
+    public static MechChassis Medium()
+    {
+        var c = new MechChassis { Name = "Medium" };
+        c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
+        c.TurnSpeedPenalty = 0.5f;
+        c.AMax = 2.6f; // ~70 % of the leg's horizontal reach, for running strides
+        return c;
+    }
+
+    /// <summary>Small, leggy and very fast: 130 km/h, quick turns and twist, thin armour.</summary>
     public static MechChassis Light()
     {
         var c = new MechChassis().Scaled(0.72f);
@@ -119,22 +138,13 @@ public sealed class MechChassis
         c.L1 *= 1.1f;
         c.L2 *= 1.1f;
         c.HipHeight = c.AnkleHeight + 0.75f * (c.L1 + c.L2) - c.HipRootY;
-        c.AMax *= 1.1f;
-
-        c.VMax = 9f;
-        c.VRev = 3f;
-        c.Accel = 4f;
-        c.Decel = 6f;
-        c.OmegaMax = 1.3f;
-        c.OmegaAccel = 3.5f;
-        c.TurnSpeedPenalty = 0.4f;
-        c.TwistMax = 1.5f;
-        c.TwistRate = 2.6f;
-        c.AimRate = 1.4f;
-
-        c.Duty = 0.5f;
-        c.DMax = 5f;
+        c.AMax = 2.3f;
         c.FMin = 0.6f;
+        c.SetRunSpeedsFromLegs();
+
+        c.SetSpeed(36f, rev: 8f, accel: 10f, decel: 16f, omega: 1.8f, omegaAccel: 5f, twistRate: 3f, aimRate: 1.6f);
+        c.TurnSpeedPenalty = 0.55f;
+        c.TwistMax = 1.5f;
 
         c.TorsoHp = 60f;
         c.ArmHp = 30f;
@@ -143,6 +153,67 @@ public sealed class MechChassis
         c.HeatDissipation = 0.06f;
         c.CollapseTime = 1.1f;
         return c;
+    }
+
+    /// <summary>Bigger and tougher: 60 km/h, a ponderous run.</summary>
+    public static MechChassis Heavy()
+    {
+        var c = new MechChassis().Scaled(1.15f);
+        c.Name = "Heavy";
+        c.Class = ChassisClass.Heavy;
+        c.AMax = 3f;
+        c.SetRunSpeedsFromLegs();
+        c.SetSpeed(16.5f, rev: 4.5f, accel: 4f, decel: 7f, omega: 0.8f, omegaAccel: 2f, twistRate: 1.5f, aimRate: 1f);
+        c.TurnSpeedPenalty = 0.45f;
+        c.TorsoHp = 140f;
+        c.ArmHp = 60f;
+        c.LegsHp = 95f;
+        c.CockpitHp = 6f;
+        c.HeatDissipation = 0.05f;
+        c.CollapseTime = 1.7f;
+        return c;
+    }
+
+    /// <summary>The wall: 40 km/h, never quite breaks into a run, heaviest armour.</summary>
+    public static MechChassis Assault()
+    {
+        var c = new MechChassis().Scaled(1.3f);
+        c.Name = "Assault";
+        c.Class = ChassisClass.Assault;
+        c.AMax = 3.3f;
+        c.SetRunSpeedsFromLegs();
+        c.SetSpeed(11f, rev: 3.5f, accel: 2.8f, decel: 5f, omega: 0.6f, omegaAccel: 1.5f, twistRate: 1.2f, aimRate: 0.9f);
+        c.TurnSpeedPenalty = 0.4f;
+        c.TorsoHp = 180f;
+        c.ArmHp = 75f;
+        c.LegsHp = 120f;
+        c.CockpitHp = 7f;
+        c.HeatDissipation = 0.045f;
+        c.CollapseTime = 2f;
+        return c;
+    }
+
+    private void SetSpeed(float vMax, float rev, float accel, float decel, float omega, float omegaAccel, float twistRate, float aimRate)
+    {
+        VMax = vMax;
+        VRev = rev;
+        Accel = accel;
+        Decel = decel;
+        OmegaMax = omega;
+        OmegaAccel = omegaAccel;
+        TwistRate = twistRate;
+        AimRate = aimRate;
+    }
+
+    /// <summary>
+    /// Walk-to-run transition from leg length via the Froude number v²/(g·h): animals start to run around 0.5 and
+    /// run fully by ~2.5. h is the hip joint height.
+    /// </summary>
+    private void SetRunSpeedsFromLegs()
+    {
+        float h = HipHeight + HipRootY;
+        RunStartSpeed = MathF.Sqrt(0.5f * 9.81f * h);
+        RunFullSpeed = MathF.Sqrt(2.5f * 9.81f * h);
     }
 
     /// <summary>Uniformly scales every length (rig, hit volumes, hardpoints, stride) by <paramref name="s"/>.</summary>

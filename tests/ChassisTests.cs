@@ -10,20 +10,32 @@ public class ChassisTests
     private const float H = 1f / 120f;
 
     [Fact]
-    public void Medium_IsThePrototypeMech()
+    public void Prototype_IsTheWebPrototypeWalker_AndNeverRuns()
     {
-        var c = MechChassis.Medium();
+        var c = MechChassis.Prototype();
         Assert.Equal(1f, c.Scale);
         Assert.Equal(4.2f, c.VMax);
         Assert.Equal(5.75f, c.HipHeight);
+        Assert.Equal(0.62f, c.DutyAt(c.VMax), 4);
         Assert.Equal(100f, MechDamage.Create(c)[MechSection.Torso]);
+    }
+
+    [Theory]
+    [InlineData(ChassisClass.Light, 100f, 150f)]
+    [InlineData(ChassisClass.Medium, 60f, 100f)]
+    [InlineData(ChassisClass.Heavy, 50f, 70f)]
+    [InlineData(ChassisClass.Assault, 30f, 50f)]
+    public void TopSpeed_IsInTheClassBand(ChassisClass cls, float minKmh, float maxKmh)
+    {
+        float kmh = MechChassis.Create(cls).VMax * 3.6f;
+        Assert.InRange(kmh, minKmh, maxKmh);
     }
 
     [Fact]
     public void Light_IsSmallerFasterAndThinner()
     {
         MechChassis l = MechChassis.Light(), m = MechChassis.Medium();
-        Assert.True(l.VMax > 2f * m.VMax);
+        Assert.True(l.VMax > 1.5f * m.VMax);
         Assert.True(l.HipHeight < m.HipHeight);
         Assert.True(l.TorsoHitRadius < m.TorsoHitRadius);
         Assert.True(l.TorsoHp < m.TorsoHp);
@@ -33,6 +45,8 @@ public class ChassisTests
     [Theory]
     [InlineData(ChassisClass.Light)]
     [InlineData(ChassisClass.Medium)]
+    [InlineData(ChassisClass.Heavy)]
+    [InlineData(ChassisClass.Assault)]
     public void TopSpeedWithTurns_FeetStayPlanted_AndLegsStayInReach(ChassisClass cls)
     {
         var c = MechChassis.Create(cls);
@@ -55,24 +69,27 @@ public class ChassisTests
                 stance[l] = ground;
             }
         }
-        Assert.Equal(c.VMax, MathF.Abs(m.Body.V), 0.5f);
+        Assert.True(MathF.Abs(m.Body.V) > 0.6f * c.VMax, $"{cls} only reached {m.Body.V:0.0} m/s"); // turning costs speed
         Assert.True(maxExtension < 0.99f, $"{cls} leg overextends: {maxExtension:0.000} of full length");
     }
 
     [Fact]
-    public void Light_StepsFasterThanMedium()
+    public void Running_HasAFlightPhase_AndLightStepsFasterThanMedium()
     {
-        static float Cadence(MechChassis c)
+        var light = MechChassis.Light();
+        Assert.True(light.DutyAt(light.VMax) < 0.5f, "at top speed both feet leave the ground between steps");
+        Assert.True(Cadence(light) > 1.5f * Cadence(MechChassis.Medium()));
+    }
+
+    private static float Cadence(MechChassis c)
+    {
+        var m = new MechLocomotion(c);
+        int steps = 0;
+        for (int i = 0; i < 120 * 10; i++)
         {
-            var m = new MechLocomotion(c);
-            int steps = 0;
-            for (int i = 0; i < 120 * 10; i++)
-            {
-                m.Step(new MechInput { Throttle = 1f }, H);
-                if (i >= 120 * 5) steps += m.Footfalls.Count;
-            }
-            return steps / 5f;
+            m.Step(new MechInput { Throttle = 1f }, H);
+            if (i >= 120 * 5) steps += m.Footfalls.Count;
         }
-        Assert.True(Cadence(MechChassis.Light()) > 2f * Cadence(MechChassis.Medium()));
+        return steps / 5f;
     }
 }

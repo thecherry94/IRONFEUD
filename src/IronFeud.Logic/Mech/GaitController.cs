@@ -24,6 +24,9 @@ public sealed class LegGait
     public readonly int Side;
     public readonly float PhaseOffset;
 
+    /// <summary>Stance fraction for the current step, latched at each landing so a speed change never skips a swing.</summary>
+    public float Duty;
+
     public FootPlant Plant;
     public FootPlant From;
     public bool Swing;
@@ -78,12 +81,16 @@ public sealed class GaitController
     /// <summary>Gait amplitude 0..1; eases with activity and scales sway/bob.</summary>
     public float G;
 
+    /// <summary>Stance fraction for the current speed: walk (≈0.62) blending to run (≈0.32, both feet off the ground between steps).</summary>
+    public float Duty;
+
     public bool Active;
 
     public void Reset(BodyState body, MechChassis t)
     {
         Phase = 0f;
         F = t.FMin;
+        Duty = t.Duty;
         G = 0f;
         Active = false;
         foreach (var leg in Legs)
@@ -92,6 +99,7 @@ public sealed class GaitController
             leg.From = leg.Plant;
             leg.Swing = false;
             leg.StepLength = 0f;
+            leg.Duty = t.Duty;
         }
     }
 
@@ -105,7 +113,7 @@ public sealed class GaitController
     {
         float psiL = body.Psi + body.Omega * remaining;
         Vector3 p = body.Position + MathUtil.Forward(body.Psi) * (body.V * remaining);
-        float halfStride = MathUtil.Clamp(body.V / F * t.Duty / 2f, -t.AMax, t.AMax);
+        float halfStride = MathUtil.Clamp(body.V / F * Duty / 2f, -t.AMax, t.AMax);
         Vector3 local = HipOffset(leg, t) + new Vector3(0f, 0f, -halfStride);
         return new FootPlant(p + MathUtil.RotateY(local, psiL), psiL);
     }
@@ -124,7 +132,9 @@ public sealed class GaitController
         }
 
         Active = spd > 0.12f || MathF.Abs(body.Omega) > 0.04f || unsettled;
-        F = MathF.Max(t.FMin, spd / t.DMax);
+        Duty = t.DutyAt(spd);
+        // Stride is capped by DMax (walking) and by leg reach: stance travel v·duty/f may not exceed 2·AMax.
+        F = MathF.Max(t.FMin, MathF.Max(spd / t.DMax, spd * Duty / (2f * t.AMax)));
         float gT = Active ? MathUtil.Clamp01(0.3f + spd / t.VMax + 0.5f * MathF.Abs(body.Omega) / t.OmegaMax) : 0f;
         G += (gT - G) * MathF.Min(1f, h * 2.5f);
         if (!Active) return;
@@ -136,7 +146,7 @@ public sealed class GaitController
             var leg = Legs[i];
             float pa = MathUtil.Frac(prev + leg.PhaseOffset);
             float pb = MathUtil.Frac(Phase + leg.PhaseOffset);
-            if (pa < t.Duty && pb >= t.Duty)
+            if (pa < leg.Duty && pb >= leg.Duty)
             {
                 leg.Swing = true;
                 leg.From = leg.Plant;
@@ -146,7 +156,9 @@ public sealed class GaitController
                 leg.Swing = false;
                 leg.Plant = Landing(leg, body, t, 0f);
                 leg.StepLength = MathUtil.PlanarDistance(leg.Plant.Position, leg.From.Position);
-                float k = t.Impact * (0.45f + 0.55f * MathF.Min(1f, leg.StepLength / (3f * t.Scale)));
+                leg.Duty = Duty;
+                // Fast cadences would saturate the springs; above a walking cadence (0.7 Hz) each impact is softened.
+                float k = t.Impact * (0.45f + 0.55f * MathF.Min(1f, leg.StepLength / (3f * t.Scale))) * MathF.Min(1f, 0.7f / F);
                 footfalls?.Add(new Footfall
                 {
                     Leg = i,
@@ -175,12 +187,12 @@ public sealed class GaitController
             cur = leg.Plant.Position;
             yaw = leg.Plant.Yaw;
             landing = leg.Plant;
-            pitch = 0.38f * MathUtil.Smoothstep(t.Duty - 0.16f, t.Duty, lp) - 0.14f * (1f - MathUtil.Smoothstep(0f, 0.07f, lp));
+            pitch = 0.38f * MathUtil.Smoothstep(leg.Duty - 0.16f, leg.Duty, lp) - 0.14f * (1f - MathUtil.Smoothstep(0f, 0.07f, lp));
         }
         else
         {
-            float s = MathUtil.Clamp01((lp - t.Duty) / (1f - t.Duty));
-            landing = Landing(leg, body, t, (1f - s) * (1f - t.Duty) / F);
+            float s = MathUtil.Clamp01((lp - leg.Duty) / (1f - leg.Duty));
+            landing = Landing(leg, body, t, (1f - s) * (1f - leg.Duty) / F);
             float e = MathUtil.Smootherstep(s);
             cur = Vector3.Lerp(leg.From.Position, landing.Position, e);
             yaw = MathUtil.LerpAngle(leg.From.Yaw, landing.Yaw, e);
