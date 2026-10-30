@@ -33,7 +33,7 @@ public partial class Main : Node3D
     private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lights vs medium · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
     private const string PlayHelp =
         "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · LMB/Space cannon · RMB/F laser\n" +
-        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next chassis class · R restart · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
+        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
     private const string WatchHelp =
         "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · P pause · O slow-mo\n" + ModeKeys;
     private const string ParadeHelp =
@@ -41,6 +41,7 @@ public partial class Main : Node3D
 
     private GameMode _mode = GameMode.Watch1v1;
     private ChassisClass _playerClass = ChassisClass.Medium;
+    private MechModel _playerModel = MechModel.Hauberk;
     private uint _round;
     private bool _rangeDemo, _gaitDebug, _aiOverlay = true;
     private CameraMode? _cameraOverride;
@@ -58,10 +59,13 @@ public partial class Main : Node3D
 
     private bool Watching => _mode is GameMode.Watch1v1 or GameMode.Watch2v2 or GameMode.WatchLights;
 
-    /// <summary>Gait parade lanes, inner to outer: slow classes inside, the light (widest turning circle) outside.</summary>
-    private static readonly (ChassisClass Class, float Radius)[] ParadeLanes =
+    /// <summary>Gait parade lanes, inner to outer: slow classes inside, lights (widest turning circles) outside.</summary>
+    private static readonly (ChassisClass Class, MechModel Model, float Radius)[] ParadeLanes =
     {
-        (ChassisClass.Assault, 110f), (ChassisClass.Heavy, 135f), (ChassisClass.Medium, 160f), (ChassisClass.Light, 185f),
+        (ChassisClass.Assault, MechModel.Hauberk, 100f), (ChassisClass.Assault, MechModel.Sicklefoot, 122f),
+        (ChassisClass.Heavy, MechModel.Hauberk, 144f), (ChassisClass.Heavy, MechModel.Sicklefoot, 166f),
+        (ChassisClass.Medium, MechModel.Hauberk, 188f), (ChassisClass.Medium, MechModel.Sicklefoot, 210f),
+        (ChassisClass.Light, MechModel.Hauberk, 232f), (ChassisClass.Light, MechModel.Sicklefoot, 254f),
     };
 
     public override void _Ready()
@@ -84,6 +88,7 @@ public partial class Main : Node3D
                 case "--light": _playerClass = ChassisClass.Light; break;
                 case "--heavy": _playerClass = ChassisClass.Heavy; break;
                 case "--assault": _playerClass = ChassisClass.Assault; break;
+                case "--sicklefoot": _playerModel = MechModel.Sicklefoot; break;
                 case "--debug": _gaitDebug = true; break;
                 case "--camera=chase": _cameraOverride = CameraMode.Chase; break;
                 case "--camera=cockpit": _cameraOverride = CameraMode.Cockpit; break;
@@ -113,18 +118,21 @@ public partial class Main : Node3D
         {
             var map = ArenaMap.Scatter(1337, 160f, 150, (-45f, -170f, 45f, -5f));
             battle = new BattleSim(map, _round) { TrackOutcome = false };
-            battle.AddUnit("Player", 0, MechChassis.Create(_playerClass), Vec3.Zero, 0f);
+            battle.AddUnit("Player", 0, MechChassis.Create(_playerClass, _playerModel), Vec3.Zero, 0f);
             for (int i = 0; i < TargetSpawns.Length; i++)
             {
                 var (name, pos, _) = TargetSpawns[i];
-                battle.AddUnit(name, 1, MechChassis.Create(i % 2 == 0 ? ChassisClass.Medium : ChassisClass.Light), pos, Mathf.Pi);
+                battle.AddUnit(name, 1, i % 2 == 0 ? MechChassis.Medium() : MechChassis.Light(MechModel.Sicklefoot), pos, Mathf.Pi);
             }
         }
         else if (mode == GameMode.Parade)
         {
             battle = new BattleSim(new ArenaMap(), _round) { TrackOutcome = false };
-            foreach (var (cls, radius) in ParadeLanes)
-                battle.AddUnit(MechChassis.Create(cls).Name, 0, MechChassis.Create(cls), new Vec3(radius, 0f, 0f), 0f);
+            foreach (var (cls, model, radius) in ParadeLanes)
+            {
+                var c = MechChassis.Create(cls, model);
+                battle.AddUnit(c.Name, 0, c, new Vec3(radius, 0f, 0f), 0f);
+            }
         }
         else
         {
@@ -177,45 +185,46 @@ public partial class Main : Node3D
         _panel = new AiPanel { Name = "AiPanel", Battle = battle, Visible = _aiOverlay && Watching };
         _session.AddChild(_panel);
 
-        Select(_player ?? _battlefield.Mechs[mode == GameMode.Parade ? 3 : 0]); // parade: start on the light
+        Select(_player ?? _battlefield.Mechs[mode == GameMode.Parade ? 5 : 0]); // parade: start on the medium Sicklefoot
     }
 
     private void SpawnTeams(BattleSim b, GameMode mode)
     {
         // Alpha starts at +z facing -z, Bravo at -z facing +z (the prototype's spawns, mirrored into Godot's frame).
-        void Ai(string name, int team, ChassisClass c, float x, float z, Personality p) =>
-            b.AddUnit(name, team, MechChassis.Create(c), new Vec3(x, 0f, z), team == 0 ? 0f : Mathf.Pi,
+        void Ai(string name, int team, ChassisClass c, float x, float z, Personality p, MechModel model = MechModel.Hauberk) =>
+            b.AddUnit(name, team, MechChassis.Create(c, model), new Vec3(x, 0f, z), team == 0 ? 0f : Mathf.Pi,
                 _personalities.GetValueOrDefault($"{mode}:{name}", p));
-        void Player(float x, float z) => b.AddUnit("Player", 0, MechChassis.Create(_playerClass), new Vec3(x, 0f, z), 0f);
+        void Player(float x, float z) => b.AddUnit("Player", 0, MechChassis.Create(_playerClass, _playerModel), new Vec3(x, 0f, z), 0f);
 
         const ChassisClass M = ChassisClass.Medium, L = ChassisClass.Light;
+        const MechModel SF = MechModel.Sicklefoot;
         const float z = ArenaMap.ArenaSpawnZ, z2 = z + 17f, x = 30f;
         switch (mode)
         {
             case GameMode.Watch1v1:
                 Ai("Alpha-1", 0, M, 0f, z, Personality.Balanced);
-                Ai("Bravo-1", 1, M, 0f, -z, Personality.Brawler);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Brawler, SF);
                 break;
             case GameMode.Watch2v2:
                 Ai("Alpha-1", 0, M, x, z, Personality.Brawler);
-                Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper);
-                Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced);
+                Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper, SF);
+                Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced, SF);
                 Ai("Bravo-2", 1, M, x, -z2, Personality.Sniper);
                 break;
             case GameMode.WatchLights:
                 Ai("Alpha-1", 0, L, x, z, Personality.Brawler);
-                Ai("Alpha-2", 0, L, -x, z, Personality.Balanced);
+                Ai("Alpha-2", 0, L, -x, z, Personality.Balanced, SF);
                 Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced);
                 break;
             case GameMode.Play1v1:
                 Player(0f, z);
-                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced, SF);
                 break;
             case GameMode.Play2v2:
                 Player(x, z);
                 Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper);
                 Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced);
-                Ai("Bravo-2", 1, M, x, -z2, Personality.Brawler);
+                Ai("Bravo-2", 1, M, x, -z2, Personality.Brawler, SF);
                 break;
         }
     }
@@ -271,6 +280,11 @@ public partial class Main : Node3D
         else if (e.IsAction("cycle_chassis"))
         {
             _playerClass = (ChassisClass)(((int)_playerClass + 1) % System.Enum.GetValues<ChassisClass>().Length);
+            if (_player != null) StartSession(_mode);
+        }
+        else if (e.IsAction("cycle_model"))
+        {
+            _playerModel = (MechModel)(((int)_playerModel + 1) % System.Enum.GetValues<MechModel>().Length);
             if (_player != null) StartSession(_mode);
         }
         else if (e.IsAction("mode_range")) StartSession(GameMode.Range);

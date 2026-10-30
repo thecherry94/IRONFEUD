@@ -17,7 +17,7 @@ public static class GameInput
         ("select_next", Key.Tab), ("cycle_personality", Key.K),
         ("debug_draw", Key.F3), ("ai_overlay", Key.F4),
         // Session
-        ("pause", Key.P), ("slow_motion", Key.O), ("restart", Key.R), ("cycle_chassis", Key.L),
+        ("pause", Key.P), ("slow_motion", Key.O), ("restart", Key.R), ("cycle_chassis", Key.L), ("cycle_model", Key.M),
         ("mode_range", Key.F5), ("mode_watch_1v1", Key.F6), ("mode_watch_2v2", Key.F7), ("mode_watch_lights", Key.F8),
         ("mode_play_1v1", Key.F9), ("mode_play_2v2", Key.F10), ("mode_parade", Key.F11),
     };

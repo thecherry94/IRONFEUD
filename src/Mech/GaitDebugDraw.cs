@@ -71,7 +71,8 @@ public partial class GaitDebugDraw : MeshInstance3D
             }
             Cross(lp.Target.Ankle.ToGodot(), 0.25f, Target);
             Line(lp.HipWorld.ToGodot(), lp.KneeWorld.ToGodot(), Bone);
-            Line(lp.KneeWorld.ToGodot(), lp.AnkleWorld.ToGodot(), Bone);
+            Line(lp.KneeWorld.ToGodot(), lp.HockWorld.ToGodot(), Bone);
+            Line(lp.HockWorld.ToGodot(), lp.AnkleWorld.ToGodot(), Bone);
         }
         if (AllMechs != null)
             foreach (var m in AllMechs)
