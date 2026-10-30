@@ -46,27 +46,34 @@ on top of tactical mech battles. Two layers, one hard boundary:
 
 ## Commands
 ```bash
-dotnet build                       # compile C#
+dotnet build IRONFEUD.sln          # compile everything (bare `dotnet build` fails: .sln and .csproj share the root)
 godot --path . &                   # run the editor/game (Godot .NET build on PATH)
 godot --path . --headless --quit   # import/validate project in CI or before commits
 dotnet test tests/                 # pure-logic unit tests (xUnit)
+# Unattended capture (scripted walk; camera: orbit|cockpit, default chase):
+godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --autopilot --camera=orbit
 ```
-Fill in the exact Godot version here once pinned: `Godot 4.?.? .NET`; target .NET SDK: `?`.
+Pinned: `Godot 4.7.2 .NET` (Godot.NET.Sdk 4.7.2), all projects target `net8.0` (built with .NET SDK 10).
 
-## Intended layout (create as needed, keep it shallow)
+## Layout (create as needed, keep it shallow)
 ```
 src/
-  Core/          Spring, MathUtil, deterministic RNG
-  Mech/          MechInput, MechState, MechRig (builds the node hierarchy), GaitController,
-                 LegIK, SecondaryMotion, HeatSystem, DamageModel, Weapons/
-  AI/            Perception, UtilityBrain, Actions/, Steering, SquadCoordinator
-  Audio/         SfxBank, ProceduralServo, WarningVoice (priority queue)
-  Game/          Match, Arena, Spawning, CameraRig (overview/follow/chase/cockpit)
-scenes/          main.tscn, arena.tscn, mech.tscn (thin)
-tests/           xUnit project referencing pure-logic code
-docs/            design notes (read on demand)
+  IronFeud.Logic/   separate class library, NO Godot reference (enforced by the compiler). Hidden from Godot via .gdignore.
+    Core/           MathUtil, Rot (Godot-convention quaternions), Spring, DeterministicRng
+    Mech/           MechInput, MechTuning, BodyKinematics, GaitController, LegIK, SecondaryMotion,
+                    MechPoseSolver, MechLocomotion (facade); later HeatSystem, DamageModel, Weapons/
+    AI/ Campaign/   (later) utility brain, perception math; the campaign sim
+  Core/             Godot-side helpers: GodotConv (System.Numerics <-> Godot), ProceduralTextures
+  Mech/             MechNode (adapter), MechRig (builds the node hierarchy), FootfallFx, GaitDebugDraw
+  AI/ Audio/        (later) Godot adapters for AI pilots, SfxBank, ProceduralServo, WarningVoice
+  Game/             Main, Arena, CameraRig (chase/cockpit/orbit), PlayerMechController, Hud
+scenes/             main.tscn (thin: just the Main script)
+tests/              xUnit project referencing IronFeud.Logic
+docs/               design notes (read on demand)
 reference/web-prototype/   working three.js prototypes; the behavioral source of truth for feel
 ```
+Logic uses `System.Numerics` in Godot's axis convention, so conversion is a plain field copy (`GodotConv`).
+Semantic angles (pitch + = down, roll + = lean right) become Godot Euler angles only in `MechPoseSolver`.
 
 ## Roadmap (vertical slice first; don't build content before the loop is fun)
 1. Port the walker: rig + gait + IK + springs, driven by keyboard/mouse. Must match the prototype's feel.
@@ -78,7 +85,7 @@ reference/web-prototype/   working three.js prototypes; the behavioral source of
 Then: more weapons, mech classes, missions.
 
 ## Working agreements for Claude Code
-- Small, reviewable commits; one concern per commit. Run `dotnet build` and the tests before saying done.
+- Small, reviewable commits; one concern per commit. Run `dotnet build IRONFEUD.sln` and the tests before saying done.
 - When tuning feel, expose constants via `[Export]` or a `Resource` (`MechTuning.tres`) rather than hard-coding.
 - When behavior differs from the prototype, say so explicitly and explain why.
 - Debug visualisation is a first-class feature: every AI decision and gait target should be drawable.
