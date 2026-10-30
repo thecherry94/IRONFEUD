@@ -109,11 +109,11 @@ public sealed class MechLocomotion
         return (Ground.Height(p.X + f.X, p.Z + f.Z) - Ground.Height(p.X - f.X, p.Z - f.Z)) / (2f * d);
     }
 
-    /// <summary>Climbing costs top speed: −12 % per 10 % grade, floored at 45 %. Downhill is free.</summary>
+    /// <summary>Climbing costs top speed: −14 % per 10 % grade, down to a crawl (20 %) up the steepest walls. Downhill is free.</summary>
     private float UphillFactor(float grade)
     {
         float climb = grade * MathF.Sign(Body.V);
-        return MathUtil.Clamp(1f - 1.2f * MathF.Max(0f, climb), 0.45f, 1f);
+        return MathUtil.Clamp(1f - 1.4f * MathF.Max(0f, climb), 0.2f, 1f);
     }
 
     /// <summary>

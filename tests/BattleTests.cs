@@ -5,6 +5,7 @@ using IronFeud.Logic.AI;
 using IronFeud.Logic.Battle;
 using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
+using Vector2 = System.Numerics.Vector2;
 using Xunit.Abstractions;
 
 namespace IronFeud.Tests;
@@ -166,6 +167,47 @@ public class BattleTests
     }
 
     [Fact]
+    public void AiDuels_InNoMansLand_EndWithAWinner_AndFightFromCover()
+    {
+        var matchups = new (Personality, Personality, ChassisClass, ChassisClass, MechModel)[]
+        {
+            (Personality.Balanced, Personality.Brawler, ChassisClass.Medium, ChassisClass.Medium, MechModel.Hauberk),
+            (Personality.Sniper, Personality.Brawler, ChassisClass.Medium, ChassisClass.Medium, MechModel.Sicklefoot),
+            (Personality.Balanced, Personality.Balanced, ChassisClass.Light, ChassisClass.Heavy, MechModel.Sicklefoot),
+        };
+        float engageAll = 0f, hullDownAll = 0f;
+        foreach (var (p0, p1, c0, c1, model) in matchups)
+        for (uint seed = 1; seed <= 3; seed++)
+        {
+            var b = new BattleSim(ArenaMap.NoMansLand(seed), seed);
+            b.AddUnit("Alpha-1", 0, MechChassis.Create(c0, model), new Vector3(0, 0, ArenaMap.ArenaSpawnZ), 0f, p0);
+            b.AddUnit("Bravo-1", 1, MechChassis.Create(c1), new Vector3(0, 0, -ArenaMap.ArenaSpawnZ), MathF.PI, p1);
+            float engage = 0f, hullDown = 0f;
+            for (int i = 0; i < 400 * 120 && !b.Over; i++)
+            {
+                b.Step(H);
+                if (i % 12 != 0) continue; // sample at 10 Hz
+                foreach (var u in b.Units)
+                {
+                    if (u.IsOut || u.Ai!.Action != AiAction.Engage) continue;
+                    var enemy = b.Units[1 - u.Id];
+                    engage += 0.1f;
+                    var legs = u.Position + Vector3.UnitY * (0.45f * u.Chassis.HipHeight);
+                    if (!b.Map.LineClear(enemy.Volume(MechSection.Cockpit).Center, legs)) hullDown += 0.1f;
+                }
+            }
+            Assert.True(b.Over, $"{p0.Name}/{c0} {model} vs {p1.Name}/{c1} seed {seed}: no winner after {b.Time:0} s");
+            engageAll += engage;
+            hullDownAll += hullDown;
+            _out.WriteLine($"{p0.Name}/{c0} {model} vs {p1.Name}/{c1} seed {seed}: winner {b.Winner} after {b.Time:0} s, " +
+                           $"hull-down {100f * hullDown / MathF.Max(1f, engage):0}% of {engage:0} s engaging · " +
+                           string.Join(" · ", b.Units.Select(u => $"{u.Name} {u.Sim.Damage.Status} {u.Stats.Hits}/{u.Stats.Shots}")));
+        }
+        _out.WriteLine($"overall hull-down {100f * hullDownAll / engageAll:0}% of engaging time");
+        Assert.True(hullDownAll > 0.3f * engageAll, "AIs should mostly fight from behind cover in no man's land");
+    }
+
+    [Fact]
     public void AiBattle_IsDeterministic()
     {
         string Fingerprint()
@@ -207,5 +249,52 @@ public class BattleTests
         for (int i = 0; i < 120; i++) b.Step(H);
         Assert.True(me.Ai.Contacts.ContainsKey(enemy));
         Assert.Equal(enemy, me.Ai.Target);
+    }
+
+    /// <summary>A 7 m ridge across z = -90 between an AI at the origin and a sitting target at z = -260.</summary>
+    private static (BattleSim, BattleUnit Ai, BattleUnit Target) RidgeDuel()
+    {
+        var f = HeightField.Create(300f, 2f).AddRidge(new Vector2(-120f, -90f), new Vector2(120f, -90f), 18f, 7f, 0.8f);
+        f.UpdateBounds();
+        var b = new BattleSim(new ArenaMap { Terrain = f }) { TrackOutcome = false };
+        var ai = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f, Personality.Balanced);
+        var target = b.AddUnit("T", 1, MechChassis.Medium(), new Vector3(0, 0, -260), MathF.PI);
+        return (b, ai, target);
+    }
+
+    [Fact]
+    public void Ai_FightsHullDown_FromBehindACrest()
+    {
+        var (b, ai, target) = RidgeDuel();
+        int engaging = 0, hullDown = 0;
+        for (int i = 0; i < 120 * 60; i++)
+        {
+            b.Step(H);
+            if (i < 120 * 20 || ai.Ai!.Action != AiAction.Engage) continue;
+            engaging++;
+            Vector3 eye = target.Volume(MechSection.Cockpit).Center;
+            Vector3 legs = ai.Position + Vector3.UnitY * (0.45f * ai.Chassis.HipHeight);
+            if (!b.Map.LineClear(eye, legs)) hullDown++;
+        }
+        _out.WriteLine($"engaging {engaging / 120f:0} s, hull-down {hullDown / 120f:0} s, at z = {ai.Position.Z:0}, shots {ai.Stats.Shots}, hits {ai.Stats.Hits}");
+        Assert.True(engaging > 120 * 10, "should have spent the fight engaging");
+        Assert.True(hullDown > engaging / 2, "should engage hull-down behind the ridge most of the time");
+        Assert.True(ai.Stats.Hits >= 3, "and still be able to hit the target over the crest");
+    }
+
+    [Fact]
+    public void Ai_SeesAndAimsAtTheExposedTopOfAHullDownMech()
+    {
+        var f = HeightField.Create(300f, 2f).AddRidge(new Vector2(-60f, -150f), new Vector2(60f, -150f), 8f, 9f, 0.8f);
+        f.UpdateBounds();
+        var b = new BattleSim(new ArenaMap { Terrain = f }) { TrackOutcome = false };
+        var ai = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f, Personality.Sniper);
+        var target = b.AddUnit("T", 1, MechChassis.Medium(), new Vector3(0, 0, -170), MathF.PI);
+        for (int i = 0; i < 60; i++) b.Step(H);
+        var torso = target.Volume(MechSection.Torso).Center;
+        Assert.False(b.Map.LineClear(ai.Volume(MechSection.Cockpit).Center, torso), "setup: torso centre should be behind the crest");
+        var k = Assert.Contains(target, (System.Collections.Generic.IDictionary<BattleUnit, Contact>)ai.Ai!.Contacts);
+        Assert.True(k.Visible);
+        Assert.True(k.AimHeight > torso.Y - target.Position.Y + 0.5f, $"aims at {k.AimHeight:0.0} m, torso centre at {torso.Y - target.Position.Y:0.0} m");
     }
 }

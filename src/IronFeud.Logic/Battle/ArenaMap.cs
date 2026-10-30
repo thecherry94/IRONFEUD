@@ -60,6 +60,9 @@ public readonly struct CoverPoint
     }
 }
 
+/// <summary>Look of a map, for the renderer.</summary>
+public enum ArenaTheme { Default, NoMansLand }
+
 /// <summary>
 /// Battle geometry as plain data: ground (flat at y = 0, or a <see cref="HeightField"/>) plus axis-aligned blocks.
 /// Shots, line of sight, AI steering, foot placement and mech collision all query this, so battles run headless;
@@ -78,6 +81,12 @@ public sealed class ArenaMap : IGround
     /// <summary>Playable radius around the origin (AI destinations stay inside); 0 = unbounded.</summary>
     public float Radius;
 
+    /// <summary>Look of the map, for the renderer.</summary>
+    public ArenaTheme Theme;
+
+    /// <summary>Trench lines (x, z polylines), for the renderer's wire pickets.</summary>
+    public readonly List<Vector2[]> Trenches = new();
+
     /// <summary>Spawn distance from the centre for the arena's two teams (±z).</summary>
     public const float ArenaSpawnZ = 190f;
 
@@ -91,7 +100,7 @@ public sealed class ArenaMap : IGround
     {
         const float r = 240f, gap = 14f;
         var map = new ArenaMap { Radius = r };
-        if (hills) map.Terrain = Hills(seed, r, (0f, ArenaSpawnZ, 45f), (0f, -ArenaSpawnZ, 45f));
+        if (hills) map.Terrain = Hills(seed, r);
         var rng = new DeterministicRng(seed);
         for (int tries = 0; map.Blocks.Count < 70 && tries < 8000; tries++)
         {
@@ -114,13 +123,78 @@ public sealed class ArenaMap : IGround
     public static ArenaMap Open(uint seed, bool hills)
     {
         var map = new ArenaMap();
-        if (hills) map.Terrain = Hills(seed, 300f);
+        if (hills) map.Terrain = Hills(seed, 300f, spawns: false);
         return map;
     }
 
-    /// <summary>Rolling hills: 4 m grid to ±340 m, amplitude 9 m at 140 m wavelength, fading out past <paramref name="radius"/>.</summary>
-    private static HeightField Hills(uint seed, float radius, params (float X, float Z, float Radius)[] flats) =>
-        HeightField.Hills(seed * 2654435761u + 17u, 340f, 4f, 9f, 140f, radius + 20f, flats);
+    /// <summary>
+    /// Mixed hills on a 3 m grid to ±340 m: rolling noise (±7 m at 140 m), sharp-crested ridges (±4 m at 80 m), and a
+    /// handful of steep mounds (8-16 m, flanks 30-42°), flat at the spawns, fading out past <paramref name="radius"/>.
+    /// </summary>
+    private static HeightField Hills(uint seed, float radius, bool spawns = true)
+    {
+        uint s = seed * 2654435761u + 17u;
+        var f = HeightField.Create(340f, 3f).AddNoise(s, 7f, 140f).AddNoise(s ^ 0x5f3759dfu, 4f, 80f, 2, ridged: true);
+        var rng = new DeterministicRng(s);
+        for (int i = 0; i < 7; i++)
+        {
+            float x = rng.Range(-0.8f, 0.8f) * radius, z = rng.Range(-0.6f, 0.6f) * radius;
+            f.AddMound(x, z, rng.Range(25f, 45f), rng.Range(8f, 16f), rng.Range(0.6f, 0.9f));
+        }
+        if (spawns) f.Flatten(0f, ArenaSpawnZ, 45f).Flatten(0f, -ArenaSpawnZ, 45f);
+        return f.Fade(radius + 20f);
+    }
+
+    /// <summary>
+    /// A mech-scale WW1 no man's land in the 240 m ring: a zig-zag trench line with a parapet in front of each spawn
+    /// (z = ±145), and between them a cratered waste: dozens of shell craters, a few mine craters deep enough to hide
+    /// a mech, steep spoil heaps and ridges that break the long sight lines, and a handful of ruined bunkers.
+    /// Spawns at z = ±190 behind the trenches. 2 m grid so craters keep their shape.
+    /// </summary>
+    public static ArenaMap NoMansLand(uint seed)
+    {
+        const float r = 240f, trenchZ = 145f;
+        var map = new ArenaMap { Radius = r, Theme = ArenaTheme.NoMansLand };
+        uint s = seed * 2246822519u + 3u;
+        var rng = new DeterministicRng(s);
+        var f = HeightField.Create(300f, 2f).AddNoise(s, 1.5f, 50f);
+
+        foreach (float side in new[] { -1f, 1f })
+        {
+            // Fire bays: the line zig-zags ±8 m every 30 m.
+            var line = new Vector2[15];
+            for (int i = 0; i < line.Length; i++)
+                line[i] = new Vector2(-210f + i * 30f, side * (trenchZ + (i % 2 == 0 ? 8f : -8f)));
+            f.AddTrench(line, 6f, 4.5f, 5.5f, new Vector2(0f, -side));
+            map.Trenches.Add(line);
+        }
+
+        for (int i = 0; i < 3; i++)
+            f.AddCrater(rng.Range(-150f, 150f), rng.Range(-90f, 90f), rng.Range(24f, 34f), rng.Range(9f, 12f), rng.Range(3f, 4f));
+        for (int i = 0; i < 5; i++)
+            f.AddMound(rng.Range(-180f, 180f), rng.Range(-90f, 90f), rng.Range(25f, 40f), rng.Range(9f, 15f), rng.Range(0.7f, 1f));
+        for (int i = 0; i < 2; i++)
+        {
+            float x = rng.Range(-170f, 70f), z = rng.Range(-70f, 70f), a = rng.Range(-0.5f, 0.5f), len = rng.Range(70f, 110f);
+            var from = new Vector2(x, z);
+            f.AddRidge(from, from + new Vector2(MathF.Cos(a), MathF.Sin(a)) * len, rng.Range(18f, 26f), rng.Range(8f, 12f), 0.8f);
+        }
+        for (int i = 0; i < 80; i++)
+            f.AddCrater(rng.Range(-210f, 210f), rng.Range(-trenchZ + 10f, trenchZ - 10f), rng.Range(7f, 16f), rng.Range(1f, 3f), rng.Range(0.6f, 1.5f));
+
+        f.Flatten(0f, ArenaSpawnZ, 20f).Flatten(0f, -ArenaSpawnZ, 20f); // soft edge stops short of the trenches
+        map.Terrain = f.Fade(r + 20f);
+
+        // Ruined bunkers: low concrete stubs scattered in no man's land.
+        for (int tries = 0; map.Blocks.Count < 10 && tries < 400; tries++)
+        {
+            float x = rng.Range(-190f, 190f), z = rng.Range(-115f, 115f), w = rng.Range(6f, 12f), d = rng.Range(6f, 12f);
+            if (map.InsideAnyBlock(x, z, 20f)) continue;
+            map.Blocks.Add(new Block(x, z, w, d, rng.Range(4f, 7f), map.BaseUnder(x, z, w, d)));
+        }
+        map.BuildCover();
+        return map;
+    }
 
     /// <summary>Base height for a block: the lowest ground under its corners, sunk half a metre.</summary>
     private float BaseUnder(float x, float z, float w, float d)
@@ -174,6 +248,32 @@ public sealed class ArenaMap : IGround
                 Cover.Add(new CoverPoint(new Vector3(p.X, Height(p.X, p.Y), p.Y), b.Size.Y));
             }
         }
+        if (Terrain != null) BuildTerrainCover();
+    }
+
+    /// <summary>
+    /// Terrain cover on a 12 m grid: level-enough spots where the ground rises at least 5 m within 22 m in some
+    /// direction (behind a berm or mound, in a crater or trench). Whether a spot hides from a given enemy is decided
+    /// at runtime by line of sight; <see cref="CoverPoint.BlockHeight"/> holds the rise.
+    /// </summary>
+    private void BuildTerrainCover()
+    {
+        const float spacing = 12f, minRise = 5f;
+        float extent = Radius > 0f ? Radius - 6f : Terrain!.HalfExtent - 20f;
+        for (float z = -extent; z <= extent; z += spacing)
+        for (float x = -extent; x <= extent; x += spacing)
+        {
+            if (Radius > 0f && x * x + z * z > extent * extent) continue;
+            if (InsideAnyBlock(x, z, 3f) || this.NormalAt(x, z, 2f).Y < 0.9f) continue; // not on a wall
+            float h0 = Height(x, z), rise = 0f;
+            for (int dir = 0; dir < 8; dir++)
+            {
+                float a = dir * MathF.PI / 4f, c = MathF.Cos(a), sn = MathF.Sin(a);
+                foreach (float d in new[] { 8f, 14f, 22f })
+                    rise = MathF.Max(rise, Height(x + c * d, z + sn * d) - h0);
+            }
+            if (rise >= minRise) Cover.Add(new CoverPoint(new Vector3(x, h0, z), rise));
+        }
     }
 
     public bool InsideAnyBlock(float x, float z, float pad)
@@ -210,11 +310,29 @@ public sealed class ArenaMap : IGround
         return RayDistance(a, d / len, len, ground: Terrain != null) >= len - 0.3f;
     }
 
-    /// <summary>Three parallel horizontal probes (centre, ±halfWidth) at knee height above the ground, against blocks.</summary>
+    /// <summary>Steepest climb (rise over run, averaged over 8 m) the AI will steer up; mechs can climb steeper, slowly.</summary>
+    public const float MaxClimbGrade = 0.8f;
+
+    /// <summary>
+    /// Three parallel horizontal probes (centre, ±halfWidth) at knee height above the ground against blocks, and the
+    /// ground along the centre line against climbs steeper than <see cref="MaxClimbGrade"/>.
+    /// </summary>
     public bool PathClear(Vector3 position, float heading, float halfWidth, float length, float height = 3f)
     {
         Vector3 fwd = MathUtil.Forward(heading), side = MathUtil.Right(heading) * halfWidth;
         float y = Height(position.X, position.Z) + height;
+        if (Terrain != null)
+        {
+            const float step = 8f;
+            float prev = Height(position.X, position.Z);
+            for (float d = step; d <= length; d += step)
+            {
+                Vector3 q = position + fwd * d;
+                float h = Height(q.X, q.Z);
+                if ((h - prev) / step > MaxClimbGrade) return false;
+                prev = h;
+            }
+        }
         for (int o = -1; o <= 1; o++)
         {
             Vector3 from = new Vector3(position.X, y, position.Z) + side * o;

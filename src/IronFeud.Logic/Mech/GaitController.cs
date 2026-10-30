@@ -187,6 +187,16 @@ public sealed class GaitController
         }
     }
 
+    /// <summary>The sole follows the ground up to 30° of tilt; on steeper walls it stays at 30° (the toes dig in).</summary>
+    private static Vector3 SoleNormal(Vector3 n)
+    {
+        const float maxTilt = 0.52f;
+        if (n.Y >= MathF.Cos(maxTilt)) return n;
+        var flat = new Vector3(n.X, 0f, n.Z);
+        float len = flat.Length();
+        return len < 1e-6f ? Vector3.UnitY : flat / len * MathF.Sin(maxTilt) + Vector3.UnitY * MathF.Cos(maxTilt);
+    }
+
     /// <summary>Ankle target and foot orientation for the current phase (heel-strike / toe-off, swing arc).</summary>
     public FootTarget Evaluate(int legIndex, BodyState body, MechChassis t)
     {
@@ -204,7 +214,7 @@ public sealed class GaitController
             cur = leg.Plant.Position;
             yaw = leg.Plant.Yaw;
             landing = leg.Plant;
-            normal = Ground.NormalAt(cur.X, cur.Z, normalSpan);
+            normal = SoleNormal(Ground.NormalAt(cur.X, cur.Z, normalSpan));
             pitch = 0.38f * MathUtil.Smoothstep(leg.Duty - 0.16f, leg.Duty, lp) - 0.14f * (1f - MathUtil.Smoothstep(0f, 0.07f, lp));
         }
         else
@@ -215,9 +225,9 @@ public sealed class GaitController
             cur = Vector3.Lerp(leg.From.Position, landing.Position, e);
             cur.Y = MathF.Max(cur.Y, Ground.HeightAt(cur.X, cur.Z)); // clear a crest between the two footholds
             yaw = MathUtil.LerpAngle(leg.From.Yaw, landing.Yaw, e);
-            normal = Vector3.Normalize(Vector3.Lerp(
+            normal = SoleNormal(Vector3.Normalize(Vector3.Lerp(
                 Ground.NormalAt(leg.From.Position.X, leg.From.Position.Z, normalSpan),
-                Ground.NormalAt(landing.Position.X, landing.Position.Z, normalSpan), e));
+                Ground.NormalAt(landing.Position.X, landing.Position.Z, normalSpan), e)));
             float dist = MathUtil.PlanarDistance(landing.Position, leg.From.Position);
             scale = MathUtil.Clamp01(dist / (3f * s0));
             // Walking: fast lift, hang, hard drop. Running: a much higher, earlier arc (the foot is pulled up under

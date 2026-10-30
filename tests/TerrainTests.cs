@@ -106,4 +106,73 @@ public class TerrainTests
         Assert.True(minSpeed < 0.95f * c.VMax, "climbing should cost speed");
         Assert.True(maxExt < 0.99f, $"{cls} {model} leg overextends on the hill: {maxExt:0.000}");
     }
+
+    [Fact]
+    public void NoMansLand_HasTrenches_Craters_SteepCover_AndBrokenSightLines()
+    {
+        var map = ArenaMap.NoMansLand(3);
+        var f = map.Terrain!;
+        Assert.Equal(f.Heights, ArenaMap.NoMansLand(3).Terrain!.Heights);
+        Assert.Equal(2, map.Trenches.Count);
+
+        float lo = float.MaxValue, hi = float.MinValue;
+        foreach (float h in f.Heights) { lo = MathF.Min(lo, h); hi = MathF.Max(hi, h); }
+        Assert.True(hi - lo > 18f, $"relief only {hi - lo:0.0} m");
+        float g = f.MaxGrade();
+        Assert.InRange(g, 0.8f, 2.5f); // steep trench walls and crater rims, no cliffs
+
+        // The trench in front of Alpha's spawn is a ditch with a parapet toward the enemy.
+        var line = map.Trenches[1];
+        Vector2 mid = (line[2] + line[3]) / 2f;
+        Assert.True(map.Height(mid.X, mid.Y) < -3f, "trench bottom");
+        Assert.True(map.Height(mid.X, mid.Y - 11f) > 2.5f, "parapet in front");
+
+        int terrainCover = 0;
+        foreach (var c in map.Cover) if (!map.InsideAnyBlock(c.Position.X, c.Position.Z, 10f)) terrainCover++;
+        Assert.True(terrainCover > 100, $"only {terrainCover} terrain cover points");
+
+        // Standing at the trenches, a mech's eye (~9.5 m) mostly can't see the other trench line.
+        int blocked = 0, lanes = 0;
+        for (float x = -180f; x <= 180f; x += 20f, lanes++)
+        {
+            var a = new Vector3(x, map.Height(x, 160f) + 9.5f, 160f);
+            var b = new Vector3(x, map.Height(x, -160f) + 7.5f, -160f);
+            if (!map.LineClear(a, b)) blocked++;
+        }
+        Assert.True(blocked > lanes / 2, $"only {blocked}/{lanes} lanes blocked");
+    }
+
+    /// <summary>A 4.5 m trench (parapet in front) at z = -60 and a 12 m, 40° mound at z = -160.</summary>
+    private static ArenaMap Obstacles()
+    {
+        var f = HeightField.Create(300f, 2f)
+            .AddTrench(new[] { new Vector2(-80f, -60f), new Vector2(80f, -60f) }, 6f, 4.5f, 5.5f, new Vector2(0f, -1f))
+            .AddMound(0f, -160f, 30f, 12f, 0.85f);
+        f.UpdateBounds();
+        return new ArenaMap { Terrain = f };
+    }
+
+    [Theory]
+    [MemberData(nameof(Mechs))]
+    public void AcrossATrenchAndOverASteepMound_LegsStayInReach_AndFeetStayOnTheGround(ChassisClass cls, MechModel model)
+    {
+        var map = Obstacles();
+        var c = MechChassis.Create(cls, model);
+        var m = new MechLocomotion(c) { Ground = map };
+        m.Reset(Vector3.Zero, 0f);
+        float maxExt = 0f;
+        for (int i = 0; i < 120 * 60 && m.Body.Position.Z > -220f; i++)
+        {
+            m.Step(new MechInput { Throttle = Math.Min(1f, i / 240f) }, H);
+            for (int l = 0; l < 2; l++)
+            {
+                var leg = m.Gait.Legs[l];
+                var lp = m.Pose.Legs[l];
+                maxExt = MathF.Max(maxExt, Vector3.Distance(lp.HipWorld, lp.Target.Ankle) / c.LegLength);
+                Assert.Equal(map.Height(leg.Plant.Position.X, leg.Plant.Position.Z), leg.Plant.Position.Y, 3);
+            }
+        }
+        Assert.True(m.Body.Position.Z < -220f, $"{cls} {model} got stuck at z = {m.Body.Position.Z:0}");
+        Assert.True(maxExt < 0.99f, $"{cls} {model} leg overextends: {maxExt:0.000}");
+    }
 }

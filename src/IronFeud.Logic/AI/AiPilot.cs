@@ -203,7 +203,8 @@ public sealed class AiPilot
                 continue;
             }
             float d = MathUtil.PlanarDistance(me.Position, e.Position);
-            bool vis = d < SensorRange && b.Map.LineClear(eye, e.Volume(MechSection.Torso).Center);
+            float seenHeight = 0f;
+            bool vis = d < SensorRange && Sees(b.Map, eye, e, out seenHeight);
             Contacts.TryGetValue(e, out var k);
             if (vis)
             {
@@ -223,6 +224,7 @@ public sealed class AiPilot
                 }
                 k.Visible = true;
                 Observe(k, e);
+                k.AimHeight = seenHeight;
             }
             else if (d < RadarRange)
             {
@@ -256,6 +258,25 @@ public sealed class AiPilot
             ka.LastSeen = _now;
         }
         _lastAttacker = null;
+    }
+
+    /// <summary>
+    /// Line of sight to the parts a pilot would recognise: torso centre, top of the torso, cockpit. A mech hull-down
+    /// behind a crest is still seen (and shot at) by whatever shows; <paramref name="aimHeight"/> is the lowest
+    /// visible part's height above the ground.
+    /// </summary>
+    private static bool Sees(ArenaMap map, Vector3 eye, BattleUnit e, out float aimHeight)
+    {
+        var torso = e.Volume(MechSection.Torso);
+        float ground = e.Position.Y;
+        aimHeight = torso.Center.Y - ground;
+        if (map.LineClear(eye, torso.Center)) return true;
+        Vector3 top = torso.Center + Vector3.UnitY * (0.7f * torso.Radius);
+        aimHeight = top.Y - ground;
+        if (map.LineClear(eye, top)) return true;
+        Vector3 cockpit = e.Volume(MechSection.Cockpit).Center;
+        aimHeight = cockpit.Y - ground;
+        return map.LineClear(eye, cockpit);
     }
 
     private static void Observe(Contact k, BattleUnit e)
@@ -293,7 +314,8 @@ public sealed class AiPilot
             {
                 // Orbit point at preferred range, ±0.35 rad around the target.
                 float a = MathUtil.Heading(me.Position - k.Position) + _orbit * 0.35f;
-                return map.ClampDestination(k.Position + MathUtil.Forward(a) * range);
+                var orbit = map.ClampDestination(k.Position + MathUtil.Forward(a) * range);
+                return map.Terrain != null ? FiringPosition(map, me, k, a) : orbit;
             }
             case AiAction.Cool or AiAction.Retreat:
             {
@@ -334,6 +356,54 @@ public sealed class AiPilot
                 return roam;
             }
         }
+    }
+
+    /// <summary>Firing-position rings as fractions of preferred range; fine enough to find the band just behind a crest.</summary>
+    private static readonly float[] FiringRanges = { 0.75f, 0.85f, 0.92f, 1f, 1.08f, 1.15f, 1.25f };
+
+    /// <summary>
+    /// Not in the prototype (flat ground): on terrain, ENGAGE picks where to stand. Candidates fan around the target
+    /// at 0.75-1.25× preferred range (7 rings × 7 bearings, ±0.6 rad around the orbit bearing) plus the current spot. Each is scored on:
+    /// the guns (lowest working muzzle) can reach the target, the legs (and ideally the torso) are hidden from the target's
+    /// cockpit (hull-down behind a crest), range error, travel, and a little for high ground when hull-down.
+    /// </summary>
+    private Vector3 FiringPosition(ArenaMap map, BattleUnit me, Contact k, float bearing)
+    {
+        // Muzzle height: the lowest weapon that still works must clear the crest (arms hang below the torso).
+        float ground = me.Position.Y, gunHeight = float.MaxValue;
+        var weapons = me.Sim.Weapons;
+        for (int w = 0; w < weapons.Mounts.Count; w++)
+            if (!weapons.Mounts[w].Offline) gunHeight = MathF.Min(gunHeight, weapons.MuzzlePosition(w, me.Sim.Pose).Y - ground);
+        if (gunHeight == float.MaxValue) gunHeight = me.Volume(MechSection.Torso).Center.Y - ground;
+        float legHeight = 0.45f * me.Chassis.HipHeight;
+        Vector3 targetEye = k.Position + Vector3.UnitY * k.EyeHeight;
+        Vector3 targetAim = k.Position + Vector3.UnitY * k.AimHeight;
+        float range = Personality.Range;
+
+        Vector3 best = me.Position;
+        float bestScore = float.NegativeInfinity;
+        for (int i = -1; i < 49; i++)
+        {
+            Vector3 c;
+            if (i < 0) c = me.Position;
+            else
+            {
+                float a = bearing + (i % 7 - 3) * 0.2f, r = range * FiringRanges[i / 7];
+                c = map.ClampDestination(k.Position + MathUtil.Forward(a) * r);
+            }
+            Vector3 up = Vector3.UnitY;
+            bool shoot = map.LineClear(c + up * gunHeight, targetAim);
+            bool legsHidden = !map.LineClear(targetEye, c + up * legHeight);
+            bool torsoHidden = legsHidden && !map.LineClear(targetEye, c + up * (0.8f * gunHeight));
+            // High ground only counts from behind a crest; on an exposed hilltop it just makes a better target.
+            float score = (shoot ? 1f : -0.5f) + (legsHidden ? 0.6f : 0f) + (shoot && torsoHidden ? 0.25f : 0f)
+                          - MathF.Abs(MathUtil.PlanarDistance(c, k.Position) - range) / 450f
+                          - MathUtil.PlanarDistance(c, me.Position) / 300f
+                          + (legsHidden ? MathUtil.Clamp(c.Y - k.Position.Y, -10f, 10f) * 0.015f : 0f)
+                          + (MathUtil.PlanarDistance(c, Destination) < 15f ? 0.1f : 0f); // don't dither between equals
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        return best;
     }
 
     /// <summary>Is a spot hidden from the contact's cockpit (checked against this mech's torso height)?</summary>

@@ -76,45 +76,188 @@ public sealed class HeightField : IGround
         }
     }
 
+    /// <summary>A flat field ±<paramref name="halfExtent"/> around the origin; shape it with the Add/Flatten/Fade operations.</summary>
+    public static HeightField Create(float halfExtent, float cell) =>
+        new((int)MathF.Ceiling(2f * halfExtent / cell) + 1, cell);
+
     /// <summary>
-    /// Rolling hills from value noise (3 octaves, base wavelength <paramref name="wavelength"/>), faded to 0 beyond
-    /// <paramref name="fadeStart"/> from the centre and flattened around <paramref name="flats"/> (x, z, radius).
+    /// Value noise, <paramref name="octaves"/> octaves from <paramref name="wavelength"/> down. Ridged noise folds it into
+    /// sharp crests and rounded troughs (range about [-1, 1]·amplitude either way).
     /// </summary>
-    public static HeightField Hills(uint seed, float halfExtent, float cell, float amplitude, float wavelength, float fadeStart,
-        params (float X, float Z, float Radius)[] flats)
+    public HeightField AddNoise(uint seed, float amplitude, float wavelength, int octaves = 3, bool ridged = false)
     {
-        int n = (int)MathF.Ceiling(2f * halfExtent / cell) + 1;
-        var f = new HeightField(n, cell);
         var noise = new ValueNoise(seed);
-        float fadeEnd = halfExtent - cell;
-        for (int iz = 0; iz < n; iz++)
-        for (int ix = 0; ix < n; ix++)
+        Each((x, z) =>
         {
-            float x = f.Origin + ix * cell, z = f.Origin + iz * cell;
             float h = 0f, amp = amplitude, freq = 1f / wavelength;
-            for (int o = 0; o < 3; o++)
+            for (int o = 0; o < octaves; o++)
             {
-                h += amp * noise.Sample(x * freq, z * freq, o);
+                float v = noise.Sample(x * freq, z * freq, o);
+                if (ridged) v = 2f * (1f - MathF.Abs(v)) * (1f - MathF.Abs(v)) - 1f;
+                h += amp * v;
                 amp *= 0.45f;
                 freq *= 2.1f;
             }
-            float r = MathF.Sqrt(x * x + z * z);
-            h *= 1f - MathUtil.Smoothstep(fadeStart, fadeEnd, r);
-            foreach (var (fx, fz, fr) in flats)
-            {
-                float d = MathF.Sqrt((x - fx) * (x - fx) + (z - fz) * (z - fz));
-                h *= MathUtil.Smoothstep(fr, fr * 1.8f, d);
-            }
-            f[ix, iz] = h;
+            return h;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// A round hill whose steepest flank has slope <paramref name="maxGrade"/> (rise over run); steep hills get a flat
+    /// top, gentle ones are domes (never gentler than the plain smoothstep dome, 1.5·height/radius).
+    /// </summary>
+    public HeightField AddMound(float x, float z, float radius, float height, float maxGrade)
+    {
+        float steepness = MathF.Max(1f, maxGrade * radius / (1.5f * height));
+        Around(x, z, radius, (px, pz) =>
+        {
+            float t = 1f - MathF.Sqrt((px - x) * (px - x) + (pz - z) * (pz - z)) / radius;
+            return t <= 0f ? 0f : height * MathUtil.Smoothstep(0f, 1f, MathF.Min(1f, t * steepness));
+        });
+        return this;
+    }
+
+    /// <summary>A long berm along the segment a → b, same profile as <see cref="AddMound"/> across its width.</summary>
+    public HeightField AddRidge(Vector2 a, Vector2 b, float halfWidth, float height, float maxGrade)
+    {
+        float steepness = MathF.Max(1f, maxGrade * halfWidth / (1.5f * height));
+        Along(a, b, halfWidth, d =>
+        {
+            float t = 1f - d / halfWidth;
+            return t <= 0f ? 0f : height * MathUtil.Smoothstep(0f, 1f, MathF.Min(1f, t * steepness));
+        });
+        return this;
+    }
+
+    /// <summary>A shell or mine crater: a bowl of <paramref name="depth"/> inside <paramref name="radius"/> with a thrown-up rim.</summary>
+    public HeightField AddCrater(float x, float z, float radius, float depth, float rim)
+    {
+        Around(x, z, radius * 1.9f, (px, pz) =>
+        {
+            float u = MathF.Sqrt((px - x) * (px - x) + (pz - z) * (pz - z)) / radius;
+            float bowl = u < 1f ? -depth * (1f - u * u) : 0f;
+            float lip = rim * MathF.Exp(-((u - 1f) * (u - 1f)) / 0.09f);
+            return bowl + lip;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// A trench along a polyline: a flat-bottomed ditch, and a parapet berm on the side facing
+    /// <paramref name="front"/> (a direction, e.g. toward the enemy). Each node uses its nearest segment, so zig-zag
+    /// corners don't dig twice.
+    /// </summary>
+    public HeightField AddTrench(Vector2[] line, float halfWidth, float depth, float parapetHeight, Vector2 front)
+    {
+        float reach = 3.5f * halfWidth;
+        float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+        foreach (var v in line)
+        {
+            minX = MathF.Min(minX, v.X); maxX = MathF.Max(maxX, v.X);
+            minZ = MathF.Min(minZ, v.Y); maxZ = MathF.Max(maxZ, v.Y);
         }
-        f.UpdateBounds();
-        return f;
+        int x0 = Math.Max(0, (int)((minX - reach - Origin) / Cell)), x1 = Math.Min(N - 1, (int)((maxX + reach - Origin) / Cell) + 1);
+        int z0 = Math.Max(0, (int)((minZ - reach - Origin) / Cell)), z1 = Math.Min(N - 1, (int)((maxZ + reach - Origin) / Cell) + 1);
+        for (int iz = z0; iz <= z1; iz++)
+        for (int ix = x0; ix <= x1; ix++)
+        {
+            var p = new Vector2(Origin + ix * Cell, Origin + iz * Cell);
+            float best = float.MaxValue;
+            bool frontSide = false;
+            for (int i = 0; i + 1 < line.Length; i++)
+            {
+                Vector2 a = line[i], ab = line[i + 1] - a;
+                float t = MathUtil.Clamp01(Vector2.Dot(p - a, ab) / MathF.Max(1e-6f, ab.LengthSquared()));
+                Vector2 off = p - (a + ab * t);
+                float d = off.Length();
+                if (d >= best) continue;
+                best = d;
+                frontSide = Vector2.Dot(off, front) > 0f;
+            }
+            if (best > reach) continue;
+            // Walls over 80 % of the half-width (~50° for a 4.5 m deep, 12 m wide trench); parapet ~40° flanks.
+            float ditch = -depth * (1f - MathUtil.Smoothstep(halfWidth * 0.2f, halfWidth, best));
+            float u = MathF.Abs(best - 1.8f * halfWidth) / (1.6f * halfWidth);
+            float berm = frontSide ? parapetHeight * (1f - MathUtil.Smoothstep(0f, 1f, u)) : 0f;
+            this[ix, iz] += ditch + berm;
+        }
+        return this;
+    }
+
+    /// <summary>Blends the ground to 0 inside <paramref name="radius"/> (soft edge out to 1.8·radius).</summary>
+    public HeightField Flatten(float x, float z, float radius)
+    {
+        for (int iz = 0; iz < N; iz++)
+        for (int ix = 0; ix < N; ix++)
+        {
+            float px = Origin + ix * Cell - x, pz = Origin + iz * Cell - z;
+            this[ix, iz] *= MathUtil.Smoothstep(radius, radius * 1.8f, MathF.Sqrt(px * px + pz * pz));
+        }
+        return this;
+    }
+
+    /// <summary>Fades everything to 0 between <paramref name="start"/> and the edge of the grid.</summary>
+    public HeightField Fade(float start)
+    {
+        float end = HalfExtent - Cell;
+        for (int iz = 0; iz < N; iz++)
+        for (int ix = 0; ix < N; ix++)
+        {
+            float px = Origin + ix * Cell, pz = Origin + iz * Cell;
+            this[ix, iz] *= 1f - MathUtil.Smoothstep(start, end, MathF.Sqrt(px * px + pz * pz));
+        }
+        UpdateBounds();
+        return this;
+    }
+
+    private void Each(Func<float, float, float> add)
+    {
+        for (int iz = 0; iz < N; iz++)
+        for (int ix = 0; ix < N; ix++)
+            this[ix, iz] += add(Origin + ix * Cell, Origin + iz * Cell);
+    }
+
+    private void Around(float x, float z, float radius, Func<float, float, float> add)
+    {
+        int x0 = Math.Max(0, (int)((x - radius - Origin) / Cell)), x1 = Math.Min(N - 1, (int)((x + radius - Origin) / Cell) + 1);
+        int z0 = Math.Max(0, (int)((z - radius - Origin) / Cell)), z1 = Math.Min(N - 1, (int)((z + radius - Origin) / Cell) + 1);
+        for (int iz = z0; iz <= z1; iz++)
+        for (int ix = x0; ix <= x1; ix++)
+            this[ix, iz] += add(Origin + ix * Cell, Origin + iz * Cell);
+    }
+
+    /// <summary>Applies a profile of the distance to segment a → b within <paramref name="reach"/>.</summary>
+    private void Along(Vector2 a, Vector2 b, float reach, Func<float, float> profile)
+    {
+        Vector2 ab = b - a;
+        float len2 = MathF.Max(1e-6f, ab.LengthSquared());
+        int x0 = Math.Max(0, (int)((MathF.Min(a.X, b.X) - reach - Origin) / Cell)), x1 = Math.Min(N - 1, (int)((MathF.Max(a.X, b.X) + reach - Origin) / Cell) + 1);
+        int z0 = Math.Max(0, (int)((MathF.Min(a.Y, b.Y) - reach - Origin) / Cell)), z1 = Math.Min(N - 1, (int)((MathF.Max(a.Y, b.Y) + reach - Origin) / Cell) + 1);
+        for (int iz = z0; iz <= z1; iz++)
+        for (int ix = x0; ix <= x1; ix++)
+        {
+            var p = new Vector2(Origin + ix * Cell, Origin + iz * Cell);
+            float t = MathUtil.Clamp01(Vector2.Dot(p - a, ab) / len2);
+            float d = Vector2.Distance(p, a + ab * t);
+            if (d <= reach) this[ix, iz] += profile(d);
+        }
     }
 
     public void UpdateBounds()
     {
         MaxHeight = 0f;
         foreach (float h in Heights) MaxHeight = MathF.Max(MaxHeight, h);
+    }
+
+    /// <summary>Steepest slope (rise over run) between neighbouring nodes, for tests and tuning.</summary>
+    public float MaxGrade()
+    {
+        float g = 0f;
+        for (int iz = 0; iz < N - 1; iz++)
+        for (int ix = 0; ix < N - 1; ix++)
+            g = MathF.Max(g, MathF.Max(MathF.Abs(this[ix + 1, iz] - this[ix, iz]), MathF.Abs(this[ix, iz + 1] - this[ix, iz])) / Cell);
+        return g;
     }
 
     /// <summary>Smooth value noise in [-1, 1] on an integer lattice, hashed from the seed.</summary>
