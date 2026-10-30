@@ -50,6 +50,9 @@ public struct FootTarget
 
     /// <summary>Predicted landing spot while swinging; equals the plant during stance.</summary>
     public FootPlant Landing;
+
+    /// <summary>Ground normal the sole lines up with (blended from take-off to landing during a swing).</summary>
+    public Vector3 Normal;
 }
 
 public struct Footfall
@@ -72,6 +75,9 @@ public struct Footfall
 public sealed class GaitController
 {
     public readonly LegGait[] Legs = { new(+1, 0f), new(-1, 0.5f) };
+
+    /// <summary>Ground the feet are planted on; null = flat at y = 0.</summary>
+    public IGround? Ground;
 
     public float Phase;
 
@@ -98,7 +104,7 @@ public sealed class GaitController
         Active = false;
         foreach (var leg in Legs)
         {
-            leg.Plant = Neutral(leg, body, t);
+            leg.Plant = Neutral(leg, body, t, Ground);
             leg.From = leg.Plant;
             leg.Swing = false;
             leg.StepLength = 0f;
@@ -108,8 +114,8 @@ public sealed class GaitController
 
     public static Vector3 HipOffset(LegGait leg, MechChassis t) => new(-leg.Side * t.HipWidth, 0f, 0f);
 
-    public static FootPlant Neutral(LegGait leg, BodyState body, MechChassis t) =>
-        new(body.Position + MathUtil.RotateY(HipOffset(leg, t), body.Psi), body.Psi);
+    public static FootPlant Neutral(LegGait leg, BodyState body, MechChassis t, IGround? ground = null) =>
+        new(ground.OnGround(body.Position + MathUtil.RotateY(HipOffset(leg, t), body.Psi)), body.Psi);
 
     /// <summary>Where the foot will land if the body keeps its current v and ω for <paramref name="remaining"/> seconds.</summary>
     public FootPlant Landing(LegGait leg, BodyState body, MechChassis t, float remaining)
@@ -118,7 +124,7 @@ public sealed class GaitController
         Vector3 p = body.Position + MathUtil.Forward(body.Psi) * (body.V * remaining);
         float halfStride = MathUtil.Clamp(body.V / F * Duty / 2f, -t.AMax, t.AMax);
         Vector3 local = HipOffset(leg, t) + new Vector3(0f, 0f, -halfStride);
-        return new FootPlant(p + MathUtil.RotateY(local, psiL), psiL);
+        return new FootPlant(Ground.OnGround(p + MathUtil.RotateY(local, psiL)), psiL);
     }
 
     public void Step(BodyState body, MechChassis t, float h, List<Footfall>? footfalls)
@@ -128,7 +134,7 @@ public sealed class GaitController
         foreach (var leg in Legs)
         {
             if (leg.Swing) { unsettled = true; continue; }
-            var n = Neutral(leg, body, t);
+            var n = Neutral(leg, body, t, Ground);
             if (MathUtil.PlanarDistance(leg.Plant.Position, n.Position) > 0.45f * t.Scale ||
                 MathF.Abs(MathUtil.WrapAngle(leg.Plant.Yaw - body.Psi)) > 0.2f)
                 unsettled = true;
@@ -189,7 +195,8 @@ public sealed class GaitController
         float lift = 0f, outward = 0f, pitch, yaw;
         float s0 = t.Scale;
         float scale = MathUtil.Clamp01(leg.StepLength / (3f * s0));
-        Vector3 cur;
+        float normalSpan = 1.5f * s0;
+        Vector3 cur, normal;
         FootPlant landing;
 
         if (!leg.Swing)
@@ -197,6 +204,7 @@ public sealed class GaitController
             cur = leg.Plant.Position;
             yaw = leg.Plant.Yaw;
             landing = leg.Plant;
+            normal = Ground.NormalAt(cur.X, cur.Z, normalSpan);
             pitch = 0.38f * MathUtil.Smoothstep(leg.Duty - 0.16f, leg.Duty, lp) - 0.14f * (1f - MathUtil.Smoothstep(0f, 0.07f, lp));
         }
         else
@@ -205,7 +213,11 @@ public sealed class GaitController
             landing = Landing(leg, body, t, (1f - s) * (1f - leg.Duty) / F);
             float e = MathUtil.Smootherstep(s);
             cur = Vector3.Lerp(leg.From.Position, landing.Position, e);
+            cur.Y = MathF.Max(cur.Y, Ground.HeightAt(cur.X, cur.Z)); // clear a crest between the two footholds
             yaw = MathUtil.LerpAngle(leg.From.Yaw, landing.Yaw, e);
+            normal = Vector3.Normalize(Vector3.Lerp(
+                Ground.NormalAt(leg.From.Position.X, leg.From.Position.Z, normalSpan),
+                Ground.NormalAt(landing.Position.X, landing.Position.Z, normalSpan), e));
             float dist = MathUtil.PlanarDistance(landing.Position, leg.From.Position);
             scale = MathUtil.Clamp01(dist / (3f * s0));
             // Walking: fast lift, hang, hard drop. Running: a much higher, earlier arc (the foot is pulled up under
@@ -228,6 +240,7 @@ public sealed class GaitController
             Yaw = yaw,
             Pitch = pitch,
             Landing = landing,
+            Normal = normal,
         };
     }
 }

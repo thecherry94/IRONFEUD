@@ -7,7 +7,7 @@ namespace IronFeud.Logic.Mech;
 /// <summary>Root motion of the mech: where the legs are taking the body and where the torso points.</summary>
 public sealed class BodyState
 {
-    /// <summary>Ground position under the pelvis (y = ground height, currently 0).</summary>
+    /// <summary>Ground position under the pelvis. y follows the ground under the body and the planted feet.</summary>
     public Vector3 Position;
 
     /// <summary>Leg heading, radians about +Y (Godot Rotation.Y).</summary>
@@ -24,6 +24,9 @@ public sealed class BodyState
 
     public float Twist;
     public float Aim;
+
+    /// <summary>Smoothed ground slope along the heading, radians (+ = climbing). Set by MechLocomotion.</summary>
+    public float Slope;
 }
 
 public static class BodyKinematics

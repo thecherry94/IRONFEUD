@@ -124,7 +124,8 @@ public sealed class BattleSim
         int id = Units.Count;
         uint seed = _seed * 7919u + (uint)id * 104729u + 1u;
         var sim = new MechSim(chassis, seed, damage);
-        sim.Locomotion.Reset(new Vector3(position.X, 0f, position.Z), heading);
+        sim.Locomotion.Ground = Map;
+        sim.Locomotion.Reset(position, heading);
         var unit = new BattleUnit(id, name, team, sim);
         if (ai != null) unit.Ai = new AiPilot(ai, seed ^ 0x5bd1e995u);
         Units.Add(unit);

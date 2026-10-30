@@ -5,20 +5,19 @@ using IronFeud.Logic.Core;
 
 namespace IronFeud.Logic.Battle;
 
-/// <summary>An axis-aligned block standing on the ground (y = 0).</summary>
+/// <summary>An axis-aligned block standing on the ground; <c>baseY</c> sinks it into uneven terrain.</summary>
 public readonly struct Block
 {
     public readonly Vector3 Min, Max;
 
-    public Block(float x, float z, float w, float d, float h)
+    public Block(float x, float z, float w, float d, float h, float baseY = 0f)
     {
-        Min = new Vector3(x - w / 2f, 0f, z - d / 2f);
-        Max = new Vector3(x + w / 2f, h, z + d / 2f);
+        Min = new Vector3(x - w / 2f, baseY, z - d / 2f);
+        Max = new Vector3(x + w / 2f, baseY + h, z + d / 2f);
     }
 
     public Vector3 Center => (Min + Max) / 2f;
     public Vector3 Size => Max - Min;
-    public float Height => Max.Y;
 
     public bool ContainsXZ(float x, float z, float pad) =>
         x > Min.X - pad && x < Max.X + pad && z > Min.Z - pad && z < Max.Z + pad;
@@ -62,13 +61,19 @@ public readonly struct CoverPoint
 }
 
 /// <summary>
-/// Battle geometry as plain data: flat ground at y = 0 plus axis-aligned blocks. Shots, line of sight, AI steering
-/// and mech collision all query this, so battles run headless; the Godot side only renders it.
+/// Battle geometry as plain data: ground (flat at y = 0, or a <see cref="HeightField"/>) plus axis-aligned blocks.
+/// Shots, line of sight, AI steering, foot placement and mech collision all query this, so battles run headless;
+/// the Godot side only renders it.
 /// </summary>
-public sealed class ArenaMap
+public sealed class ArenaMap : IGround
 {
     public readonly List<Block> Blocks = new();
     public readonly List<CoverPoint> Cover = new();
+
+    /// <summary>Hills; null = flat ground at y = 0.</summary>
+    public HeightField? Terrain;
+
+    public float Height(float x, float z) => Terrain?.Height(x, z) ?? 0f;
 
     /// <summary>Playable radius around the origin (AI destinations stay inside); 0 = unbounded.</summary>
     public float Radius;
@@ -79,12 +84,14 @@ public sealed class ArenaMap
     /// <summary>
     /// The prototype's arena generator, scaled 2.5× for genre speeds (prototype: 95 m ring, 36 blocks of 5-16 m).
     /// A 240 m ring with ~70 larger blocks: the mean free sight line grows with the doubled engagement ranges
-    /// (~150 m vs the prototype's ~75 m). Spawn zones at z = ±190 kept open.
+    /// (~150 m vs the prototype's ~75 m). Spawn zones at z = ±190 kept open (and flat). With <paramref name="hills"/>,
+    /// rolling terrain up to ~±10 m.
     /// </summary>
-    public static ArenaMap Arena(uint seed)
+    public static ArenaMap Arena(uint seed, bool hills = true)
     {
         const float r = 240f, gap = 14f;
         var map = new ArenaMap { Radius = r };
+        if (hills) map.Terrain = Hills(seed, r, (0f, ArenaSpawnZ, 45f), (0f, -ArenaSpawnZ, 45f));
         var rng = new DeterministicRng(seed);
         for (int tries = 0; map.Blocks.Count < 70 && tries < 8000; tries++)
         {
@@ -93,7 +100,7 @@ public sealed class ArenaMap
             float x = rng.Range(-1f, 1f) * (r - 12f), z = rng.Range(-1f, 1f) * (r - 12f);
             if (MathF.Sqrt(x * x + z * z) > r - 10f) continue;
             if (MathF.Abs(z) > 0.65f * r && MathF.Abs(x) < 65f) continue; // spawn zones
-            var b = new Block(x, z, w, d, h);
+            var b = new Block(x, z, w, d, h, map.BaseUnder(x, z, w, d));
             bool ok = true;
             foreach (var o in map.Blocks)
                 if (b.Max.X + gap > o.Min.X && b.Min.X - gap < o.Max.X && b.Max.Z + gap > o.Min.Z && b.Min.Z - gap < o.Max.Z) { ok = false; break; }
@@ -101,6 +108,26 @@ public sealed class ArenaMap
         }
         map.BuildCover();
         return map;
+    }
+
+    /// <summary>Open ground with no blocks (the gait parade), flat or hilly, ~±340 m.</summary>
+    public static ArenaMap Open(uint seed, bool hills)
+    {
+        var map = new ArenaMap();
+        if (hills) map.Terrain = Hills(seed, 300f);
+        return map;
+    }
+
+    /// <summary>Rolling hills: 4 m grid to ±340 m, amplitude 9 m at 140 m wavelength, fading out past <paramref name="radius"/>.</summary>
+    private static HeightField Hills(uint seed, float radius, params (float X, float Z, float Radius)[] flats) =>
+        HeightField.Hills(seed * 2654435761u + 17u, 340f, 4f, 9f, 140f, radius + 20f, flats);
+
+    /// <summary>Base height for a block: the lowest ground under its corners, sunk half a metre.</summary>
+    private float BaseUnder(float x, float z, float w, float d)
+    {
+        float lo = Height(x, z);
+        for (int i = 0; i < 4; i++) lo = MathF.Min(lo, Height(x + (i % 2 == 0 ? -w : w) / 2f, z + (i < 2 ? -d : d) / 2f));
+        return lo - 0.5f;
     }
 
     /// <summary>Open test ground: scattered blocks of mixed height, keeping a rectangle (x0, z0, x1, z1) clear.</summary>
@@ -144,7 +171,7 @@ public sealed class ArenaMap
             {
                 if (Radius > 0f && p.Length() > Radius - 3f) continue;
                 if (InsideAnyBlock(p.X, p.Y, 2.5f)) continue;
-                Cover.Add(new CoverPoint(new Vector3(p.X, 0f, p.Y), b.Height));
+                Cover.Add(new CoverPoint(new Vector3(p.X, Height(p.X, p.Y), p.Y), b.Size.Y));
             }
         }
     }
@@ -160,7 +187,8 @@ public sealed class ArenaMap
     public float RayDistance(Vector3 origin, Vector3 dir, float maxDistance, bool ground = true)
     {
         float best = maxDistance;
-        if (ground && dir.Y < -1e-6f)
+        if (ground && Terrain != null) best = MathF.Min(best, Terrain.Raycast(origin, dir, best));
+        else if (ground && dir.Y < -1e-6f)
         {
             float t = -origin.Y / dir.Y;
             if (t >= 0f && t < best) best = t;
@@ -173,22 +201,23 @@ public sealed class ArenaMap
         return best;
     }
 
-    /// <summary>Line of sight between two points (the prototype's 0.3 m slack at the far end).</summary>
+    /// <summary>Line of sight between two points, blocked by blocks and hills (the prototype's 0.3 m slack at the far end).</summary>
     public bool LineClear(Vector3 a, Vector3 b)
     {
         Vector3 d = b - a;
         float len = d.Length();
         if (len < 1e-4f) return true;
-        return RayDistance(a, d / len, len, ground: false) >= len - 0.3f;
+        return RayDistance(a, d / len, len, ground: Terrain != null) >= len - 0.3f;
     }
 
-    /// <summary>Three parallel horizontal probes (centre, ±halfWidth) at knee height along a heading.</summary>
+    /// <summary>Three parallel horizontal probes (centre, ±halfWidth) at knee height above the ground, against blocks.</summary>
     public bool PathClear(Vector3 position, float heading, float halfWidth, float length, float height = 3f)
     {
         Vector3 fwd = MathUtil.Forward(heading), side = MathUtil.Right(heading) * halfWidth;
+        float y = Height(position.X, position.Z) + height;
         for (int o = -1; o <= 1; o++)
         {
-            Vector3 from = new Vector3(position.X, height, position.Z) + side * o;
+            Vector3 from = new Vector3(position.X, y, position.Z) + side * o;
             if (RayDistance(from, fwd, length, ground: false) < length) return false;
         }
         return true;
@@ -223,7 +252,7 @@ public sealed class ArenaMap
                 }
                 q = best;
             }
-        return new Vector3(q.X, 0f, q.Y);
+        return new Vector3(q.X, Height(q.X, q.Y), q.Y);
     }
 
     /// <summary>Pushes a circle (mech footprint) out of every block it overlaps. Returns the corrected ground position.</summary>

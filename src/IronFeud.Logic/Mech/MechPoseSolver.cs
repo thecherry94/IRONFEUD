@@ -32,7 +32,21 @@ public static class MechPoseSolver
         float hipRaise = 0.25f * s * run;
         float drop = t.CollapseDrop * collapse;
         pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + hipRaise + bob + sec.BounceY.X + 0.09f * s * jn - drop, 0f);
-        pose.PelvisRotation = Rot.Yxz(-0.03f - 0.1f * run - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * walkSway * c0, 0.025f * t.Sway * g * walkSway * cs - collapseRoll * collapse);
+        // Lean into climbs (and back a little going downhill).
+        pose.PelvisRotation = Rot.Yxz(-0.03f - 0.1f * run - 0.35f * body.Slope - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * walkSway * c0, 0.025f * t.Sway * g * walkSway * cs - collapseRoll * collapse);
+
+        // Foot targets first: the pelvis may not ride so high that a leg would have to over-extend to reach its
+        // target (downhill footholds, a long stride over a crest). The cap is continuous and only ever lowers.
+        FootTarget target0 = Target(0, gait, body, t, collapse), target1 = Target(1, gait, body, t, collapse);
+        float reach = 0.97f * t.LegLength;
+        for (int i = 0; i < 2; i++)
+        {
+            var target = i == 0 ? target0 : target1;
+            Vector3 root = pose.PelvisPosition + Vector3.Transform(new Vector3(-gait.Legs[i].Side * t.HipWidth, t.HipRootY, 0f), pose.PelvisRotation);
+            float planar = MathUtil.PlanarDistance(root, target.Ankle);
+            float maxRootY = target.Ankle.Y + MathF.Sqrt(MathF.Max(0f, reach * reach - planar * planar));
+            if (root.Y > maxRootY) pose.PelvisPosition.Y -= root.Y - maxRootY;
+        }
 
         pose.TorsoRotation = Rot.Yxz(
             -(sec.TorsoPitch.X + 0.01f * jn),
@@ -77,20 +91,14 @@ public static class MechPoseSolver
         {
             var leg = gait.Legs[i];
             var lp = pose.Legs[i];
-            var target = gait.Evaluate(i, body, t);
-            if (collapse > 0f)
-            {
-                // Feet are all planted when collapsing; flatten them onto the ground.
-                target.Pitch *= 1f - collapse;
-                target.Ankle.Y = MathUtil.Lerp(target.Ankle.Y, body.Position.Y + t.AnkleHeight, collapse);
-            }
+            var target = i == 0 ? target0 : target1;
 
             Vector3 rootLocal = new(-leg.Side * t.HipWidth, t.HipRootY, 0f);
             Vector3 rootWorld = pose.PelvisPosition + Vector3.Transform(rootLocal, pose.PelvisRotation);
             Vector3 d = Vector3.Transform(target.Ankle - rootWorld, pelvisInv);
 
             // Foot orientation is world-space: it keeps its planted yaw while the body turns over it.
-            Quaternion footWorld = Rot.Y(target.Yaw) * Rot.X(-target.Pitch);
+            Quaternion footWorld = Rot.YawOnSlope(target.Yaw, target.Normal) * Rot.X(-target.Pitch);
             lp.Target = target;
             lp.HipWorld = rootWorld;
             if (t.Legs == LegLayout.Digitigrade)
@@ -121,6 +129,18 @@ public static class MechPoseSolver
             }
             lp.FootWorld = footWorld;
         }
+    }
+
+    private static FootTarget Target(int leg, GaitController gait, BodyState body, MechChassis t, float collapse)
+    {
+        var target = gait.Evaluate(leg, body, t);
+        if (collapse > 0f)
+        {
+            // Feet are all planted when collapsing; flatten them onto the ground.
+            target.Pitch *= 1f - collapse;
+            target.Ankle.Y = MathUtil.Lerp(target.Ankle.Y, gait.Legs[leg].Plant.Position.Y + t.AnkleHeight, collapse);
+        }
+        return target;
     }
 
     private static HitVolume Sphere(MechSection s, Vector3 c, float r) => new() { Section = s, Center = c, Radius = r };
