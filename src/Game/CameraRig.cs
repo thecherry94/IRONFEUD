@@ -48,7 +48,7 @@ public partial class CameraRig : Camera3D
         ProcessMode = ProcessModeEnum.Always;
         ProcessPhysicsPriority = 100;
         Near = 0.1f;
-        Far = 900f;
+        Far = 1500f;
         SetMode(Mode);
     }
 
@@ -170,7 +170,7 @@ public partial class CameraRig : Camera3D
             _overviewInit = true;
         }
         _overviewCenter = _overviewCenter.Lerp(c, 1f - Mathf.Exp(-dt * 1.5f));
-        float r = Mathf.Clamp(sep * 0.85f + 45f, 55f, 175f) * _ovZoom;
+        float r = Mathf.Clamp(sep * 0.85f + 45f, 55f, 420f) * _ovZoom;
         if (_clock - _lastDrag > 5f) _ovTheta += dt * 0.04f;
         var look = new Vector3(_overviewCenter.X, 4f, _overviewCenter.Z);
         var offset = new Vector3(Mathf.Sin(_ovPhi) * Mathf.Sin(_ovTheta), Mathf.Cos(_ovPhi), Mathf.Sin(_ovPhi) * Mathf.Cos(_ovTheta));

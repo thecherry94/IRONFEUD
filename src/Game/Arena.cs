@@ -133,8 +133,8 @@ public static class Arena
             FogMode = Godot.Environment.FogModeEnum.Depth,
             FogLightColor = Fog,
             FogDensity = 1f,
-            FogDepthBegin = 120f,
-            FogDepthEnd = 420f,
+            FogDepthBegin = 200f,
+            FogDepthEnd = 800f,
             FogSkyAffect = 1f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });

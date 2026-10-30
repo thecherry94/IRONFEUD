@@ -46,7 +46,7 @@ public partial class Battlefield : Node3D
 
     public override void _Ready()
     {
-        _shellMesh = new BoxMesh { Size = new Vector3(0.16f, 0.16f, 2.6f) };
+        _shellMesh = new BoxMesh { Size = new Vector3(0.18f, 0.18f, 6f) };
         _shellMaterial = new StandardMaterial3D { AlbedoColor = new Color("ffd27a"), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
     }
 

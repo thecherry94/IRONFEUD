@@ -79,11 +79,11 @@ public class DamageTests
     [Fact]
     public void LaserPastFalloff_NeedsTwoCockpitHits()
     {
-        // One laser hit kills the pilot only inside ~127 m (damage >= 5); at 140 m it does 3.
+        // One laser hit kills a 5 HP cockpit only inside ~253 m (damage >= 5); at 280 m it does 3.
         var sim = NewSim();
-        sim.ApplyHit(MechSection.Cockpit, WeaponSpec.Laser.DamageAt(140f));
+        sim.ApplyHit(MechSection.Cockpit, WeaponSpec.Laser.DamageAt(280f));
         Assert.False(sim.IsOut);
-        sim.ApplyHit(MechSection.Cockpit, WeaponSpec.Laser.DamageAt(140f));
+        sim.ApplyHit(MechSection.Cockpit, WeaponSpec.Laser.DamageAt(280f));
         Assert.True(sim.IsOut);
     }
 

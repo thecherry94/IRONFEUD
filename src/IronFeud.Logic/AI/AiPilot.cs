@@ -34,10 +34,11 @@ public sealed class Contact
 public sealed class AiPilot
 {
     public const float ThinkInterval = 0.35f;
-    public const float SensorRange = 300f, RadarRange = 130f, ContactMemory = 15f;
+    // Distances are the prototype's ×2 (its mechs walked at 4 m/s; ours run at 11-36 m/s).
+    public const float SensorRange = 600f, RadarRange = 260f, ContactMemory = 15f;
 
-    /// <summary>Target speed that counts as "moving" for aim error (the medium chassis' top speed).</summary>
-    public const float ReferenceSpeed = 4.2f;
+    /// <summary>Target speed that counts as "moving" for aim error (about a medium's top speed).</summary>
+    public const float ReferenceSpeed = 20f;
 
     public const int LogLength = 9;
     public static readonly int ActionCount = Enum.GetValues<AiAction>().Length;
@@ -273,7 +274,7 @@ public sealed class AiPilot
         {
             float age = _now - k.LastSeen;
             if (age > ContactMemory) continue;
-            float s = (k.Visible ? 0.6f : 0f) - MathUtil.PlanarDistance(me.Position, k.Position) / 250f + (focus == e ? 0.5f : 0f)
+            float s = (k.Visible ? 0.6f : 0f) - MathUtil.PlanarDistance(me.Position, k.Position) / 500f + (focus == e ? 0.5f : 0f)
                       + (1f - e.Sim.Damage.Fraction(MechSection.Torso)) * 0.4f - age * 0.03f + (e == Target ? 0.15f : 0f);
             if (s > bestScore) { bestScore = s; best = e; }
         }
@@ -314,7 +315,7 @@ public sealed class AiPilot
                 {
                     Vector3 pt = map.ClampDestination(k.Position + MathUtil.Forward(baseAngle + side * 1.4f) * (range * 0.85f));
                     bool clear = map.LineClear(pt + Vector3.UnitY * eyeHeight, k.Position + Vector3.UnitY * k.AimHeight);
-                    float s = (clear ? 1f : 0f) - MathUtil.PlanarDistance(me.Position, pt) / 120f + (side == _orbit ? 0.1f : 0f);
+                    float s = (clear ? 1f : 0f) - MathUtil.PlanarDistance(me.Position, pt) / 240f + (side == _orbit ? 0.1f : 0f);
                     if (s > bestScore) { bestScore = s; best = pt; }
                 }
                 return best;
@@ -322,11 +323,11 @@ public sealed class AiPilot
             default:
             {
                 if (k != null) return map.ClampDestination(k.Position);
-                if (_roam is not { } roam || MathUtil.PlanarDistance(me.Position, roam) < 10f)
+                if (_roam is not { } roam || MathUtil.PlanarDistance(me.Position, roam) < 20f)
                 {
                     // Sweep toward the enemy half (away from where this mech started).
-                    float enemySide = _home.Z > 0f ? -1f : 1f;
-                    roam = map.ClampDestination(new Vector3(_rng.Range(-60f, 60f), 0f, enemySide * _rng.Range(-10f, 60f)));
+                    float enemySide = _home.Z > 0f ? -1f : 1f, r = map.Radius > 0f ? map.Radius : 100f;
+                    roam = map.ClampDestination(new Vector3(_rng.Range(-0.63f, 0.63f) * r, 0f, enemySide * _rng.Range(-0.1f, 0.63f) * r));
                     _roam = roam;
                     Note($"sweeping toward ({roam.X:0}, {roam.Z:0})");
                 }
@@ -351,17 +352,17 @@ public sealed class AiPilot
         {
             var c = cover[i];
             float d = MathUtil.PlanarDistance(c.Position, me.Position);
-            if (d > 85f) continue;
+            if (d > 200f) continue;
             bool hidden = k == null || Hidden(me, c.Position, k, b.Map);
             float dt = k != null ? MathUtil.PlanarDistance(c.Position, k.Position) : 100f;
-            float s = (hidden ? 1.2f : 0f) - d / 50f
-                      + (retreat ? dt / 140f : -MathF.Abs(dt - Personality.Range) / 220f)
-                      + (c.BlockHeight > 9f ? 0.15f : 0f);
-            if (k != null && dt < 25f) s -= 1f;
+            float s = (hidden ? 1.2f : 0f) - d / 120f
+                      + (retreat ? dt / 300f : -MathF.Abs(dt - Personality.Range) / 450f)
+                      + (c.BlockHeight > 15f ? 0.15f : 0f);
+            if (k != null && dt < 50f) s -= 1f;
             foreach (var a in b.Units)
             {
                 if (a == me || a.Team != me.Team || a.IsOut) continue;
-                if (retreat) s += 0.35f * MathF.Exp(-MathUtil.PlanarDistance(c.Position, a.Position) / 40f);
+                if (retreat) s += 0.35f * MathF.Exp(-MathUtil.PlanarDistance(c.Position, a.Position) / 80f);
                 if (a.Ai?.CoverIndex == i) s -= 0.8f;
             }
             if (s > bestScore) { bestScore = s; best = i; }
@@ -369,12 +370,16 @@ public sealed class AiPilot
         return best;
     }
 
-    /// <summary>Probe headings around the destination bearing; take the first with three clear parallel rays.</summary>
+    /// <summary>
+    /// Probe headings around the destination bearing; take the first with three clear parallel rays.
+    /// The probes look 1.2 s ahead at current speed (prototype: a fixed 16 m).
+    /// </summary>
     private float Steer(BattleSim b, BattleUnit me, Vector3 dest)
     {
         Vector3 to = dest - me.Position;
         float desired = MathUtil.Heading(to);
-        float probe = MathF.Min(16f, MathUtil.PlanarDistance(dest, me.Position));
+        float lookAhead = MathF.Max(16f, 1.2f * MathF.Abs(me.Sim.Locomotion.Body.V));
+        float probe = MathF.Min(lookAhead, MathUtil.PlanarDistance(dest, me.Position));
         if (probe < 3f) return desired;
         float s = me.Chassis.Scale;
         foreach (float off in SteerOffsets)
@@ -410,15 +415,18 @@ public sealed class AiPilot
         float err = MathUtil.WrapAngle(DesiredHeading - body.Psi);
         Contact? k = Target != null && Contacts.TryGetValue(Target, out var kk) ? kk : null;
         if (dist < 5f) { }
-        else if (Action is AiAction.Engage or AiAction.Retreat && k != null && MathF.Abs(err) > 2.1f && dist < 45f)
+        else if (Action is AiAction.Engage or AiAction.Retreat && k != null && MathF.Abs(err) > 2.1f && dist < 90f)
         {
             input.Turn = MathUtil.Clamp(MathUtil.WrapAngle(DesiredHeading + MathF.PI - body.Psi) * 2f, -1f, 1f);
             input.Throttle = -0.9f;
         }
         else
         {
+            // Arrive without overshooting: no faster than the chassis can brake to a stop over the remaining
+            // distance (prototype: dist / 20 m, fine at 4 m/s). Never slower than ~1.3 m/s.
+            float brake = MathF.Sqrt(2f * c.Decel * MathF.Max(0f, dist - 4f)) / c.VMax;
             input.Turn = MathUtil.Clamp(err * 2.2f, -1f, 1f);
-            input.Throttle = MathUtil.Clamp(dist / 20f, 0.3f, 1f) * MathF.Max(0.1f, MathF.Cos(err));
+            input.Throttle = MathUtil.Clamp(brake, MathF.Min(0.3f, 1.3f / c.VMax), 1f) * MathF.Max(0.1f, MathF.Cos(err));
         }
 
         bool wasHolding = HoldingFire;
@@ -457,7 +465,7 @@ public sealed class AiPilot
         AimPoint = aimBase + Vector3.UnitY * (drop + _errPitch * d) - MathUtil.Right(bearing) * (_errYaw * d);
         input.TwistTarget = MathUtil.Clamp(needTwist + extraTwist, -c.TwistMax, c.TwistMax);
         input.AimTarget = MathF.Atan2(aimBase.Y + drop - sim.Pose.AimOrigin.Y, MathF.Max(1f, d)) + _errPitch;
-        input.Convergence = MathUtil.Clamp(d, 20f, 320f);
+        input.Convergence = MathUtil.Clamp(d, 20f, 700f);
 
         if (!k.Visible || _now - k.FirstSeen < p.Reaction || TwistingAway) return input;
 

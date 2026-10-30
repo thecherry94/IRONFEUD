@@ -4,7 +4,7 @@ namespace IronFeud.Logic.Mech.Weapons;
 
 public enum WeaponKind { Projectile, Beam }
 
-/// <summary>Static weapon data. Values from docs/combat-ai.md (arena prototype).</summary>
+/// <summary>Static weapon data. The prototype's damage/heat/cooldown; ranges and shell speed rescaled for genre mech speeds (docs/combat-ai.md).</summary>
 public sealed record WeaponSpec
 {
     public required string Name { get; init; }
@@ -46,9 +46,10 @@ public sealed record WeaponSpec
         Damage = 14f,
         Heat = 0.08f,
         Cooldown = 0.75f,
-        Range = 320f,
-        MuzzleVelocity = 150f,
+        Range = 640f,
+        MuzzleVelocity = 450f,
         Gravity = 4f,
+        MaxLifetime = 2f,
         ArmKick = 3.4f,
         ElbowKick = 4f,
         TorsoYawKick = 0.35f,
@@ -63,8 +64,8 @@ public sealed record WeaponSpec
         Damage = 9f,
         Heat = 0.11f,
         Cooldown = 1.0f,
-        Range = 160f,
-        FalloffStart = 100f,
+        Range = 320f,
+        FalloffStart = 200f,
         MinDamageFraction = 0.2f,
         ArmKick = 0.8f,
         TorsoYawKick = 0.12f,

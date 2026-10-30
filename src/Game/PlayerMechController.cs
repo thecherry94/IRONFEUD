@@ -18,7 +18,7 @@ public partial class PlayerMechController : Node
 
     private float _throttle, _twistTarget, _aimTarget;
 
-    private const float MaxConvergence = 400f, MinConvergence = 15f;
+    private const float MaxConvergence = 800f, MinConvergence = 15f;
 
     /// <summary>Where the weapons converge this tick (world space), for the reticle.</summary>
     public Vector3 AimPoint => AimHit.Point;

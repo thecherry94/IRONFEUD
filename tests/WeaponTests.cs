@@ -118,20 +118,20 @@ public class WeaponTests
         var shot = new ShotFired { Spec = WeaponSpec.Cannon, Origin = new Vector3(0, 10, 0), Direction = -Vector3.UnitZ };
         var p = Projectile.From(shot);
         for (int i = 0; i < 120; i++) p.Step(H);
-        Assert.Equal(-150f, p.Position.Z, 1);
-        Assert.Equal(10f - 0.5f * 4f, p.Position.Y, 1);
+        Assert.Equal(-WeaponSpec.Cannon.MuzzleVelocity, p.Position.Z, 0);
+        Assert.Equal(10f - 0.5f * WeaponSpec.Cannon.Gravity, p.Position.Y, 1);
         Assert.False(p.Expired);
     }
 
     [Fact]
-    public void Laser_FallsOffLinearlyBeyond100m()
+    public void Laser_FallsOffLinearlyBeyond200m()
     {
         var l = WeaponSpec.Laser;
-        Assert.Equal(9f, l.DamageAt(50f));
         Assert.Equal(9f, l.DamageAt(100f));
-        Assert.Equal(4.5f, l.DamageAt(130f), 3);
-        Assert.Equal(9f * 0.2f, l.DamageAt(160f), 3);
-        Assert.Equal(14f, WeaponSpec.Cannon.DamageAt(300f));
+        Assert.Equal(9f, l.DamageAt(200f));
+        Assert.Equal(4.5f, l.DamageAt(260f), 3);
+        Assert.Equal(9f * 0.2f, l.DamageAt(320f), 3);
+        Assert.Equal(14f, WeaponSpec.Cannon.DamageAt(600f));
     }
 }
 

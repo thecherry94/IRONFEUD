@@ -166,32 +166,33 @@ public partial class Main : Node3D
         void Player(float x, float z) => b.AddUnit("Player", 0, MechChassis.Create(_playerClass), new Vec3(x, 0f, z), 0f);
 
         const ChassisClass M = ChassisClass.Medium, L = ChassisClass.Light;
+        const float z = ArenaMap.ArenaSpawnZ, z2 = z + 17f, x = 30f;
         switch (mode)
         {
             case GameMode.Watch1v1:
-                Ai("Alpha-1", 0, M, 0f, 75f, Personality.Balanced);
-                Ai("Bravo-1", 1, M, 0f, -75f, Personality.Brawler);
+                Ai("Alpha-1", 0, M, 0f, z, Personality.Balanced);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Brawler);
                 break;
             case GameMode.Watch2v2:
-                Ai("Alpha-1", 0, M, 12f, 75f, Personality.Brawler);
-                Ai("Alpha-2", 0, M, -12f, 82f, Personality.Sniper);
-                Ai("Bravo-1", 1, M, -12f, -75f, Personality.Balanced);
-                Ai("Bravo-2", 1, M, 12f, -82f, Personality.Sniper);
+                Ai("Alpha-1", 0, M, x, z, Personality.Brawler);
+                Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper);
+                Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced);
+                Ai("Bravo-2", 1, M, x, -z2, Personality.Sniper);
                 break;
             case GameMode.WatchLights:
-                Ai("Alpha-1", 0, L, 12f, 75f, Personality.Brawler);
-                Ai("Alpha-2", 0, L, -12f, 78f, Personality.Balanced);
-                Ai("Bravo-1", 1, M, 0f, -75f, Personality.Balanced);
+                Ai("Alpha-1", 0, L, x, z, Personality.Brawler);
+                Ai("Alpha-2", 0, L, -x, z, Personality.Balanced);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced);
                 break;
             case GameMode.Play1v1:
-                Player(0f, 75f);
-                Ai("Bravo-1", 1, M, 0f, -75f, Personality.Balanced);
+                Player(0f, z);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced);
                 break;
             case GameMode.Play2v2:
-                Player(12f, 75f);
-                Ai("Alpha-2", 0, M, -12f, 82f, Personality.Sniper);
-                Ai("Bravo-1", 1, M, -12f, -75f, Personality.Balanced);
-                Ai("Bravo-2", 1, M, 12f, -82f, Personality.Brawler);
+                Player(x, z);
+                Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper);
+                Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced);
+                Ai("Bravo-2", 1, M, x, -z2, Personality.Brawler);
                 break;
         }
     }

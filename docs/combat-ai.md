@@ -3,6 +3,23 @@
 Reference: `reference/web-prototype/arena.html` (open it in a browser; tap mechs to inspect their decisions).
 Prototype convention: +Z forward (see CLAUDE.md for Godot conversion).
 
+## Rescaled for genre speeds (Godot port)
+The prototype's mechs walked at 4.2 m/s; ours run at 11-36 m/s (see docs/locomotion.md). Everything spatial was
+rescaled, damage/heat/cooldowns were not. Numbers below in **bold** are the current values; the rest of this doc
+describes the prototype.
+- Cannon: **450 m/s**, gravity 4 m/s² (real gravity put the laser, which shares the drop-compensated aim ray, on the
+  cockpit too often: 5 of 12 duels ended in pilot kills), range **640 m**, lifetime 2 s. Laser: range **320 m**,
+  falloff **200→320 m**.
+- Personality ranges ×2: Brawler **110**, Balanced **200**, Sniper **330** m. Sensor **600** m, radar **260** m.
+- Arena: **240 m** ring, **~70** blocks of 8-26 m footprint, 6-34 m tall, 14 m gaps, spawns at z = **±190**.
+  Fewer blocks than a straight area scale-up keeps the ratio of engagement range to mean free sight line close to
+  the prototype's; with 90 tall blocks the AIs saw their target only ~17 % of the time.
+- AI: cover search radius 200 m, distance weights halved; aim error counts target speed against **20 m/s**;
+  steering probes look **1.2 s** ahead at current speed; arrival speed is capped by the chassis' braking distance;
+  backing up applies inside 90 m.
+- Headless duels (12 matchups): 32-369 s, median ~150 s; 1 in 12 ends with a cockpit kill. Lights beat mediums in
+  3 of 4 (they are hard to hit at 36 m/s).
+
 ## Weapons
 | | cannon (right arm) | laser (left arm) |
 |---|---|---|

@@ -73,23 +73,30 @@ public sealed class ArenaMap
     /// <summary>Playable radius around the origin (AI destinations stay inside); 0 = unbounded.</summary>
     public float Radius;
 
-    /// <summary>The prototype's arena: a 95 m ring with 36 blocks, spawn zones at z = ±75 kept open.</summary>
+    /// <summary>Spawn distance from the centre for the arena's two teams (±z).</summary>
+    public const float ArenaSpawnZ = 190f;
+
+    /// <summary>
+    /// The prototype's arena generator, scaled 2.5× for genre speeds (prototype: 95 m ring, 36 blocks of 5-16 m).
+    /// A 240 m ring with ~70 larger blocks: the mean free sight line grows with the doubled engagement ranges
+    /// (~150 m vs the prototype's ~75 m). Spawn zones at z = ±190 kept open.
+    /// </summary>
     public static ArenaMap Arena(uint seed)
     {
-        const float r = 95f;
+        const float r = 240f, gap = 14f;
         var map = new ArenaMap { Radius = r };
         var rng = new DeterministicRng(seed);
-        for (int tries = 0; map.Blocks.Count < 36 && tries < 4000; tries++)
+        for (int tries = 0; map.Blocks.Count < 70 && tries < 8000; tries++)
         {
-            float w = 5f + rng.NextFloat() * 11f, d = 5f + rng.NextFloat() * 11f;
-            float h = 5f + MathF.Pow(rng.NextFloat(), 1.6f) * 20f;
-            float x = rng.Range(-1f, 1f) * (r - 8f), z = rng.Range(-1f, 1f) * (r - 8f);
-            if (MathF.Sqrt(x * x + z * z) > r - 6f) continue;
-            if (MathF.Abs(z) > 62f && MathF.Abs(x) < 26f) continue; // spawn zones
+            float w = 8f + rng.NextFloat() * 18f, d = 8f + rng.NextFloat() * 18f;
+            float h = 6f + MathF.Pow(rng.NextFloat(), 1.6f) * 28f;
+            float x = rng.Range(-1f, 1f) * (r - 12f), z = rng.Range(-1f, 1f) * (r - 12f);
+            if (MathF.Sqrt(x * x + z * z) > r - 10f) continue;
+            if (MathF.Abs(z) > 0.65f * r && MathF.Abs(x) < 65f) continue; // spawn zones
             var b = new Block(x, z, w, d, h);
             bool ok = true;
             foreach (var o in map.Blocks)
-                if (b.Max.X + 9f > o.Min.X && b.Min.X - 9f < o.Max.X && b.Max.Z + 9f > o.Min.Z && b.Min.Z - 9f < o.Max.Z) { ok = false; break; }
+                if (b.Max.X + gap > o.Min.X && b.Min.X - gap < o.Max.X && b.Max.Z + gap > o.Min.Z && b.Min.Z - gap < o.Max.Z) { ok = false; break; }
             if (ok) map.Blocks.Add(b);
         }
         map.BuildCover();

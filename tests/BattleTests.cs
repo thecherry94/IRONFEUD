@@ -17,10 +17,10 @@ public class ArenaMapTests
         var a = ArenaMap.Arena(7);
         var b = ArenaMap.Arena(7);
         Assert.Equal(a.Blocks.Count, b.Blocks.Count);
-        Assert.True(a.Blocks.Count >= 20, $"only {a.Blocks.Count} blocks");
+        Assert.True(a.Blocks.Count >= 60, $"only {a.Blocks.Count} blocks");
         Assert.Equal(a.Blocks.Select(x => x.Min), b.Blocks.Select(x => x.Min));
-        Assert.False(a.InsideAnyBlock(0f, 75f, 3f));
-        Assert.False(a.InsideAnyBlock(0f, -75f, 3f));
+        Assert.False(a.InsideAnyBlock(0f, ArenaMap.ArenaSpawnZ, 3f));
+        Assert.False(a.InsideAnyBlock(0f, -ArenaMap.ArenaSpawnZ, 3f));
         Assert.All(a.Cover, c => Assert.False(a.InsideAnyBlock(c.Position.X, c.Position.Z, 2.5f)));
         Assert.True(a.Cover.Count > a.Blocks.Count * 4);
     }
@@ -128,8 +128,8 @@ public class BattleTests
     private static BattleSim Duel(uint seed, Personality p0, Personality p1, ChassisClass c0 = ChassisClass.Medium, ChassisClass c1 = ChassisClass.Medium)
     {
         var b = new BattleSim(ArenaMap.Arena(seed), seed);
-        b.AddUnit("Alpha-1", 0, MechChassis.Create(c0), new Vector3(0, 0, 75), 0f, p0);
-        b.AddUnit("Bravo-1", 1, MechChassis.Create(c1), new Vector3(0, 0, -75), MathF.PI, p1);
+        b.AddUnit("Alpha-1", 0, MechChassis.Create(c0), new Vector3(0, 0, ArenaMap.ArenaSpawnZ), 0f, p0);
+        b.AddUnit("Bravo-1", 1, MechChassis.Create(c1), new Vector3(0, 0, -ArenaMap.ArenaSpawnZ), MathF.PI, p1);
         return b;
     }
 
@@ -195,9 +195,9 @@ public class BattleTests
     public void Ai_WithoutLineOfSightOrRadar_DoesNotKnowTheEnemy()
     {
         var b = new BattleSim(new ArenaMap()) { TrackOutcome = false };
-        b.Map.Blocks.Add(new Block(0f, -100f, 60f, 6f, 40f));
+        b.Map.Blocks.Add(new Block(0f, -150f, 80f, 6f, 40f));
         var me = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f, Personality.Balanced);
-        var enemy = b.AddUnit("B", 1, MechChassis.Medium(), new Vector3(0, 0, -200), 0f);
+        var enemy = b.AddUnit("B", 1, MechChassis.Medium(), new Vector3(0, 0, -AiPilot.RadarRange - 100f), 0f);
         for (int i = 0; i < 120 * 2; i++) b.Step(H);
         Assert.Empty(me.Ai!.Contacts);
         Assert.Equal(AiAction.Search, me.Ai.Action);
