@@ -29,7 +29,7 @@ public sealed class BodyState
 public static class BodyKinematics
 {
     /// <param name="speedFactor">Forward top-speed multiplier (crippled legs).</param>
-    public static void Step(BodyState s, in MechInput input, MechTuning t, float h, float speedFactor = 1f)
+    public static void Step(BodyState s, in MechInput input, MechChassis t, float h, float speedFactor = 1f)
     {
         float throttle = MathUtil.Clamp(input.Throttle, -1f, 1f);
         float turn = MathUtil.Clamp(input.Turn, -1f, 1f);

@@ -26,7 +26,7 @@ public sealed class SecondaryMotion
 
     public SecondaryMotion(uint seed) => _rng = new DeterministicRng(seed);
 
-    public void Step(BodyState body, GaitController gait, MechTuning t, float h)
+    public void Step(BodyState body, GaitController gait, MechChassis t, float h)
     {
         float p = gait.Phase, g = gait.G;
         float c0 = MathF.Cos(MathUtil.Tau * p);
@@ -88,6 +88,6 @@ public sealed class SecondaryMotion
     public void AddTrauma(float amount) => Trauma = MathF.Min(1f, Trauma + amount);
 
     /// <summary>Signed shake value: trauma² · two incommensurate sines.</summary>
-    public float Jank(float time, MechTuning t) =>
+    public float Jank(float time, MechChassis t) =>
         Trauma * Trauma * t.Jank * (0.6f * MathF.Sin(time * 53.1f) + 0.4f * MathF.Sin(time * 97.3f + 1.7f));
 }

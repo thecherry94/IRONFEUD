@@ -12,7 +12,7 @@ namespace IronFeud.Logic.Mech;
 public static class MechPoseSolver
 {
     /// <param name="collapse">0..1 slump of a mech that is out (pelvis drops and pitches, arms hang).</param>
-    public static void Solve(MechPose pose, BodyState body, GaitController gait, SecondaryMotion sec, MechTuning t, float time,
+    public static void Solve(MechPose pose, BodyState body, GaitController gait, SecondaryMotion sec, MechChassis t, float time,
         float collapse = 0f, float collapseRoll = 0f)
     {
         float p = gait.Phase, g = gait.G;

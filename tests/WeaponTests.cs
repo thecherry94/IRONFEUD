@@ -10,7 +10,7 @@ public class WeaponTests
     private const float H = 1f / 120f;
     private const uint Cannon = 1u << 0, Laser = 1u << 1;
 
-    private static MechSim NewSim() => new(new MechTuning());
+    private static MechSim NewSim() => new(new MechChassis());
 
     [Fact]
     public void DefaultLoadout_CannonRight_LaserLeft()
@@ -140,12 +140,12 @@ public class AimSolverTests
     [Fact]
     public void Track_PutsTheAimRayOnAPoint()
     {
-        var sim = new MechSim(new MechTuning());
+        var sim = new MechSim(new MechChassis());
         var target = new Vector3(25f, 7f, -60f);
         float twist = 0f, aim = 0f, err = 1f;
         for (int i = 0; i < 120 * 4; i++)
         {
-            err = AimSolver.Track(sim.Pose, sim.Locomotion.Body, sim.Tuning, target, ref twist, ref aim);
+            err = AimSolver.Track(sim.Pose, sim.Locomotion.Body, sim.Chassis, target, ref twist, ref aim);
             sim.Step(new MechInput { TwistTarget = twist, AimTarget = aim }, 1f / 120f);
         }
         var p = sim.Pose;

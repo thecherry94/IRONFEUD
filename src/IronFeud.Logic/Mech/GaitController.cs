@@ -80,7 +80,7 @@ public sealed class GaitController
 
     public bool Active;
 
-    public void Reset(BodyState body, MechTuning t)
+    public void Reset(BodyState body, MechChassis t)
     {
         Phase = 0f;
         F = t.FMin;
@@ -95,13 +95,13 @@ public sealed class GaitController
         }
     }
 
-    public static Vector3 HipOffset(LegGait leg, MechTuning t) => new(-leg.Side * t.HipWidth, 0f, 0f);
+    public static Vector3 HipOffset(LegGait leg, MechChassis t) => new(-leg.Side * t.HipWidth, 0f, 0f);
 
-    public static FootPlant Neutral(LegGait leg, BodyState body, MechTuning t) =>
+    public static FootPlant Neutral(LegGait leg, BodyState body, MechChassis t) =>
         new(body.Position + MathUtil.RotateY(HipOffset(leg, t), body.Psi), body.Psi);
 
     /// <summary>Where the foot will land if the body keeps its current v and ω for <paramref name="remaining"/> seconds.</summary>
-    public FootPlant Landing(LegGait leg, BodyState body, MechTuning t, float remaining)
+    public FootPlant Landing(LegGait leg, BodyState body, MechChassis t, float remaining)
     {
         float psiL = body.Psi + body.Omega * remaining;
         Vector3 p = body.Position + MathUtil.Forward(body.Psi) * (body.V * remaining);
@@ -110,7 +110,7 @@ public sealed class GaitController
         return new FootPlant(p + MathUtil.RotateY(local, psiL), psiL);
     }
 
-    public void Step(BodyState body, MechTuning t, float h, List<Footfall>? footfalls)
+    public void Step(BodyState body, MechChassis t, float h, List<Footfall>? footfalls)
     {
         float spd = MathF.Abs(body.V);
         bool unsettled = false;
@@ -160,7 +160,7 @@ public sealed class GaitController
     }
 
     /// <summary>Ankle target and foot orientation for the current phase (heel-strike / toe-off, swing arc).</summary>
-    public FootTarget Evaluate(int legIndex, BodyState body, MechTuning t)
+    public FootTarget Evaluate(int legIndex, BodyState body, MechChassis t)
     {
         var leg = Legs[legIndex];
         float lp = MathUtil.Frac(Phase + leg.PhaseOffset);

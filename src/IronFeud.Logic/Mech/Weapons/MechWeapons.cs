@@ -49,7 +49,7 @@ public sealed class MechWeapons
     public bool HeatLocked => Heat >= 1f;
 
     /// <summary>The prototype loadout: cannon on the right arm, laser on the left. Bit 0 / bit 1 of the fire mask.</summary>
-    public static MechWeapons Default(MechTuning t)
+    public static MechWeapons Default(MechChassis t)
     {
         var w = new MechWeapons { Heat = t.HeatStart };
         w.Mounts.Add(new WeaponMount(WeaponSpec.Cannon, 1, new Vector3(0f, 0.05f, -5.4f)));
@@ -68,7 +68,7 @@ public sealed class MechWeapons
     /// <summary>Dissipates heat, ticks cooldowns, fires requested weapons and applies recoil to the springs.</summary>
     public void Step(in MechInput input, MechLocomotion loco, float h, List<ShotFired> shots)
     {
-        var t = loco.Tuning;
+        var t = loco.Chassis;
         float speedFrac = MathF.Abs(loco.Body.V) / t.VMax;
         Heat = MathF.Max(t.HeatFloor, Heat - h * (t.HeatDissipation - t.HeatDissipationMovePenalty * speedFrac));
 

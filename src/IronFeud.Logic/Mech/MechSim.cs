@@ -21,15 +21,15 @@ public sealed class MechSim
     /// <summary>Shots fired during the last <see cref="Step"/>.</summary>
     public readonly List<ShotFired> Shots = new();
 
-    public MechSim(MechTuning tuning, uint seed = 1, MechDamage? damage = null)
+    public MechSim(MechChassis chassis, uint seed = 1, MechDamage? damage = null)
     {
-        Locomotion = new MechLocomotion(tuning, seed);
-        Weapons = MechWeapons.Default(tuning);
+        Locomotion = new MechLocomotion(chassis, seed);
+        Weapons = MechWeapons.Default(chassis);
         Damage = damage ?? MechDamage.CreateDefault();
         ApplyDamageEffects();
     }
 
-    public MechTuning Tuning => Locomotion.Tuning;
+    public MechChassis Chassis => Locomotion.Chassis;
     public MechPose Pose => Locomotion.Pose;
     public bool IsOut => Damage.IsOut;
 
@@ -58,7 +58,7 @@ public sealed class MechSim
     {
         foreach (var m in Weapons.Mounts)
             m.Offline = Damage.IsDestroyed(m.Arm == 0 ? MechSection.ArmLeft : MechSection.ArmRight);
-        Locomotion.SpeedFactor = Damage.IsDestroyed(MechSection.Legs) ? Tuning.CrippledSpeedFactor : 1f;
+        Locomotion.SpeedFactor = Damage.IsDestroyed(MechSection.Legs) ? Chassis.CrippledSpeedFactor : 1f;
         if (IsOut) Locomotion.Collapse(Locomotion.Secondary.RandomSigned() * 0.6f);
     }
 }

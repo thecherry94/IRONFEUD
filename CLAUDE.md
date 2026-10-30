@@ -61,7 +61,7 @@ Pinned: `Godot 4.7.2 .NET` (Godot.NET.Sdk 4.7.2), all projects target `net8.0` (
 src/
   IronFeud.Logic/   separate class library, NO Godot reference (enforced by the compiler). Hidden from Godot via .gdignore.
     Core/           MathUtil, Rot (Godot-convention quaternions), Spring, DeterministicRng
-    Mech/           MechInput, MechTuning, BodyKinematics, GaitController, LegIK, SecondaryMotion,
+    Mech/           MechInput, MechChassis, BodyKinematics, GaitController, LegIK, SecondaryMotion,
                     MechPoseSolver, MechLocomotion (facade); later HeatSystem, DamageModel, Weapons/
     AI/ Campaign/   (later) utility brain, perception math; the campaign sim
   Core/             Godot-side helpers: GodotConv (System.Numerics <-> Godot), ProceduralTextures
@@ -87,6 +87,6 @@ Then: more weapons, mech classes, missions.
 
 ## Working agreements for Claude Code
 - Small, reviewable commits; one concern per commit. Run `dotnet build IRONFEUD.sln` and the tests before saying done.
-- When tuning feel, expose constants via `[Export]` or a `Resource` (`MechTuning.tres`) rather than hard-coding.
+- When tuning feel, expose constants via `[Export]` or a `Resource` (e.g. a chassis `.tres`) rather than hard-coding.
 - When behavior differs from the prototype, say so explicitly and explain why.
 - Debug visualisation is a first-class feature: every AI decision and gait target should be drawable.

@@ -43,7 +43,7 @@ public partial class RangeDemoPilot : Node
             float tof = dist / Logic.Mech.Weapons.WeaponSpec.Cannon.MuzzleVelocity;
             point.Y += 0.5f * Logic.Mech.Weapons.WeaponSpec.Cannon.Gravity * tof * tof;
         }
-        float err = AimSolver.Track(sim.Pose, sim.Locomotion.Body, sim.Tuning, point, ref _twist, ref _aim);
+        float err = AimSolver.Track(sim.Pose, sim.Locomotion.Body, sim.Chassis, point, ref _twist, ref _aim);
         bool aligned = err < 0.5f * volume.Radius / dist;
         Mech.PilotInput = new MechInput
         {

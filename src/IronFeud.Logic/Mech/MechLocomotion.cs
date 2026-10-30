@@ -9,7 +9,7 @@ namespace IronFeud.Logic.Mech;
 /// </summary>
 public sealed class MechLocomotion
 {
-    public readonly MechTuning Tuning;
+    public readonly MechChassis Chassis;
     public readonly BodyState Body = new();
     public readonly GaitController Gait = new();
     public readonly SecondaryMotion Secondary;
@@ -23,7 +23,7 @@ public sealed class MechLocomotion
     /// <summary>Forward top-speed multiplier; MechSim lowers it when the legs are destroyed.</summary>
     public float SpeedFactor = 1f;
 
-    /// <summary>The mech is out (wreck or dead pilot): it ignores input and slumps over <see cref="MechTuning.CollapseTime"/>.</summary>
+    /// <summary>The mech is out (wreck or dead pilot): it ignores input and slumps over <see cref="MechChassis.CollapseTime"/>.</summary>
     public bool Collapsed { get; private set; }
     public float CollapseTime { get; private set; }
 
@@ -31,11 +31,11 @@ public sealed class MechLocomotion
     public float CollapseRoll { get; private set; }
 
     /// <summary>0..1 eased progress of the slump.</summary>
-    public float CollapseAmount => Collapsed ? Core.MathUtil.Smoothstep(0f, Tuning.CollapseTime, CollapseTime) : 0f;
+    public float CollapseAmount => Collapsed ? Core.MathUtil.Smoothstep(0f, Chassis.CollapseTime, CollapseTime) : 0f;
 
-    public MechLocomotion(MechTuning tuning, uint seed = 1)
+    public MechLocomotion(MechChassis chassis, uint seed = 1)
     {
-        Tuning = tuning;
+        Chassis = chassis;
         Secondary = new SecondaryMotion(seed);
         Reset(Vector3.Zero, 0f);
     }
@@ -45,7 +45,7 @@ public sealed class MechLocomotion
         Body.Position = position;
         Body.Psi = psi;
         Body.V = Body.Acc = Body.Omega = Body.Twist = Body.Aim = 0f;
-        Gait.Reset(Body, Tuning);
+        Gait.Reset(Body, Chassis);
         Solve();
     }
 
@@ -80,13 +80,13 @@ public sealed class MechLocomotion
             return;
         }
 
-        BodyKinematics.Step(Body, input, Tuning, h, SpeedFactor);
-        Gait.Step(Body, Tuning, h, Footfalls);
+        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor);
+        Gait.Step(Body, Chassis, h, Footfalls);
         foreach (var f in Footfalls)
             Secondary.ApplyFootfall(f, Gait.Legs[f.Leg].Side, Body.V);
-        Secondary.Step(Body, Gait, Tuning, h);
+        Secondary.Step(Body, Gait, Chassis, h);
         Solve();
     }
 
-    private void Solve() => MechPoseSolver.Solve(Pose, Body, Gait, Secondary, Tuning, Time, CollapseAmount, CollapseRoll);
+    private void Solve() => MechPoseSolver.Solve(Pose, Body, Gait, Secondary, Chassis, Time, CollapseAmount, CollapseRoll);
 }

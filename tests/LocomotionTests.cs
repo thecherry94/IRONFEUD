@@ -12,7 +12,7 @@ public class LocomotionTests
 
     private static MechLocomotion Run(MechInput input, float seconds, MechLocomotion? m = null, Action<MechLocomotion>? perTick = null)
     {
-        m ??= new MechLocomotion(new MechTuning());
+        m ??= new MechLocomotion(new MechChassis());
         int n = (int)MathF.Round(seconds / H);
         for (int i = 0; i < n; i++)
         {
@@ -42,7 +42,7 @@ public class LocomotionTests
     [Fact]
     public void TwistAndAim_AreClampedAndRateLimited()
     {
-        var m = new MechLocomotion(new MechTuning());
+        var m = new MechLocomotion(new MechChassis());
         m.Step(new MechInput { TwistTarget = 10f, AimTarget = 10f }, H);
         Assert.Equal(1.3f * H, m.Body.Twist, 5);
         Run(new MechInput { TwistTarget = 10f, AimTarget = 10f }, 5f, m);
@@ -53,7 +53,7 @@ public class LocomotionTests
     [Fact]
     public void LeftLeg_IsAtMinusX()
     {
-        var m = new MechLocomotion(new MechTuning());
+        var m = new MechLocomotion(new MechChassis());
         Assert.Equal(+1, m.Gait.Legs[0].Side);
         Assert.True(m.Gait.Legs[0].Plant.Position.X < 0f);
         Assert.True(m.Pose.Legs[0].HipWorld.X < 0f);
@@ -62,7 +62,7 @@ public class LocomotionTests
     [Fact]
     public void StanceFoot_NeverSlides()
     {
-        var m = new MechLocomotion(new MechTuning());
+        var m = new MechLocomotion(new MechChassis());
         var stanceStart = new Vector3?[2];
         int checkedTicks = 0;
         float time = 0f;
@@ -96,7 +96,7 @@ public class LocomotionTests
     [Fact]
     public void Walking_AlternatesLegs_AndEmitsFootfalls()
     {
-        var m = new MechLocomotion(new MechTuning());
+        var m = new MechLocomotion(new MechChassis());
         var legs = new System.Collections.Generic.List<int>();
         Run(new MechInput { Throttle = 1f }, 10f, m, mm => legs.AddRange(mm.Footfalls.Select(f => f.Leg)));
         Assert.True(legs.Count >= 8);
@@ -112,7 +112,7 @@ public class LocomotionTests
         Assert.All(m.Gait.Legs, l => Assert.False(l.Swing));
         foreach (var leg in m.Gait.Legs)
         {
-            var n = GaitController.Neutral(leg, m.Body, m.Tuning);
+            var n = GaitController.Neutral(leg, m.Body, m.Chassis);
             Assert.True(MathUtil.PlanarDistance(n.Position, leg.Plant.Position) <= 0.45f);
         }
         Assert.True(m.Gait.G < 0.01f);
@@ -121,7 +121,7 @@ public class LocomotionTests
     [Fact]
     public void StandingStill_DoesNotStep()
     {
-        var m = new MechLocomotion(new MechTuning());
+        var m = new MechLocomotion(new MechChassis());
         int footfalls = 0;
         Run(default, 5f, m, mm => footfalls += mm.Footfalls.Count);
         Assert.Equal(0, footfalls);

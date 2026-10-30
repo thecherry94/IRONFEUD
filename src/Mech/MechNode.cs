@@ -41,12 +41,12 @@ public partial class MechNode : Node3D
 
     public override void _Ready()
     {
-        var tuning = new MechTuning();
-        Sim = new MechSim(tuning, Seed, InitialDamage);
+        var chassis = new MechChassis();
+        Sim = new MechSim(chassis, Seed, InitialDamage);
         var start = GlobalPosition;
         Locomotion.Reset(new System.Numerics.Vector3(start.X, 0f, start.Z), Rotation.Y);
 
-        Rig = MechRig.Build(this, tuning);
+        Rig = MechRig.Build(this, chassis);
         SyncSectionVisibility();
 
         SyncFromSimulation();
@@ -56,7 +56,7 @@ public partial class MechNode : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        var t = Sim.Tuning;
+        var t = Sim.Chassis;
         t.Sway = Sway;
         t.Bob = Bob;
         t.Lift = Lift;

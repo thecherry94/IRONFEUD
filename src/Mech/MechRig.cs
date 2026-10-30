@@ -75,7 +75,7 @@ public sealed class MechRig
         }
     }
 
-    public static MechRig Build(Node3D owner, MechTuning t)
+    public static MechRig Build(Node3D owner, MechChassis t)
     {
         var r = new MechRig();
         var m = new Mats();

@@ -44,7 +44,7 @@ public class LegIKTests
     [Fact]
     public void PoseSolver_PlacesAnkleOnTarget_WithWorldFootOrientation()
     {
-        var m = new MechLocomotion(new MechTuning());
+        var m = new MechLocomotion(new MechChassis());
         for (int i = 0; i < 120 * 8; i++)
         {
             m.Step(new MechInput { Throttle = 1f, Turn = 0.6f, TwistTarget = 1f }, 1f / 120f);

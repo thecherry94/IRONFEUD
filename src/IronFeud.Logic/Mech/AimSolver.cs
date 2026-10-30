@@ -11,7 +11,7 @@ namespace IronFeud.Logic.Mech;
 public static class AimSolver
 {
     /// <summary>Updates twist/aim targets to bring the aim ray onto <paramref name="target"/>. Returns the angular error (rad).</summary>
-    public static float Track(MechPose pose, BodyState body, MechTuning t, Vector3 target, ref float twistTarget, ref float aimTarget)
+    public static float Track(MechPose pose, BodyState body, MechChassis t, Vector3 target, ref float twistTarget, ref float aimTarget)
     {
         Vector3 want = Vector3.Normalize(target - pose.AimOrigin);
         Vector3 have = pose.AimDirection;

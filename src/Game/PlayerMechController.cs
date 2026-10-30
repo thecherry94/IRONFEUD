@@ -56,7 +56,7 @@ public partial class PlayerMechController : Node
         if (e is InputEventMouseMotion motion && Camera?.Mode != CameraMode.Orbit && Input.MouseMode == Input.MouseModeEnum.Confined)
         {
             // Absolute mouse position maps to twist/aim targets, as in the prototype.
-            var t = Mech?.Locomotion.Tuning;
+            var t = Mech?.Locomotion.Chassis;
             if (t == null) return;
             Vector2 size = GetViewport().GetVisibleRect().Size;
             float nx = motion.Position.X / size.X * 2f - 1f, ny = motion.Position.Y / size.Y * 2f - 1f;
@@ -84,7 +84,7 @@ public partial class PlayerMechController : Node
     public override void _PhysicsProcess(double delta)
     {
         if (Mech == null || GetTree().Paused) return;
-        var t = Mech.Locomotion.Tuning;
+        var t = Mech.Locomotion.Chassis;
         float h = (float)delta;
 
         if (Input.IsActionPressed("throttle_up")) _throttle = Mathf.Min(1f, _throttle + 0.8f * h);

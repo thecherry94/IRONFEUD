@@ -6,7 +6,7 @@ namespace IronFeud.Logic.Mech;
 /// Locomotion constants (see docs/locomotion.md) plus the feel multipliers from the prototype's sliders.
 /// Values are the prototype's; the Godot side may override fields for live tuning.
 /// </summary>
-public sealed class MechTuning
+public sealed class MechChassis
 {
     // Body kinematics
     public float VMax = 4.2f;

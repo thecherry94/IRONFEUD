@@ -10,7 +10,7 @@ public class DamageTests
 {
     private const float H = 1f / 120f;
 
-    private static MechSim NewSim(MechDamage? damage = null) => new(new MechTuning(), 1, damage);
+    private static MechSim NewSim(MechDamage? damage = null) => new(new MechChassis(), 1, damage);
 
     private static void Run(MechSim sim, MechInput input, float seconds)
     {
