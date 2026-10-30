@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mech AI Arena</title>
+<style>
+  html,body{margin:0;height:100%;background:#8d98a0;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#e8e4dc;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+  #ui{position:fixed;top:10px;right:10px;bottom:10px;z-index:6;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
+  #ui>*{pointer-events:auto}
+  #tog{width:38px;height:38px;border-radius:8px;border:1px solid #ffffff30;background:#15181cd0;color:#ffb067;font-size:18px;cursor:pointer;flex:none}
+  #panel{background:#15181ce0;border:1px solid #ffffff25;border-radius:10px;padding:10px 12px;width:258px;overflow-y:auto;max-height:100%;box-sizing:border-box;backdrop-filter:blur(6px)}
+  #panel.hide{display:none}
+  .row{display:flex;gap:5px;margin:3px 0 9px}
+  .row button{flex:1;padding:6px 0;border-radius:6px;border:1px solid #ffffff30;background:#23272d;color:#ddd;font:inherit;font-size:11px;cursor:pointer}
+  .row button.on{background:#b5642b;border-color:#ff9a4a;color:#fff}
+  h1{font-size:11px;margin:2px 0 4px;color:#ffb067;letter-spacing:.08em;font-weight:600}
+  hr{border:0;border-top:1px solid #ffffff20;margin:8px 0}
+  .kv{display:flex;justify-content:space-between;font-size:11px;margin:2px 0}
+  .lbl{opacity:.7}
+  .bar{height:6px;background:#ffffff15;border-radius:3px;overflow:hidden;flex:1}
+  .bar i{display:block;height:100%;width:0;background:#7dffb0}
+  .srow{display:flex;align-items:center;gap:6px;font-size:10.5px;margin:2px 0}
+  .srow span{width:58px}
+  .srow b{width:30px;text-align:right;font-weight:400;opacity:.8}
+  .srow.on span{color:#ffb067;font-weight:700}
+  .srow.on .bar i{background:#ff8a2a}
+  #selName{font-size:14px;font-weight:700}
+  #selAction{font-size:16px;font-weight:700;color:#ffb067;margin:4px 0 2px}
+  #selWhy{font-size:10.5px;opacity:.75;min-height:14px}
+  select{background:#23272d;color:#ddd;border:1px solid #ffffff30;border-radius:5px;font:inherit;font-size:11px;padding:2px 4px}
+  #log{font-size:10.5px;line-height:1.5;opacity:.85;min-height:60px}
+  #log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  label.chk{font-size:11px;display:flex;gap:6px;align-items:center;margin:2px 0 6px}
+  #tags{position:fixed;inset:0;pointer-events:none;z-index:4}
+  .tag{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:auto;cursor:pointer;font-size:11px;padding:3px 6px;border-radius:5px;background:#15181cc0;border:1px solid currentColor;white-space:nowrap}
+  .tag .hb{height:3px;background:#ffffff25;margin-top:2px;border-radius:2px;overflow:hidden}
+  .tag .hb i{display:block;height:100%;background:currentColor}
+  .tag .act{font-size:9.5px;opacity:.8;color:#e8e4dc}
+  .tag.sel{background:#2a2016e0;box-shadow:0 0 0 2px currentColor}
+  .tag.dead{opacity:.45}
+  #card{position:fixed;left:10px;bottom:10px;z-index:5;background:#15181cd0;border:1px solid #ffffff25;border-radius:8px;padding:6px 10px;font-size:11px;min-width:170px}
+  #feed{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+  #feed div{background:#15181cd0;border:1px solid #ffffff25;border-radius:6px;padding:4px 10px;font-size:11.5px;transition:opacity .6s}
+  #banner{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:7;font-size:28px;font-weight:800;letter-spacing:.1em;padding:14px 26px;border-radius:10px;background:#15181ce0;border:2px solid #ffb067;display:none;text-align:center}
+  #banner small{display:block;font-size:12px;font-weight:400;letter-spacing:0;opacity:.8;margin-top:6px}
+  #hint{position:fixed;left:10px;top:10px;z-index:5;font-size:11px;opacity:.75;background:#15181c90;padding:5px 8px;border-radius:6px}
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0"></canvas>
+<div id="tags"></div>
+<div id="feed"></div>
+<div id="banner"></div>
+<div id="hint">tap a mech or its tag to inspect · drag to orbit · pinch/scroll to zoom</div>
+<div id="card"></div>
+
+<div id="ui">
+  <button id="tog" aria-label="Toggle panel">⚙</button>
+  <div id="panel">
+    <h1>MATCH</h1>
+    <div class="row"><button data-mode="1v1" class="on">1 v 1</button><button data-mode="2v2">2 v 2</button><button id="restart">Restart</button></div>
+    <h1>TIME</h1>
+    <div class="row"><button data-spd="0">⏸</button><button data-spd="0.25">¼×</button><button data-spd="1" class="on">1×</button><button data-spd="2">2×</button><button data-spd="4">4×</button></div>
+    <h1>CAMERA</h1>
+    <div class="row cams"><button data-cam="overview" class="on">Overview</button><button data-cam="follow">Follow</button><button data-cam="chase">Chase</button><button data-cam="cockpit">Cockpit</button></div>
+    <label class="chk"><input type="checkbox" id="dbg" checked> Debug overlay (path, LOS, cover, lead)</label>
+    <hr>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span id="selName">—</span>
+      <select id="selPers"><option value="brawler">Brawler</option><option value="balanced">Balanced</option><option value="sniper">Sniper</option></select>
+    </div>
+    <div id="selAction">—</div>
+    <div id="selWhy"></div>
+    <div id="scores"></div>
+    <hr>
+    <div class="kv"><span class="lbl">Target</span><span id="selTgt">—</span></div>
+    <div class="kv"><span class="lbl">Range · LOS</span><span id="selRng">—</span></div>
+    <div class="kv"><span class="lbl">Aim error σ</span><span id="selErr">—</span></div>
+    <div class="kv"><span class="lbl">Shots · hits · dmg</span><span id="selStats">—</span></div>
+    <div class="srow"><span>Heat</span><div class="bar"><i id="hHeat"></i></div><b id="hHeatT"></b></div>
+    <div class="srow"><span>Torso</span><div class="bar"><i id="hTorso"></i></div><b id="hTorsoT"></b></div>
+    <div class="srow"><span>L arm·laser</span><div class="bar"><i id="hArmL"></i></div><b id="hArmLT"></b></div>
+    <div class="srow"><span>R arm·cannon</span><div class="bar"><i id="hArmR"></i></div><b id="hArmRT"></b></div>
+    <div class="srow"><span>Legs</span><div class="bar"><i id="hLegs"></i></div><b id="hLegsT"></b></div>
+    <hr>
+    <h1>DECISION LOG</h1>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+// ---------- utils ----------
+const TAU = Math.PI * 2;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const smoother = t => t * t * t * (t * (t * 6 - 15) + 10);
+class Spring {
+  constructor(freq, zeta) { this.k = (TAU * freq) ** 2; this.c = 2 * zeta * Math.sqrt(this.k); this.x = 0; this.v = 0; }
+  step(target, h) { const a = this.k * (target - this.x) - this.c * this.v; this.v += a * h; this.x += this.v * h; return this.x; }
+}
+
+// ---------- renderer / scene ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+const FOG = 0x8d98a0;
+scene.background = new THREE.Color(FOG);
+scene.fog = new THREE.Fog(FOG, 70, 280);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
+
+scene.add(new THREE.HemisphereLight(0xdfe6ec, 0x5a4e40, 1.5));
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.3);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 160 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+scene.add(sun, sun.target);
+
+function canvasTex(size, draw) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+const groundTex = canvasTex(512, (g, s) => {
+  g.fillStyle = '#5d564c'; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 5000; i++) { const v = 70 + Math.random() * 40 | 0; g.fillStyle = `rgba(${v},${v - 6},${v - 14},0.35)`; g.fillRect(Math.random() * s, Math.random() * s, 2 + Math.random() * 3, 2 + Math.random() * 3); }
+  g.strokeStyle = 'rgba(30,28,24,0.55)'; g.lineWidth = 3; g.strokeRect(0, 0, s, s);
+  g.strokeStyle = 'rgba(30,28,24,0.22)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(s / 2, 0); g.lineTo(s / 2, s); g.moveTo(0, s / 2); g.lineTo(s, s / 2); g.stroke();
+});
+groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping; groundTex.repeat.set(40, 40);
+const panelTex = canvasTex(256, (g, s) => {
+  g.fillStyle = '#b8bcc0'; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 1500; i++) { const v = 165 + Math.random() * 35 | 0; g.fillStyle = `rgba(${v},${v},${v},0.3)`; g.fillRect(Math.random() * s, Math.random() * s, 2, 2); }
+  g.strokeStyle = 'rgba(40,40,40,0.7)'; g.lineWidth = 2; g.strokeRect(6, 6, s - 12, s - 12);
+  g.beginPath(); g.moveTo(6, s * 0.55); g.lineTo(s - 6, s * 0.55); g.stroke();
+  g.fillStyle = 'rgba(50,50,50,0.8)';
+  for (const [x, y] of [[16, 16], [s - 16, 16], [16, s - 16], [s - 16, s - 16]]) { g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); }
+  g.fillStyle = 'rgba(90,60,40,0.25)'; for (let i = 0; i < 6; i++) g.fillRect(Math.random() * s, s * 0.55 + Math.random() * 40, 30 + Math.random() * 40, 3);
+});
+const dustTex = canvasTex(64, (g, s) => {
+  const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  gr.addColorStop(0, 'rgba(150,135,115,0.9)'); gr.addColorStop(1, 'rgba(150,135,115,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+});
+
+const M = {
+  armor: new THREE.MeshStandardMaterial({ color: 0x9aa1a8, map: panelTex, metalness: 0.25, roughness: 0.55 }),
+  armorDark: new THREE.MeshStandardMaterial({ color: 0x6a7077, map: panelTex, metalness: 0.3, roughness: 0.6 }),
+  frame: new THREE.MeshStandardMaterial({ color: 0x3e4249, metalness: 0.45, roughness: 0.5 }),
+  accent: new THREE.MeshStandardMaterial({ color: 0xc46a2c, metalness: 0.2, roughness: 0.55 }),
+  chrome: new THREE.MeshStandardMaterial({ color: 0xc8cdd2, metalness: 0.6, roughness: 0.25 }),
+  glow: new THREE.MeshStandardMaterial({ color: 0x221100, emissive: 0xff7a1a, emissiveIntensity: 2.2 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x0c1820, metalness: 0.9, roughness: 0.08, emissive: 0x0b3a4a, emissiveIntensity: 0.7 }),
+  lens: new THREE.MeshStandardMaterial({ color: 0x200000, emissive: 0xff2a1a, emissiveIntensity: 2.5 }),
+  hole: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1 }),
+};
+
+function group(parent, x = 0, y = 0, z = 0) { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; }
+function box(parent, w, h, d, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = m.receiveShadow = true; parent.add(m); return m;
+}
+function cyl(parent, rt, rb, h, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seg = 18) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+  m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = m.receiveShadow = true; parent.add(m); return m;
+}
+
+
+scene.fog.near = 160; scene.fog.far = 480;
+camera.far = 900; camera.updateProjectionMatrix();
+const V3 = THREE.Vector3;
+
+// ---------- arena ----------
+const ARENA = 95;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95 }));
+groundTex.repeat.set(70, 70);
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const ring = new THREE.Mesh(new THREE.RingGeometry(ARENA + 4, ARENA + 6, 96), new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: 0.35 }));
+ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; scene.add(ring);
+
+const propMats = [
+  new THREE.MeshStandardMaterial({ color: 0x6d675e, roughness: 0.9, map: panelTex }),
+  new THREE.MeshStandardMaterial({ color: 0x5a5f63, roughness: 0.8, metalness: 0.2, map: panelTex }),
+  new THREE.MeshStandardMaterial({ color: 0x7b6f60, roughness: 0.95, map: panelTex }),
+];
+const solids = [];
+{
+  // seeded so every match uses the same map
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let tries = 0;
+  while (solids.length < 36 && tries++ < 4000) {
+    const w = 5 + rnd() * 11, d = 5 + rnd() * 11, h = 5 + rnd() ** 1.6 * 20;
+    const x = (rnd() * 2 - 1) * (ARENA - 8), z = (rnd() * 2 - 1) * (ARENA - 8);
+    if (Math.hypot(x, z) > ARENA - 6) continue;
+    if (Math.abs(z) > 62 && Math.abs(x) < 26) continue;           // keep spawn zones open
+    let ok = true;
+    for (const s of solids) {
+      const b = s.userData.box;
+      if (x + w / 2 + 9 > b.min.x && x - w / 2 - 9 < b.max.x && z + d / 2 + 9 > b.min.z && z - d / 2 - 9 < b.max.z) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const m = box(scene, w, h, d, propMats[solids.length % 3], x, h / 2, z);
+    m.userData.box = new THREE.Box3(new V3(x - w / 2, 0, z - d / 2), new V3(x + w / 2, h, z + d / 2));
+    solids.push(m);
+  }
+  const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+  for (let i = 0; i < 90; i++) {
+    const m = new THREE.Mesh(rockGeo, propMats[2]);
+    const s = 0.3 + rnd() * 1.1;
+    m.scale.set(s * (1 + rnd()), s, s * (1 + rnd()));
+    const a = rnd() * TAU, r = rnd() * (ARENA + 40);
+    m.position.set(Math.cos(a) * r, s * 0.4, Math.sin(a) * r);
+    m.rotation.set(rnd() * 3, rnd() * 3, 0);
+    m.castShadow = m.receiveShadow = true; scene.add(m);
+  }
+}
+// cover points around every block
+const coverPts = [];
+for (const s of solids) {
+  const b = s.userData.box, o = 4.5;
+  const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+  const cand = [[b.min.x - o, cz], [b.max.x + o, cz], [cx, b.min.z - o], [cx, b.max.z + o],
+    [b.min.x - o, b.min.z - o], [b.max.x + o, b.min.z - o], [b.min.x - o, b.max.z + o], [b.max.x + o, b.max.z + o]];
+  for (const [x, z] of cand) {
+    if (Math.hypot(x, z) > ARENA - 3) continue;
+    if (insideAnyBox(x, z, 2.5)) continue;
+    coverPts.push({ x, z, h: b.max.y });
+  }
+}
+function insideAnyBox(x, z, pad) {
+  for (const s of solids) { const b = s.userData.box; if (x > b.min.x - pad && x < b.max.x + pad && z > b.min.z - pad && z < b.max.z + pad) return true; }
+  return false;
+}
+
+// ---------- ray utilities ----------
+const ray = new THREE.Ray(), vHit = new V3(), vTmp = new V3(), vTmp2 = new V3(), sph = new THREE.Sphere();
+function boxHitDist(origin, dir, maxD) {
+  let best = maxD;
+  ray.set(origin, dir);
+  for (const s of solids) {
+    if (ray.intersectBox(s.userData.box, vHit)) { const d = vHit.distanceTo(origin); if (d < best) best = d; }
+  }
+  return best;
+}
+function losClear(a, b) {
+  vTmp.subVectors(b, a); const len = vTmp.length(); vTmp.divideScalar(len);
+  return boxHitDist(a, vTmp, len) >= len - 0.3;
+}
+function segHitsSphere(a, b, c, r) {
+  vTmp2.subVectors(b, a); const len = vTmp2.length(); vTmp2.divideScalar(len);
+  ray.set(a, vTmp2); sph.center.copy(c); sph.radius = r;
+  const hit = ray.intersectSphere(sph, vHit);
+  return hit && vHit.distanceTo(a) < len;
+}
+
+// ---------- team materials ----------
+const TEAM = [
+  { name: 'ALPHA', css: '#ff9a4a', armor: M.armor, armorDark: M.armorDark, accent: M.accent },
+  { name: 'BRAVO', css: '#5ab4ff',
+    armor: new THREE.MeshStandardMaterial({ color: 0x8a96a2, map: panelTex, metalness: 0.25, roughness: 0.55 }),
+    armorDark: new THREE.MeshStandardMaterial({ color: 0x4d5864, map: panelTex, metalness: 0.3, roughness: 0.6 }),
+    accent: new THREE.MeshStandardMaterial({ color: 0x2f7fb5, metalness: 0.2, roughness: 0.55 }) },
+];
+
+// ---------- mech factory ----------
+const L1 = 3.2, L2 = 3.3, ANK = 0.62, HIPW = 1.6, H0 = 5.75;
+function buildMech(T) {
+  const A = T.armor, AD = T.armorDark, AC = T.accent, F = M.frame;
+  const extras = [];
+  const pelvis = group(scene, 0, H0, 0); pelvis.rotation.order = 'YXZ';
+  box(pelvis, 2.6, 1.1, 1.9, F);
+  box(pelvis, 2.2, 0.7, 2.1, AD, 0, -0.25, 0.05);
+  box(pelvis, 1.0, 1.3, 0.45, A, 0, -0.35, 1.08, 0.15);
+  box(pelvis, 1.2, 0.9, 0.4, AD, 0, -0.2, -1.08, -0.15);
+  for (const s of [-1, 1]) {
+    cyl(pelvis, 0.68, 0.68, 0.7, F, s * 1.3, -0.1, 0, 0, 0, Math.PI / 2);
+    cyl(pelvis, 0.42, 0.42, 0.8, AC, s * 1.3, -0.1, 0, 0, 0, Math.PI / 2);
+  }
+  function buildLeg(side, off) {
+    const root = group(pelvis, side * HIPW, -0.15, 0);
+    const hip = group(root); hip.rotation.order = 'ZXY';
+    cyl(hip, 0.55, 0.55, 0.95, F, 0, 0, 0, 0, 0, Math.PI / 2);
+    box(hip, 0.9, L1 * 0.9, 1.0, F, 0, -L1 * 0.5, 0);
+    box(hip, 1.15, L1 * 0.75, 0.35, A, 0, -L1 * 0.45, 0.62, -0.05);
+    box(hip, 0.25, L1 * 0.7, 1.15, AD, side * 0.6, -L1 * 0.48, 0);
+    box(hip, 0.3, 0.28, 1.0, AC, side * 0.72, -0.85, 0);
+    const knee = group(hip, 0, -L1, 0);
+    cyl(knee, 0.5, 0.5, 1.05, F, 0, 0, 0, 0, 0, Math.PI / 2);
+    box(knee, 1.0, 0.95, 0.5, A, 0, 0.05, 0.62, 0.25);
+    box(knee, 0.8, L2 * 0.9, 0.9, F, 0, -L2 * 0.5, -0.05);
+    box(knee, 1.15, L2 * 0.78, 0.4, A, 0, -L2 * 0.42, 0.56, 0.06);
+    box(knee, 1.05, 0.85, 1.25, AD, 0, -L2 * 0.8, -0.1);
+    box(knee, 0.12, 0.55, 0.3, M.glow, side * 0.5, -L2 * 0.8, -0.35);
+    const ankle = group(knee, 0, -L2, 0);
+    cyl(ankle, 0.42, 0.42, 0.9, F, 0, 0, 0, 0, 0, Math.PI / 2);
+    box(ankle, 0.9, 0.4, 0.9, F, 0, -0.1, 0);
+    box(ankle, 1.5, 0.45, 1.5, AD, 0, -0.37, 0.1);
+    for (const tx of [-0.52, 0, 0.52]) {
+      box(ankle, 0.42, 0.38, 1.05, A, tx, -0.42, 1.2);
+      box(ankle, 0.3, 0.18, 0.25, F, tx, -0.5, 1.8);
+    }
+    box(ankle, 0.95, 0.36, 1.0, A, 0, -0.43, -0.95, -0.08);
+    box(ankle, 0.1, 0.3, 1.4, AC, side * 0.76, -0.38, 0.1);
+    const pistons = [-0.38, 0.38].map(px => {
+      const outer = new THREE.Mesh(pistonOuterGeo, F), rod = new THREE.Mesh(pistonRodGeo, M.chrome);
+      outer.castShadow = rod.castShadow = true; scene.add(outer, rod); extras.push(outer, rod);
+      return { px, outer, rod };
+    });
+    return { side, off, root, hip, knee, ankle, pistons };
+  }
+  const legs = [buildLeg(+1, 0), buildLeg(-1, 0.5)];
+  const torsoBase = group(pelvis, 0, 0.55, 0); torsoBase.rotation.order = 'YXZ';
+  cyl(torsoBase, 0.75, 0.95, 0.8, F, 0, 0.25, 0, 0, 0, 0, 12);
+  const torso = group(torsoBase, 0, 0.6, 0);
+  box(torso, 3.6, 2.4, 2.8, A, 0, 1.3, 0);
+  box(torso, 3.9, 0.6, 2.6, AD, 0, 0.2, 0);
+  box(torso, 2.6, 1.5, 0.4, AD, 0, 1.55, 1.5, 0.12);
+  box(torso, 0.35, 1.5, 0.42, AC, 0.95, 1.55, 1.56, 0.12);
+  box(torso, 0.35, 1.5, 0.42, AC, -0.95, 1.55, 1.56, 0.12);
+  box(torso, 3.0, 1.6, 0.3, F, 0, 1.4, -1.5);
+  for (let i = 0; i < 4; i++) box(torso, 0.42, 1.2, 0.08, M.glow, -1.05 + i * 0.7, 1.4, -1.68);
+  for (let i = 0; i < 5; i++) box(torso, 3.0, 0.08, 0.25, F, 0, 0.85 + i * 0.28, -1.75);
+  const head = group(torso, 0, 2.75, 1.0);
+  box(head, 1.7, 0.9, 1.9, AD);
+  box(head, 1.4, 0.42, 0.3, M.glass, 0, 0.05, 0.98, -0.2);
+  box(head, 1.9, 0.18, 2.0, A, 0, 0.5, 0);
+  cyl(head, 0.04, 0.04, 1.8, M.chrome, -0.7, 1.3, -0.6);
+  const camMount = group(head, 0, 0.0, 1.25);
+  const launcher = group(torso, -1.3, 2.95, 0.1);
+  box(launcher, 1.5, 1.0, 2.0, A);
+  box(launcher, 1.55, 0.2, 2.05, AC, 0, -0.3, 0);
+  for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) cyl(launcher, 0.16, 0.16, 0.1, M.hole, -0.45 + c * 0.45, 0.2 - r * 0.38, 1.01, Math.PI / 2);
+  function buildArm(side, kind) {
+    const sh = group(torso, side * 2.4, 1.9, 0);
+    box(sh, 1.25, 1.0, 1.8, A, side * 0.35, 0.3, 0);
+    box(sh, 0.2, 0.85, 1.6, AC, side * 1.0, 0.25, 0);
+    cyl(sh, 0.5, 0.5, 0.9, F, side * 0.2, 0, 0, 0, 0, Math.PI / 2);
+    box(sh, 0.75, 1.9, 0.8, F, side * 0.45, -1.1, 0);
+    const elbow = group(sh, side * 0.45, -2.1, 0);
+    cyl(elbow, 0.42, 0.42, 0.95, F, 0, 0, 0, 0, 0, Math.PI / 2);
+    box(elbow, 1.0, 1.0, 2.4, AD, 0, 0, 1.0);
+    if (kind === 'cannon') {
+      cyl(elbow, 0.36, 0.36, 0.7, A, 0, 0.05, 2.5, Math.PI / 2);
+      cyl(elbow, 0.26, 0.26, 3.2, F, 0, 0.05, 3.6, Math.PI / 2);
+      cyl(elbow, 0.34, 0.3, 0.45, F, 0, 0.05, 5.1, Math.PI / 2);
+    } else {
+      box(elbow, 1.25, 0.85, 1.5, A, 0, 0.1, 2.6);
+      box(elbow, 1.3, 0.12, 1.1, AC, 0, 0.58, 2.5);
+      for (const lx of [-0.38, 0, 0.38]) cyl(elbow, 0.14, 0.14, 0.12, M.lens, lx, 0.1, 3.38, Math.PI / 2);
+    }
+    return { sh, elbow, side };
+  }
+  const armL = buildArm(+1, 'emitter'), armR = buildArm(-1, 'cannon');
+  const muzzleR = group(armR.elbow, 0, 0.05, 5.4), emitL = group(armL.elbow, 0, 0.1, 3.5);
+  return { pelvis, legs, torsoBase, torso, head, camMount, armL, armR, muzzleR, emitL, extras };
+}
+const pistonOuterGeo = new THREE.CylinderGeometry(0.15, 0.15, 1, 10), pistonRodGeo = new THREE.CylinderGeometry(0.085, 0.085, 1, 10);
+function disposeMech(m) {
+  const geos = new Set();
+  m.parts.pelvis.traverse(o => { if (o.geometry) geos.add(o.geometry); });
+  scene.remove(m.parts.pelvis);
+  for (const e of m.parts.extras) scene.remove(e);
+  geos.forEach(g => g.dispose());
+}
+
+// ---------- FX ----------
+const fireTex = canvasTex(64, (g, s) => {
+  const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  gr.addColorStop(0, 'rgba(255,240,200,1)'); gr.addColorStop(0.35, 'rgba(255,150,40,0.85)'); gr.addColorStop(1, 'rgba(255,60,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+});
+const smokeTex = canvasTex(64, (g, s) => {
+  const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  gr.addColorStop(0, 'rgba(40,38,36,0.9)'); gr.addColorStop(1, 'rgba(40,38,36,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+});
+function makePool(n, tex, additive) {
+  const arr = [];
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending }));
+    m.visible = false; scene.add(m); arr.push({ m, life: 0, max: 1, s0: 1, grow: 3, op: 0.5, drag: 2.2, vel: new V3() });
+  }
+  arr.i = 0; return arr;
+}
+const dust = makePool(140, dustTex, false), fire = makePool(80, fireTex, true), smoke = makePool(90, smokeTex, false);
+function emit(pool, x, y, z, o) {
+  const d = pool[pool.i++ % pool.length];
+  d.m.visible = true; d.life = 0; d.max = o.max; d.s0 = o.s0; d.grow = o.grow; d.op = o.op; d.drag = o.drag ?? 2.2;
+  d.vel.set(o.vx || 0, o.vy || 0, o.vz || 0); d.m.position.set(x, y, z);
+}
+function spawnDust(x, z, amt) {
+  for (let k = 0; k < 6; k++) {
+    const a = Math.random() * TAU, sp = (1.5 + Math.random() * 2.5) * amt;
+    emit(dust, x + Math.cos(a) * 0.8, 0.3, z + Math.sin(a) * 1.3, { max: 1.1 + Math.random() * 0.8, s0: (1 + Math.random()) * amt, grow: 3.2, op: 0.5 * Math.min(1, amt), vx: Math.cos(a) * sp, vy: 0.4 + Math.random() * 0.9, vz: Math.sin(a) * sp });
+  }
+}
+function explosion(p, size) {
+  for (let k = 0; k < 3 + size * 3; k++) emit(fire, p.x + (Math.random() - .5) * size, p.y + (Math.random() - .5) * size, p.z + (Math.random() - .5) * size,
+    { max: 0.3 + Math.random() * 0.35, s0: 0.8 + size, grow: 1.6, op: 1, vx: (Math.random() - .5) * 4 * size, vy: Math.random() * 3, vz: (Math.random() - .5) * 4 * size, drag: 3 });
+  for (let k = 0; k < 1 + size * 2; k++) {
+    const a = Math.random() * TAU;
+    emit(dust, p.x, Math.max(0.3, p.y), p.z, { max: 1.6 + Math.random(), s0: 0.6 + size * 0.6, grow: 3, op: 0.55, vx: Math.cos(a) * 3, vy: 1 + Math.random() * 2, vz: Math.sin(a) * 3 });
+  }
+  flash(p, 15 + size * 25, 0.08 + size * 0.03);
+}
+const flashLight = new THREE.PointLight(0xffa040, 0, 45, 2); scene.add(flashLight);
+let flashT = 0, flashMax = 0.1, flashI = 0;
+function flash(p, intensity, dur) { if (intensity >= flashI * (flashT / flashMax)) { flashLight.position.copy(p); flashI = intensity; flashT = flashMax = dur; } }
+const fpMat = new THREE.MeshStandardMaterial({ color: 0x2a2620, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+const fpGeo = new THREE.PlaneGeometry(1.6, 3.0);
+const prints = []; let printI = 0;
+for (let i = 0; i < 80; i++) { const m = new THREE.Mesh(fpGeo, fpMat); m.position.y = 0.02; m.visible = false; scene.add(m); prints.push(m); }
+
+const shellMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
+const shellGeo = new THREE.BoxGeometry(0.16, 0.16, 2.6);
+const shells = [];
+for (let i = 0; i < 24; i++) { const m = new THREE.Mesh(shellGeo, shellMat); m.visible = false; scene.add(m); shells.push({ m, vel: new V3(), life: 0, on: false, owner: null }); }
+const beams = [];
+for (let i = 0; i < 6; i++) {
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1, 8), new THREE.MeshBasicMaterial({ color: 0xffd0c0, transparent: true }));
+  const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1, 10), new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  core.visible = glow.visible = false; scene.add(core, glow); beams.push({ core, glow, t: 0 });
+}
+const beamColors = [0xff2a1a, 0x30a0ff];
+
+// ---------- constants & state ----------
+const VMAX = 4.2, VREV = 1.8, ACC = 1.5, DEC = 2.8, OMAX = 0.6, DMAX = 6.2, FMIN = 0.36, DUTY = 0.62, AMAX = 1.95;
+const TWIST_MAX = 1.75, TWIST_RATE = 1.3, AIM_MIN = -0.35, AIM_MAX = 0.45;
+const SHELL_V = 150, SHELL_G = 4, CANNON_RANGE = 320, LASER_RANGE = 160, SENSOR = 300, RADAR = 130;
+const CANNON = { heat: 0.08, cd: 0.75, dmg: 14 }, LASER = { heat: 0.11, cd: 1.0, dmg: 9 };
+const PERS = {
+  brawler:  { label: 'Brawler',  range: 55,  heatLimit: 0.92, aggr: 1.25, react: 0.25, spread: true },
+  balanced: { label: 'Balanced', range: 100, heatLimit: 0.82, aggr: 1.0,  react: 0.3,  spread: true },
+  sniper:   { label: 'Sniper',   range: 165, heatLimit: 0.75, aggr: 0.85, react: 0.35, spread: false },
+};
+const THINK = 0.35;
+const P = { sway: 1, bob: 1, lift: 1, impact: 1, jank: 1 };
+let mechs = [], simT = 0, matchMode = '1v1', roundOver = false, restartAt = 0, sel = null;
+const teamFocus = [null, null];
+
+const wrapAng = a => Math.atan2(Math.sin(a), Math.cos(a));
+const lerpAng = (a, b, t) => a + wrapAng(b - a) * t;
+function rotXZ(lx, lz, psi, out) { const c = Math.cos(psi), s = Math.sin(psi); out.x = lx * c + lz * s; out.z = -lx * s + lz * c; return out; }
+const tmp2 = { x: 0, z: 0 };
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); };
+const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+
+function createMech(team, idx, persKey, x, z, psi) {
+  const T = TEAM[team], parts = buildMech(T);
+  const m = {
+    team, T, name: `${T.name}-${idx + 1}`, persKey, parts, x, z, psi, v: 0, acc: 0, omega: 0,
+    phase: 0, f: FMIN, g: 0, twist: 0, aim: 0, t: Math.random() * 10, trauma: 0, heat: 0.1, cdC: Math.random() * 0.5, cdL: Math.random() * 0.5,
+    sp: { bounceY: new Spring(3, 0.22), tYaw: new Spring(1.4, .35), tRoll: new Spring(1.5, .3), tPitch: new Spring(1.7, .28), aL: new Spring(1.1, .25), aR: new Spring(1.1, .25), eL: new Spring(2.3, .18), eR: new Spring(2.3, .18) },
+    in: { throttle: 0, turn: 0, twistT: 0, aimT: 0, fireC: false, fireL: false },
+    hp: { torso: 100, armL: 45, armR: 45, legs: 70 }, dead: false, deathT: 0, deathRoll: (Math.random() - .5) * 0.6,
+    hit: [{ comp: 'torso', c: new V3(), r: 2.4 }, { comp: 'armL', c: new V3(), r: 1.4 }, { comp: 'armR', c: new V3(), r: 1.4 }, { comp: 'legs', c: new V3(), r: 2.0 }],
+    stats: { shots: 0, hits: 0, dmg: 0 },
+    ai: { action: 'SEARCH', why: '', scores: {}, dest: { x, z }, head: psi, thinkT: Math.random() * THINK, target: null, known: new Map(), noLos: 0,
+      orbit: Math.random() < .5 ? 1 : -1, orbitT: 0, err: { y: 0, p: 0 }, sigma: 0, dmgRecent: 0, lastAttacker: null, log: [], cover: null, coverT: 0,
+      roam: null, twistAway: false, awaySide: 1, lead: new V3(), holdAlly: false, lastThink: 0 },
+  };
+  parts.pelvis.userData.mech = m;
+  for (const leg of parts.legs) {
+    rotXZ(leg.side * HIPW, 0, psi, tmp2);
+    leg.plant = { x: x + tmp2.x, z: z + tmp2.z, yaw: psi }; leg.from = { ...leg.plant }; leg.cur = { ...leg.plant };
+    leg.swing = false; leg.stepLen = 0;
+  }
+  return m;
+}
+
+// ---------- locomotion sim (same model as the drivable prototype, per mech) ----------
+function landing(m, leg, Tr, out) {
+  const psiL = m.psi + m.omega * Tr;
+  const px = m.x + Math.sin(m.psi) * m.v * Tr, pz = m.z + Math.cos(m.psi) * m.v * Tr;
+  const aeff = clamp(m.v / m.f * DUTY / 2, -AMAX, AMAX);
+  rotXZ(leg.side * HIPW, aeff, psiL, tmp2);
+  out.x = px + tmp2.x; out.z = pz + tmp2.z; out.yaw = psiL; return out;
+}
+function footfall(m, leg) {
+  const sp = Math.abs(m.v) / VMAX, S = m.sp;
+  const k = P.impact * (0.45 + 0.55 * Math.min(1, leg.stepLen / 3));
+  S.bounceY.v -= 2.4 * k; S.tPitch.v += 0.55 * k * Math.sign(m.v || 1); S.tRoll.v += -leg.side * 0.35 * k;
+  S.aL.v += 0.8 * k; S.aR.v += 0.8 * k; S.eL.v += 1.6 * k * (0.7 + Math.random() * 0.6); S.eR.v += 1.6 * k * (0.7 + Math.random() * 0.6);
+  m.trauma = Math.min(1, m.trauma + 0.55 * k);
+  rotXZ(0, 0.3, leg.plant.yaw, tmp2);
+  const fx = leg.plant.x + tmp2.x, fz = leg.plant.z + tmp2.z;
+  spawnDust(fx, fz, k * (0.5 + sp));
+  const p = prints[printI++ % prints.length];
+  p.position.x = fx; p.position.z = fz; p.rotation.set(-Math.PI / 2, 0, leg.plant.yaw); p.visible = true;
+}
+function simMech(m, h) {
+  const S = m.sp;
+  m.t += h;
+  if (m.dead) {
+    m.deathT += h; m.v = 0; m.omega = 0; m.g = Math.max(0, m.g - h);
+    for (const s of Object.values(S)) s.step(0, h);
+    S.tPitch.x = lerp(S.tPitch.x, 0.45, h * 1.5);
+    return;
+  }
+  const inp = m.in;
+  const twT = clamp(inp.twistT, -TWIST_MAX, TWIST_MAX), aimT = clamp(inp.aimT, AIM_MIN, AIM_MAX);
+  const vmax = VMAX * (m.hp.legs > 0 ? 1 : 0.45);
+  const vT = inp.throttle >= 0 ? inp.throttle * vmax : inp.throttle * VREV;
+  const dv = vT - m.v;
+  const a = (Math.abs(vT) > Math.abs(m.v) && Math.sign(vT) === Math.sign(m.v || vT)) ? ACC : DEC;
+  const vPrev = m.v;
+  m.v += clamp(dv, -a * h, a * h);
+  m.acc = lerp(m.acc, (m.v - vPrev) / h, Math.min(1, h * 6));
+  const oT = clamp(inp.turn, -1, 1) * OMAX * (1 - 0.35 * Math.abs(m.v) / VMAX);
+  m.omega += clamp(oT - m.omega, -1.2 * h, 1.2 * h);
+  m.psi += m.omega * h;
+  m.x += Math.sin(m.psi) * m.v * h; m.z += Math.cos(m.psi) * m.v * h;
+  // collisions with blocks and arena edge
+  for (const s of solids) {
+    const b = s.userData.box, pad = 2.6;
+    if (m.x > b.min.x - pad && m.x < b.max.x + pad && m.z > b.min.z - pad && m.z < b.max.z + pad) {
+      const dl = m.x - (b.min.x - pad), dr = b.max.x + pad - m.x, dn = m.z - (b.min.z - pad), df = b.max.z + pad - m.z;
+      const mn = Math.min(dl, dr, dn, df);
+      if (mn === dl) m.x -= dl; else if (mn === dr) m.x += dr; else if (mn === dn) m.z -= dn; else m.z += df;
+      m.v *= 0.97;
+    }
+  }
+  const r = Math.hypot(m.x, m.z);
+  if (r > ARENA) { m.x *= ARENA / r; m.z *= ARENA / r; }
+  m.twist += clamp(twT - m.twist, -TWIST_RATE * h, TWIST_RATE * h);
+  m.aim += clamp(aimT - m.aim, -0.8 * h, 0.8 * h);
+
+  const spd = Math.abs(m.v);
+  let unsettled = false;
+  for (const leg of m.parts.legs) {
+    if (leg.swing) { unsettled = true; continue; }
+    rotXZ(leg.side * HIPW, 0, m.psi, tmp2);
+    if (Math.hypot(leg.plant.x - (m.x + tmp2.x), leg.plant.z - (m.z + tmp2.z)) > 0.45 || Math.abs(wrapAng(leg.plant.yaw - m.psi)) > 0.2) unsettled = true;
+  }
+  const active = spd > 0.12 || Math.abs(m.omega) > 0.04 || unsettled;
+  m.f = Math.max(FMIN, spd / DMAX);
+  const gT = active ? clamp(0.3 + spd / VMAX + 0.5 * Math.abs(m.omega) / OMAX, 0, 1) : 0;
+  m.g += (gT - m.g) * Math.min(1, h * 2.5);
+  if (active) {
+    const prev = m.phase;
+    m.phase = (m.phase + m.f * h) % 1;
+    for (const leg of m.parts.legs) {
+      const pa = (prev + leg.off) % 1, pb = (m.phase + leg.off) % 1;
+      if (pa < DUTY && pb >= DUTY) { leg.swing = true; leg.from = { ...leg.plant }; }
+      if (pb < pa) {
+        leg.swing = false; landing(m, leg, 0, leg.plant);
+        leg.stepLen = Math.hypot(leg.plant.x - leg.from.x, leg.plant.z - leg.from.z);
+        footfall(m, leg);
+      }
+    }
+  }
+  const p = m.phase, g = m.g, c0 = Math.cos(TAU * p), cs = Math.cos(TAU * (p - 0.31)), spF = spd / VMAX;
+  S.tYaw.step(0.13 * P.sway * g * c0, h);
+  S.tRoll.step(-0.05 * P.sway * g * cs + 0.18 * m.omega * spF, h);
+  S.tPitch.step(0.05 + 0.02 * P.bob * g * Math.cos(TAU * (2 * p - 0.1)) - 0.06 * m.acc, h);
+  S.aR.step(-0.14 * P.sway * g * c0, h); S.aL.step(0.14 * P.sway * g * c0, h);
+  S.eL.step(0, h); S.eR.step(0, h); S.bounceY.step(0, h);
+  m.trauma = Math.max(0, m.trauma - h * 1.6);
+  m.cdC = Math.max(0, m.cdC - h); m.cdL = Math.max(0, m.cdL - h);
+  m.heat = Math.max(0.08, m.heat - h * (0.055 - 0.015 * spF));
+  if (inp.fireC) fireCannon(m);
+  if (inp.fireL) fireLaser(m);
+}
+
+// ---------- pose ----------
+const tgt = new V3(), loc = new V3(), va = new V3(), vb = new V3(), vd = new V3(), vA = new V3(), vB = new V3(), vDir = new V3();
+const q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), eul = new THREE.Euler();
+const UP = new V3(0, 1, 0), Z_AXIS = new V3(0, 0, 1);
+const land = { x: 0, z: 0, yaw: 0 };
+function jankNoise(m) { return m.trauma * m.trauma * P.jank * (Math.sin(m.t * 53.1) * 0.6 + Math.sin(m.t * 97.3 + 1.7) * 0.4); }
+function placeSeg(mesh, a, b) {
+  vd.subVectors(b, a); const len = Math.max(0.01, vd.length());
+  mesh.position.copy(a).addScaledVector(vd, 0.5);
+  mesh.scale.y = len;
+  mesh.quaternion.setFromUnitVectors(UP, vd.normalize());
+}
+function poseMech(m) {
+  const pr = m.parts, S = m.sp, p = m.phase, g = m.g, jn = jankNoise(m);
+  const dk = m.dead ? smoothstep(0, 1.4, m.deathT) : 0;
+  rotXZ(0.32 * P.sway * g * Math.cos(TAU * (p - 0.31)), 0, m.psi, tmp2);
+  pr.pelvis.position.set(m.x + tmp2.x, H0 - 0.17 * P.bob * g * Math.cos(TAU * (2 * p - 0.1)) + S.bounceY.x + 0.09 * jn - 2.5 * dk, m.z + tmp2.z);
+  pr.pelvis.rotation.set(0.03 + 0.3 * dk, m.psi - 0.07 * P.sway * g * Math.cos(TAU * p), -0.025 * P.sway * g * Math.cos(TAU * (p - 0.31)) + m.deathRoll * dk);
+  pr.torsoBase.rotation.set(S.tPitch.x + 0.01 * jn, m.twist + S.tYaw.x, S.tRoll.x + 0.015 * jn);
+  pr.head.rotation.set(-m.aim * 0.85 + 0.006 * jn, 0, 0.01 * jn);
+  pr.armL.sh.rotation.x = -m.aim + S.aL.x + 0.6 * dk; pr.armR.sh.rotation.x = -m.aim + S.aR.x + 0.6 * dk;
+  pr.armL.elbow.rotation.x = S.eL.x * 0.25 + 0.02 * jn; pr.armR.elbow.rotation.x = S.eR.x * 0.25 - 0.02 * jn;
+  pr.pelvis.updateMatrixWorld(true);
+  for (const leg of pr.legs) {
+    const lp = (p + leg.off) % 1;
+    let lift = 0, pitch, out = 0, yaw, scale = clamp(leg.stepLen / 3, 0, 1);
+    if (!leg.swing || m.dead) {
+      leg.cur.x = leg.plant.x; leg.cur.z = leg.plant.z; yaw = leg.plant.yaw;
+      pitch = m.dead ? 0 : 0.38 * smoothstep(DUTY - 0.16, DUTY, lp) - 0.14 * (1 - smoothstep(0, 0.07, lp));
+    } else {
+      const s = clamp((lp - DUTY) / (1 - DUTY), 0, 1);
+      landing(m, leg, (1 - s) * (1 - DUTY) / m.f, land);
+      const e = smoother(s);
+      leg.cur.x = lerp(leg.from.x, land.x, e); leg.cur.z = lerp(leg.from.z, land.z, e);
+      yaw = lerpAng(leg.from.yaw, land.yaw, e);
+      const dist = Math.hypot(land.x - leg.from.x, land.z - leg.from.z);
+      scale = clamp(dist / 3, 0, 1);
+      lift = 0.95 * P.lift * clamp(dist / 1.6, 0.35, 1) * Math.sin(Math.PI * Math.pow(s, 0.75));
+      pitch = lerp(0.38, -0.14, smoothstep(0, 0.75, s));
+      out = 0.22 * Math.sin(Math.PI * s) * clamp(dist / 2, 0, 1);
+    }
+    pitch *= scale * (m.v < -0.1 ? 0.3 : 1);
+    const rise = pitch > 0 ? 1.7 * Math.sin(pitch) : 1.05 * Math.sin(-pitch);
+    rotXZ(leg.side * out, 0, yaw, tmp2);
+    tgt.set(leg.cur.x + tmp2.x, ANK + rise + lift, leg.cur.z + tmp2.z);
+    loc.copy(tgt); leg.root.worldToLocal(loc);
+    const roll = Math.atan2(loc.x, -loc.y), r = Math.hypot(loc.x, loc.y);
+    const L = clamp(Math.hypot(r, loc.z), 0.3, L1 + L2 - 1e-3);
+    const kneeInt = Math.acos(clamp((L1 * L1 + L2 * L2 - L * L) / (2 * L1 * L2), -1, 1));
+    const alpha = Math.atan2(loc.z, r), beta = Math.acos(clamp((L1 * L1 + L * L - L2 * L2) / (2 * L1 * L), -1, 1));
+    leg.hip.rotation.set(-(alpha + beta), 0, roll);
+    leg.knee.rotation.set(Math.PI - kneeInt, 0, 0);
+    leg.ankle.quaternion.identity();
+    leg.root.updateMatrixWorld(true);
+    leg.knee.getWorldQuaternion(q1);
+    q2.setFromEuler(eul.set(pitch, yaw, 0, 'YXZ'));
+    leg.ankle.quaternion.copy(q1.invert().multiply(q2));
+    leg.ankle.updateMatrixWorld(true);
+    for (const ps of leg.pistons) {
+      va.set(ps.px, -0.6, -0.68); leg.hip.localToWorld(va);
+      vb.set(ps.px, -1.35, -0.62); leg.knee.localToWorld(vb);
+      vd.subVectors(vb, va).normalize();
+      vA.copy(va).addScaledVector(vd, 1.7); placeSeg(ps.outer, va, vA);
+      vA.copy(va).addScaledVector(vd, 1.5); placeSeg(ps.rod, vA, vb);
+    }
+  }
+  // hit volumes
+  pr.torso.localToWorld(m.hit[0].c.set(0, 1.2, 0));
+  pr.armL.elbow.localToWorld(m.hit[1].c.set(0, 0, 1.6));
+  pr.armR.elbow.localToWorld(m.hit[2].c.set(0, 0, 1.8));
+  m.hit[3].c.copy(pr.pelvis.position); m.hit[3].c.y -= 2.4;
+  // smoke from wrecks and heavily damaged mechs
+  if ((m.dead || m.hp.torso < 35) && Math.random() < (m.dead ? 0.35 : 0.12)) {
+    const c = m.hit[0].c;
+    emit(smoke, c.x + (Math.random() - .5), c.y + 1, c.z + (Math.random() - .5), { max: 2.5 + Math.random() * 1.5, s0: 1.2, grow: 3.5, op: m.dead ? 0.55 : 0.35, vx: 0.6, vy: 2.2 + Math.random(), vz: 0.3, drag: 0.4 });
+  }
+  if (m.dead && m.deathT < 3 && Math.random() < 0.25) {
+    const c = m.hit[0].c; emit(fire, c.x + (Math.random() - .5) * 2, c.y + Math.random() * 2, c.z + (Math.random() - .5) * 2, { max: 0.4, s0: 1.2, grow: 1.5, op: 0.9, vy: 2, drag: 1 });
+  }
+}
+
+// ---------- weapons & damage ----------
+function fwdOf(obj, out) { obj.getWorldQuaternion(q1); return out.set(0, 0, 1).applyQuaternion(q1); }
+// torso aim ray: yaw from the torso (incl. sway), pitch from the aim actuator. Arm weapons converge on it.
+const aimO = new V3(), aimD = new V3(), convPt = new V3();
+function aimRay(m) {
+  fwdOf(m.parts.torsoBase, aimD);
+  const yaw = Math.atan2(aimD.x, aimD.z), p = m.aim + 0.25 * m.sp.tPitch.x * -1;
+  aimD.set(Math.sin(yaw) * Math.cos(p), Math.sin(p), Math.cos(yaw) * Math.cos(p));
+  m.parts.torso.localToWorld(aimO.set(0, 1.2, 0));
+}
+function convergeDir(m, mount, out) {
+  aimRay(m);
+  convPt.copy(aimO).addScaledVector(aimD, m.conv || 200);
+  mount.getWorldPosition(vA);
+  return out.subVectors(convPt, vA).normalize();
+}
+function fireCannon(m) {
+  if (m.cdC > 0 || m.hp.armR <= 0 || m.heat >= 1) return;
+  m.cdC = CANNON.cd; m.heat += CANNON.heat; m.stats.shots++;
+  const sh = shells.find(s => !s.on); if (!sh) return;
+  convergeDir(m, m.parts.muzzleR, vDir);
+  sh.on = true; sh.life = 0; sh.owner = m; sh.m.visible = true; sh.m.position.copy(vA);
+  sh.vel.copy(vDir).multiplyScalar(SHELL_V);
+  for (let k = 0; k < 3; k++) emit(fire, vA.x + vDir.x * k * 0.5, vA.y + vDir.y * k * 0.5, vA.z + vDir.z * k * 0.5, { max: 0.09, s0: 1.6 - k * 0.3, grow: 1.2, op: 1, drag: 0 });
+  emit(dust, vA.x, vA.y, vA.z, { max: 1.2, s0: 0.8, grow: 2.5, op: 0.35, vx: vDir.x * 3, vy: 0.6, vz: vDir.z * 3 });
+  flash(vA, 30, 0.07);
+  m.sp.aR.v -= 3.4; m.sp.eR.v -= 4; m.sp.tYaw.v -= 0.35; m.sp.tPitch.v -= 0.25;
+  m.trauma = Math.min(1, m.trauma + 0.3);
+}
+function fireLaser(m) {
+  if (m.cdL > 0 || m.hp.armL <= 0 || m.heat >= 1) return;
+  m.cdL = LASER.cd; m.heat += LASER.heat; m.stats.shots++;
+  convergeDir(m, m.parts.emitL, vDir);
+  let best = boxHitDist(vA, vDir, LASER_RANGE), hitMech = null, hitComp = null;
+  if (vDir.y < -1e-4) { const t = -vA.y / vDir.y; if (t > 0 && t < best) best = t; }
+  ray.set(vA, vDir);
+  for (const o of mechs) {
+    if (o === m || o.dead) continue;
+    for (const hv of o.hit) {
+      sph.center.copy(hv.c); sph.radius = hv.r;
+      if (ray.intersectSphere(sph, vHit)) { const d = vHit.distanceTo(vA); if (d < best) { best = d; hitMech = o; hitComp = hv.comp; } }
+    }
+  }
+  vB.copy(vA).addScaledVector(vDir, best);
+  const bm = beams.find(b => b.t <= 0) || beams[0];
+  bm.glow.material.color.setHex(beamColors[m.team]);
+  placeSeg(bm.core, vA, vB); placeSeg(bm.glow, vA, vB);
+  bm.core.visible = bm.glow.visible = true; bm.t = 0.22;
+  if (best < LASER_RANGE - 0.5) explosion(vB, 0);
+  if (hitMech) damage(hitMech, hitComp, LASER.dmg * (best < 100 ? 1 : Math.max(0.2, 1 - (best - 100) / 60)), m, vB);
+  m.sp.aL.v -= 0.8; m.sp.tYaw.v += 0.12;
+  m.trauma = Math.min(1, m.trauma + 0.08);
+}
+function updateShells(dt) {
+  for (const s of shells) {
+    if (!s.on) continue;
+    s.life += dt;
+    vA.copy(s.m.position);
+    s.vel.y -= SHELL_G * dt;
+    vB.copy(vA).addScaledVector(s.vel, dt);
+    const len = vA.distanceTo(vB);
+    vDir.subVectors(vB, vA).normalize();
+    let best = boxHitDist(vA, vDir, len), hitMech = null, hitComp = null;
+    if (vB.y <= 0 && vDir.y < 0) { const t = -vA.y / vDir.y; if (t < best) best = t; }
+    ray.set(vA, vDir);
+    for (const o of mechs) {
+      if (o === s.owner || o.dead) continue;
+      for (const hv of o.hit) {
+        sph.center.copy(hv.c); sph.radius = hv.r;
+        if (ray.intersectSphere(sph, vHit)) { const d = vHit.distanceTo(vA); if (d < best) { best = d; hitMech = o; hitComp = hv.comp; } }
+      }
+    }
+    if (best < len || s.life > 3) {
+      s.on = false; s.m.visible = false;
+      if (s.life <= 3) {
+        vHit.copy(vA).addScaledVector(vDir, best);
+        explosion(vHit, 1);
+        if (hitMech) damage(hitMech, hitComp, CANNON.dmg, s.owner, vHit);
+      }
+      continue;
+    }
+    s.m.position.copy(vB);
+    s.m.quaternion.setFromUnitVectors(Z_AXIS, vDir);
+  }
+  for (const b of beams) {
+    if (b.t <= 0) continue;
+    b.t -= dt; const o = Math.max(0, b.t / 0.22);
+    b.core.material.opacity = o; b.glow.material.opacity = 0.8 * o;
+    if (b.t <= 0) b.core.visible = b.glow.visible = false;
+  }
+}
+const COMP_NAME = { torso: 'torso', armL: 'left arm (laser)', armR: 'right arm (cannon)', legs: 'legs' };
+function damage(t, comp, dmg, src, at) {
+  if (t.dead) return;
+  if ((comp === 'armL' || comp === 'armR' || comp === 'legs') && t.hp[comp] <= 0) comp = 'torso';
+  const before = t.hp[comp];
+  t.hp[comp] = Math.max(0, before - dmg);
+  if (src) { src.stats.hits++; src.stats.dmg += dmg; }
+  t.ai.dmgRecent += dmg; t.ai.lastAttacker = src;
+  t.trauma = Math.min(1, t.trauma + dmg * 0.03);
+  t.sp.tPitch.v += (Math.random() - .5) * dmg * 0.05; t.sp.tRoll.v += (Math.random() - .5) * dmg * 0.05;
+  if (before > 0 && t.hp[comp] <= 0) {
+    if (comp === 'armL' || comp === 'armR') {
+      const arm = comp === 'armL' ? t.parts.armL : t.parts.armR;
+      arm.sh.visible = false; explosion(at, 2);
+      feed(`${src ? src.name : '?'} destroyed ${t.name}'s ${COMP_NAME[comp]}`, src);
+      log(t, `lost ${COMP_NAME[comp]}`);
+    } else if (comp === 'legs') {
+      explosion(at, 1.5); feed(`${t.name}'s legs crippled`, src); log(t, 'legs crippled, speed −55%');
+    } else kill(t, src);
+  }
+}
+function kill(t, src) {
+  t.dead = true; t.deathT = 0;
+  explosion(t.hit[0].c, 3);
+  setTimeout(() => explosion(t.hit[0].c, 2), 250);
+  feed(`${src ? src.name : '?'} destroyed ${t.name}`, src);
+  log(t, 'destroyed');
+  if (src) log(src, `killed ${t.name}`);
+  const alive = new Set(mechs.filter(m => !m.dead).map(m => m.team));
+  if (alive.size <= 1 && !roundOver) {
+    roundOver = true; restartAt = performance.now() + 9000;
+    const w = [...alive][0];
+    banner(w === undefined ? 'DRAW' : `${TEAM[w].name} WINS`, w === undefined ? '#ffffff' : TEAM[w].css);
+  }
+}
+
+// ---------- AI ----------
+function log(m, text) {
+  m.ai.log.unshift(`${simT.toFixed(1).padStart(5)}s ${text}`);
+  if (m.ai.log.length > 9) m.ai.log.length = 9;
+}
+const eyeA = new V3(), eyeB = new V3();
+function eyeOf(m, out) { return out.set(m.x, 8.3, m.z); }
+function centerOf(m, out) { return out.set(m.x, m.dead ? 3.5 : 7.0, m.z); }
+function clampArena(x, z) {
+  const r = Math.hypot(x, z), R = ARENA - 6;
+  if (r > R) { x *= R / r; z *= R / r; }
+  for (let i = 0; i < 3; i++) {
+    for (const s of solids) {
+      const b = s.userData.box, pad = 4;
+      if (x > b.min.x - pad && x < b.max.x + pad && z > b.min.z - pad && z < b.max.z + pad) {
+        const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+        const dx = x - cx, dz = z - cz;
+        if (Math.abs(dx) / (b.max.x - b.min.x) > Math.abs(dz) / (b.max.z - b.min.z)) x = dx > 0 ? b.max.x + pad : b.min.x - pad;
+        else z = dz > 0 ? b.max.z + pad : b.min.z - pad;
+      }
+    }
+  }
+  return { x, z };
+}
+function hiddenFrom(pt, k) { return !losClear(eyeA.set(k.x, 8.3, k.z), eyeB.set(pt.x, 6, pt.z)); }
+function pickCover(m, k, retreat) {
+  const Pm = PERS[m.persKey];
+  let best = null, bs = -1e9;
+  for (const c of coverPts) {
+    const d = Math.hypot(c.x - m.x, c.z - m.z);
+    if (d > 85) continue;
+    const hidden = k ? hiddenFrom(c, k) : true;
+    const dt = k ? Math.hypot(c.x - k.x, c.z - k.z) : 100;
+    let s = (hidden ? 1.2 : 0) - d / 50 + (retreat ? dt / 140 : -Math.abs(dt - Pm.range) / 220) + (c.h > 9 ? 0.15 : 0);
+    if (k && dt < 25) s -= 1;
+    if (retreat) for (const a of mechs) if (a !== m && a.team === m.team && !a.dead) s += 0.35 * Math.exp(-Math.hypot(c.x - a.x, c.z - a.z) / 40);
+    for (const a of mechs) if (a !== m && a.team === m.team && !a.dead && a.ai.cover === c) s -= 0.8;
+    if (s > bs) { bs = s; best = c; }
+  }
+  return best;
+}
+function pathClear(x, z, h, len) {
+  vDir.set(Math.sin(h), 0, Math.cos(h));
+  const lx = Math.cos(h) * 2.4, lz = -Math.sin(h) * 2.4;
+  for (const o of [0, 1, -1]) {
+    vA.set(x + lx * o, 3, z + lz * o);
+    if (boxHitDist(vA, vDir, len) < len) return false;
+  }
+  return true;
+}
+function steer(m, dest) {
+  const desired = Math.atan2(dest.x - m.x, dest.z - m.z);
+  const probe = Math.min(16, Math.hypot(dest.x - m.x, dest.z - m.z));
+  if (probe < 3) return desired;
+  for (const off of [0, .3, -.3, .6, -.6, .9, -.9, 1.3, -1.3, 1.8, -1.8, 2.4, -2.4]) {
+    const h = desired + off * m.ai.orbit;
+    if (pathClear(m.x, m.z, h, probe)) return h;
+  }
+  return desired + Math.PI / 2;
+}
+function coordinate() {
+  for (const team of [0, 1]) {
+    let best = null, bs = -1e9;
+    for (const e of mechs) {
+      if (e.team === team || e.dead) continue;
+      let s = (1 - e.hp.torso / 100) * 1.5;
+      for (const a of mechs) if (a.team === team && !a.dead) { const k = a.ai.known.get(e); if (k) s += k.vis ? 1 : 0.3; }
+      if (s > bs) { bs = s; best = e; }
+    }
+    teamFocus[team] = best;
+  }
+}
+function think(m) {
+  const ai = m.ai, Pm = PERS[m.persKey], dtT = simT - ai.lastThink; ai.lastThink = simT;
+  // perception: line of sight from the cockpit to the enemy's torso
+  eyeOf(m, eyeA);
+  for (const e of mechs) {
+    if (e.team === m.team) continue;
+    if (e.dead) { ai.known.delete(e); continue; }
+    const d = dist2(m, e);
+    const vis = d < SENSOR && losClear(eyeA, centerOf(e, eyeB));
+    let k = ai.known.get(e);
+    if (vis) {
+      if (!k) { k = { x: e.x, z: e.z, vx: 0, vz: 0, t: simT, first: simT, vis: true }; ai.known.set(e, k); log(m, `contact: ${e.name} at ${d.toFixed(0)} m`); }
+      else {
+        const dt = Math.max(0.05, simT - k.t);
+        k.vx = lerp(k.vx, (e.x - k.x) / dt, 0.5); k.vz = lerp(k.vz, (e.z - k.z) / dt, 0.5);
+        k.x = e.x; k.z = e.z; k.t = simT; if (!k.vis) k.first = simT;
+      }
+      k.vis = true;
+    } else if (d < RADAR) {
+      if (!k) { k = { x: e.x, z: e.z, vx: 0, vz: 0, t: simT, first: simT, vis: false }; ai.known.set(e, k); log(m, `radar contact: ${e.name} at ${d.toFixed(0)} m`); }
+      else { k.x = e.x; k.z = e.z; k.t = simT; }
+      k.vis = false;
+    } else if (k) k.vis = false;
+  }
+  // being shot reveals the shooter's position
+  const at = ai.lastAttacker;
+  if (at && !at.dead && !ai.known.get(at)?.vis) {
+    const k = ai.known.get(at) || { vx: 0, vz: 0, first: simT, vis: false };
+    k.x = at.x; k.z = at.z; k.t = simT; ai.known.set(at, k);
+  }
+  ai.lastAttacker = null;
+  // target selection
+  let best = null, bs = -1e9;
+  for (const [e, k] of ai.known) {
+    const age = simT - k.t; if (age > 15) continue;
+    const s = (k.vis ? 0.6 : 0) - dist2(m, k) / 250 + (teamFocus[m.team] === e ? 0.5 : 0) + (1 - e.hp.torso / 100) * 0.4 - age * 0.03 + (e === ai.target ? 0.15 : 0);
+    if (s > bs) { bs = s; best = e; }
+  }
+  if (best !== ai.target) { ai.target = best; if (best) log(m, `target → ${best.name}${teamFocus[m.team] === best ? ' (team focus)' : ''}`); }
+  const k = best ? ai.known.get(best) : null, vis = !!k?.vis;
+  ai.noLos = vis ? 0 : ai.noLos + dtT;
+  const hpF = m.hp.torso / 100 * (0.7 + 0.15 * (m.hp.armL > 0) + 0.15 * (m.hp.armR > 0));
+  const dT = k ? dist2(m, k) : 999;
+  const age = k ? simT - k.t : 99;
+  // utility scores
+  const sc = {
+    ENGAGE: k ? (vis ? 0.55 : 0.25) * Pm.aggr + 0.25 * hpF - 0.6 * Math.max(0, m.heat - 0.55) : 0,
+    COOL: m.heat > 0.5 ? (m.heat - 0.5) * 2.4 + (ai.dmgRecent > 12 ? 0.15 : 0) : 0,
+    FLANK: k && !vis && age < 4 ? Math.max(0.1, 0.3 + 0.07 * Math.min(ai.noLos, 6) - 0.06 * Math.max(0, ai.noLos - 9)) : 0,
+    RETREAT: hpF < 0.45 ? (0.45 - hpF) * 2.6 + 0.15 + (vis && dT < Pm.range * 0.8 ? 0.15 : 0) : 0,
+    SEARCH: !k ? 0.6 : (age >= 4 ? 0.55 : 0),
+  };
+  sc[ai.action] += 0.12; // commitment bonus: prevents flip-flopping
+  let act = 'SEARCH', top = -1;
+  for (const [a, s] of Object.entries(sc)) if (s > top) { top = s; act = a; }
+  ai.scores = sc;
+  if (act !== ai.action) {
+    const why = {
+      ENGAGE: vis ? `target visible at ${dT.toFixed(0)} m` : 'closing on last known position',
+      COOL: `heat ${(m.heat * 100).toFixed(0)}%`, FLANK: `no line of sight for ${ai.noLos.toFixed(1)} s`,
+      RETREAT: `structural integrity ${(hpF * 100).toFixed(0)}%`, SEARCH: k ? `contact lost ${age.toFixed(0)} s ago` : 'no contacts',
+    }[act];
+    log(m, `${ai.action} → ${act}: ${why}`); ai.why = why; ai.action = act; ai.cover = null;
+  }
+  if (simT > ai.orbitT) { ai.orbit *= -1; ai.orbitT = simT + 6 + Math.random() * 6; }
+  // destination
+  if (act === 'ENGAGE') {
+    const ang = Math.atan2(m.x - k.x, m.z - k.z) + ai.orbit * 0.35;
+    ai.dest = clampArena(k.x + Math.sin(ang) * Pm.range, k.z + Math.cos(ang) * Pm.range);
+  } else if (act === 'COOL' || act === 'RETREAT') {
+    if (!ai.cover || simT > ai.coverT || (k && !hiddenFrom(ai.cover, k))) {
+      ai.cover = pickCover(m, k, act === 'RETREAT'); ai.coverT = simT + 3;
+    }
+    ai.dest = ai.cover ? { x: ai.cover.x, z: ai.cover.z } : clampArena(m.x - (k ? k.x - m.x : 0), m.z - (k ? k.z - m.z : 0));
+  } else if (act === 'FLANK') {
+    const base = Math.atan2(m.x - k.x, m.z - k.z);
+    let bestP = null, bp = -1e9;
+    for (const side of [1, -1]) {
+      const a = base + side * 1.4, r = Pm.range * 0.85;
+      const pt = clampArena(k.x + Math.sin(a) * r, k.z + Math.cos(a) * r);
+      const clear = losClear(eyeA.set(pt.x, 8.3, pt.z), eyeB.set(k.x, 7, k.z));
+      const s = (clear ? 1 : 0) - dist2(m, pt) / 120 + (side === ai.orbit ? 0.1 : 0);
+      if (s > bp) { bp = s; bestP = pt; }
+    }
+    ai.dest = bestP;
+  } else {
+    if (k) ai.dest = clampArena(k.x, k.z);
+    else {
+      if (!ai.roam || dist2(m, ai.roam) < 10) { const side = m.team === 0 ? 1 : -1; ai.roam = clampArena((Math.random() * 2 - 1) * 60, side * (Math.random() * 70 - 10)); log(m, `sweeping toward (${ai.roam.x.toFixed(0)}, ${ai.roam.z.toFixed(0)})`); }
+      ai.dest = ai.roam;
+    }
+  }
+  ai.head = steer(m, ai.dest);
+  // aim error grows with own speed, heat and target speed
+  const ts = k ? Math.hypot(k.vx, k.vz) / VMAX : 0;
+  ai.sigma = 0.006 + 0.014 * Math.abs(m.v) / VMAX + 0.03 * Math.max(0, m.heat - 0.45) + 0.008 * ts;
+  ai.err.y = gauss() * ai.sigma; ai.err.p = gauss() * ai.sigma * 0.6;
+  ai.dmgRecent *= 0.6;
+}
+
+function weaponAligned(m, aimPt, tol) {
+  aimRay(m);
+  vB.subVectors(aimPt, aimO); const d = vB.length(); vB.divideScalar(d);
+  return Math.acos(clamp(aimD.dot(vB), -1, 1)) < tol + 1.6 / d;
+}
+function lineOfFire(m, mount, aimPt) {
+  mount.getWorldPosition(vA);
+  if (!losClear(vA, aimPt)) return 'blocked';
+  for (const a of mechs) if (a !== m && a.team === m.team && !a.dead && segHitsSphere(vA, aimPt, centerOf(a, eyeB), 3.5)) return 'ally';
+  return 'clear';
+}
+const aimPt = new V3();
+function control(m) {
+  const ai = m.ai, Pm = PERS[m.persKey], inp = m.in;
+  const e = ai.target, k = e ? ai.known.get(e) : null;
+  // legs: follow the planned heading, back up when the goal is behind during a fight
+  const dist = dist2(m, ai.dest);
+  const err = wrapAng(ai.head - m.psi);
+  if (dist < 5) { inp.throttle = 0; inp.turn = 0; }
+  else if ((ai.action === 'ENGAGE' || ai.action === 'RETREAT') && k && Math.abs(err) > 2.1 && dist < 45) {
+    inp.turn = clamp(wrapAng(ai.head + Math.PI - m.psi) * 2, -1, 1); inp.throttle = -0.9;
+  } else { inp.turn = clamp(err * 2.2, -1, 1); inp.throttle = clamp(dist / 20, 0.3, 1) * Math.max(0.1, Math.cos(err)); }
+  inp.fireC = inp.fireL = false; ai.twistAway = false; ai.holdAlly = false;
+  if (!k) { inp.twistT = Math.sin(simT * 0.5 + m.team) * 0.9; inp.aimT = 0; return; }
+  // torso: aim at the lead point (shell flight time) plus pilot error
+  const age = simT - k.t;
+  const d = Math.hypot(k.x - m.x, k.z - m.z);
+  const tof = d / SHELL_V;
+  const px = k.x + k.vx * (age + tof), pz = k.z + k.vz * (age + tof);
+  const yaw = Math.atan2(px - m.x, pz - m.z) + ai.err.y;
+  let tw = wrapAng(yaw - m.psi);
+  if (Math.abs(tw) > TWIST_MAX * 0.9 && dist < 8) inp.turn = clamp(tw * 2, -1, 1);
+  // spread damage: twist the weaker arm away while both weapons recycle
+  if (Pm.spread && k.vis && m.cdC > 0.3 && (m.cdL > 0.3 || m.hp.armL <= 0) && ai.action !== 'FLANK') {
+    ai.twistAway = true; ai.awaySide = m.hp.armR < m.hp.armL ? -1 : 1; tw += ai.awaySide * 0.8;
+  }
+  inp.twistT = clamp(tw, -TWIST_MAX, TWIST_MAX);
+  const drop = 0.5 * SHELL_G * tof * tof;
+  inp.aimT = Math.atan2(7.0 + drop - 7.9, Math.max(1, d)) + ai.err.p;
+  m.conv = clamp(d, 20, 320);
+  aimPt.set(px, 7.0 + drop, pz);
+  ai.lead.copy(aimPt);
+  if (!k.vis || simT - k.first < Pm.react || ai.twistAway) return;
+  // fire discipline: alignment, range, heat budget, clear line of fire
+  const heatCap = ai.action === 'RETREAT' ? Pm.heatLimit + 0.05 : Pm.heatLimit;
+  if (m.cdC <= 0 && m.hp.armR > 0 && d < CANNON_RANGE && m.heat + CANNON.heat < heatCap && weaponAligned(m, aimPt, 0.02)) {
+    const lof = lineOfFire(m, m.parts.muzzleR, aimPt);
+    if (lof === 'clear') inp.fireC = true; else if (lof === 'ally') ai.holdAlly = true;
+  }
+  aimPt.y = 7.0;
+  const heatAfter = m.heat + (inp.fireC ? CANNON.heat : 0);
+  if (m.cdL <= 0 && m.hp.armL > 0 && d < LASER_RANGE * 0.9 && heatAfter + LASER.heat < heatCap && weaponAligned(m, aimPt, 0.02)) {
+    const lof = lineOfFire(m, m.parts.emitL, aimPt);
+    if (lof === 'clear') inp.fireL = true; else if (lof === 'ally') ai.holdAlly = true;
+  }
+  if (ai.holdAlly && Math.random() < 0.01) log(m, 'holding fire: ally in line');
+}
+
+function separateMechs() {
+  for (let i = 0; i < mechs.length; i++) for (let j = i + 1; j < mechs.length; j++) {
+    const a = mechs[i], b = mechs[j];
+    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = 6;
+    if (d < min && d > 1e-3) {
+      const push = (min - d) / 2;
+      if (!a.dead) { a.x -= dx / d * push; a.z -= dz / d * push; }
+      if (!b.dead) { b.x += dx / d * push; b.z += dz / d * push; }
+    }
+  }
+}
+
+// ---------- match ----------
+const SPAWNS = {
+  '1v1': [[0, 0, 'balanced', 0, -75, 0], [1, 0, 'brawler', 0, 75, Math.PI]],
+  '2v2': [[0, 0, 'brawler', -12, -75, 0], [0, 1, 'sniper', 12, -82, 0], [1, 0, 'balanced', 12, 75, Math.PI], [1, 1, 'sniper', -12, 82, Math.PI]],
+};
+const persMemory = {};
+function startMatch(mode) {
+  if (mode) matchMode = mode;
+  for (const m of mechs) disposeMech(m);
+  for (const s of shells) { s.on = false; s.m.visible = false; }
+  for (const p of prints) p.visible = false;
+  const prevSel = sel ? sel.name : null;
+  mechs = SPAWNS[matchMode].map(([team, idx, pers, x, z, psi]) => {
+    const key = `${matchMode}:${team}:${idx}`;
+    return createMech(team, idx, persMemory[key] || pers, x, z, psi);
+  });
+  simT = 0; roundOver = false; banner(null);
+  buildTags();
+  select(mechs.find(m => m.name === prevSel) || mechs[0]);
+  cam.ov = null;
+}
+function sim(h) {
+  for (const m of mechs) {
+    if (m.dead) continue;
+    m.ai.thinkT -= h;
+    if (m.ai.thinkT <= 0) { m.ai.thinkT = THINK; think(m); }
+    control(m);
+  }
+  if (Math.floor(simT) !== Math.floor(simT + h)) coordinate();
+  for (const m of mechs) simMech(m, h);
+  separateMechs();
+  simT += h;
+}
+
+// ---------- debug overlay ----------
+const dbgGroup = new THREE.Group(); scene.add(dbgGroup);
+function lineObj(color) {
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+  const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false }));
+  l.renderOrder = 10; l.frustumCulled = false; dbgGroup.add(l); return l;
+}
+function setLine(l, a, b) { const p = l.geometry.attributes.position; p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true; }
+const destLine = lineObj(0xffd24a), losLine = lineObj(0x7dffb0);
+const destMark = new THREE.Mesh(new THREE.RingGeometry(1.4, 2.0, 32), new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.8, depthTest: false, side: THREE.DoubleSide }));
+destMark.rotation.x = -Math.PI / 2; destMark.renderOrder = 10; dbgGroup.add(destMark);
+const leadMark = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: 0x40e0ff, transparent: true, opacity: 0.8, depthTest: false }));
+leadMark.renderOrder = 10; dbgGroup.add(leadMark);
+const selRing = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.8, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, side: THREE.DoubleSide }));
+selRing.rotation.x = -Math.PI / 2; selRing.position.y = 0.08; scene.add(selRing);
+const coverInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.5, 0.3, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }), coverPts.length);
+{
+  const mm = new THREE.Matrix4();
+  coverPts.forEach((c, i) => { mm.makeTranslation(c.x, 0.15, c.z); coverInst.setMatrixAt(i, mm); coverInst.setColorAt(i, new THREE.Color(0x666666)); });
+}
+dbgGroup.add(coverInst);
+const cGreen = new THREE.Color(0x7dffb0), cGrey = new THREE.Color(0x55595e), cGold = new THREE.Color(0xffd24a);
+let coverColorT = 0;
+function updateDebug(dt) {
+  dbgGroup.visible = dbgOn && !!sel && cam.mode !== 'cockpit';
+  selRing.visible = !!sel && cam.mode !== 'cockpit';
+  if (!sel) return;
+  selRing.position.x = sel.x; selRing.position.z = sel.z;
+  selRing.material.color.set(sel.T.css);
+  if (!dbgGroup.visible) return;
+  const ai = sel.ai;
+  setLine(destLine, vA.set(sel.x, 0.4, sel.z), vB.set(ai.dest.x, 0.4, ai.dest.z));
+  destMark.position.set(ai.dest.x, 0.2, ai.dest.z);
+  destLine.visible = destMark.visible = !sel.dead;
+  const k = ai.target ? ai.known.get(ai.target) : null;
+  losLine.visible = leadMark.visible = !!k && !sel.dead;
+  if (k) {
+    setLine(losLine, eyeOf(sel, vA), vB.set(k.x, 7, k.z));
+    losLine.material.color.setHex(k.vis ? 0x7dffb0 : 0xff4a3a);
+    leadMark.position.copy(ai.lead);
+  }
+  coverColorT -= dt;
+  if (coverColorT <= 0) {
+    coverColorT = 0.5;
+    coverPts.forEach((c, i) => coverInst.setColorAt(i, ai.cover === c ? cGold : (k && hiddenFrom(c, k) ? cGreen : cGrey)));
+    coverInst.instanceColor.needsUpdate = true;
+  }
+}
+
+// ---------- tags, feed, banner ----------
+const tagsEl = document.getElementById('tags'), feedEl = document.getElementById('feed'), bannerEl = document.getElementById('banner');
+function buildTags() {
+  tagsEl.innerHTML = '';
+  for (const m of mechs) {
+    const t = document.createElement('div');
+    t.className = 'tag'; t.style.color = m.T.css;
+    t.innerHTML = `<div class="nm"></div><div class="hb"><i></i></div><div class="act"></div>`;
+    t.addEventListener('pointerdown', e => { e.stopPropagation(); select(m); });
+    tagsEl.appendChild(t); m.tag = t;
+  }
+}
+const proj = new V3();
+function updateTags() {
+  for (const m of mechs) {
+    const t = m.tag;
+    if (cam.mode === 'cockpit' && m === sel) { t.style.display = 'none'; continue; }
+    proj.set(m.x, m.dead ? 6 : 13, m.z).project(camera);
+    if (proj.z > 1 || Math.abs(proj.x) > 1.2 || Math.abs(proj.y) > 1.2) { t.style.display = 'none'; continue; }
+    t.style.display = '';
+    t.style.transform = `translate(${(proj.x * 0.5 + 0.5) * innerWidth}px, ${(-proj.y * 0.5 + 0.5) * innerHeight}px) translate(-50%, -100%)`;
+    t.querySelector('.nm').textContent = `${m.name} · ${PERS[m.persKey].label}`;
+    t.querySelector('.hb i').style.width = `${m.hp.torso}%`;
+    t.querySelector('.act').textContent = m.dead ? 'DESTROYED' : m.ai.action + (m.ai.twistAway ? ' · twist-away' : '');
+    t.classList.toggle('sel', m === sel); t.classList.toggle('dead', m.dead);
+  }
+}
+function feed(text, src) {
+  const d = document.createElement('div');
+  d.textContent = text; if (src) d.style.borderColor = src.T.css;
+  feedEl.prepend(d);
+  setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, 4500);
+  while (feedEl.children.length > 4) feedEl.lastChild.remove();
+}
+function banner(text, color) {
+  if (!text) { bannerEl.style.display = 'none'; return; }
+  bannerEl.style.display = 'block'; bannerEl.style.borderColor = color; bannerEl.style.color = color;
+  bannerEl.innerHTML = `${text}<small>next round in a few seconds · or press Restart</small>`;
+}
+
+// ---------- panel ----------
+const $ = id => document.getElementById(id);
+const ACTIONS = ['ENGAGE', 'COOL', 'FLANK', 'RETREAT', 'SEARCH'];
+$('scores').innerHTML = ACTIONS.map(a => `<div class="srow" id="sr${a}"><span>${a}</span><div class="bar"><i></i></div><b></b></div>`).join('');
+const ACTION_HELP = {
+  ENGAGE: 'Hold preferred range, orbit target, fire when aligned',
+  COOL: 'Break line of sight behind cover until heat drops',
+  FLANK: 'Swing wide to regain line of sight',
+  RETREAT: 'Fall back to cover near allies, fire opportunistically',
+  SEARCH: 'Move to last known position / sweep the arena',
+};
+function select(m) {
+  if (sel && cam.mode === 'cockpit') sel.parts.head.visible = true;
+  sel = m;
+  if (cam.mode === 'cockpit') sel.parts.head.visible = false;
+  $('selPers').value = m.persKey;
+  coverColorT = 0;
+  if (cam.mode === 'follow') { cam.ft = m.psi + Math.PI; }
+}
+$('selPers').addEventListener('change', e => {
+  if (!sel) return;
+  sel.persKey = e.target.value;
+  persMemory[`${matchMode}:${sel.team}:${sel.name.split('-')[1] - 1}`] = sel.persKey;
+  log(sel, `personality → ${PERS[sel.persKey].label}`);
+});
+function setBar(id, frac, color) { const i = $(id); i.style.width = `${clamp(frac, 0, 1) * 100}%`; if (color) i.style.background = color; }
+let panelT = 0;
+function updatePanel(dt) {
+  panelT -= dt; if (panelT > 0 || !sel) return; panelT = 0.12;
+  const m = sel, ai = m.ai;
+  $('selName').textContent = m.name; $('selName').style.color = m.T.css;
+  $('selAction').textContent = m.dead ? 'DESTROYED' : ai.action + (ai.twistAway ? ' + TWIST-AWAY' : '') + (ai.holdAlly ? ' (holding fire)' : '');
+  $('selWhy').textContent = m.dead ? '' : `${ACTION_HELP[ai.action]}${ai.why ? ` — because ${ai.why}` : ''}`;
+  const maxS = Math.max(0.01, ...ACTIONS.map(a => ai.scores[a] || 0));
+  for (const a of ACTIONS) {
+    const s = ai.scores[a] || 0, row = $(`sr${a}`);
+    row.classList.toggle('on', a === ai.action);
+    row.querySelector('i').style.width = `${clamp(s / Math.max(1, maxS), 0, 1) * 100}%`;
+    row.querySelector('b').textContent = s.toFixed(2);
+  }
+  const k = ai.target ? ai.known.get(ai.target) : null;
+  $('selTgt').textContent = ai.target ? `${ai.target.name}${teamFocus[m.team] === ai.target ? ' ★focus' : ''}` : 'none';
+  $('selTgt').style.color = ai.target ? ai.target.T.css : '';
+  $('selRng').textContent = k ? `${dist2(m, k).toFixed(0)} m · ${k.vis ? 'yes' : `no (${(simT - k.t).toFixed(1)} s)`}` : '—';
+  $('selErr').textContent = `${(ai.sigma * 1000).toFixed(1)} mrad`;
+  $('selStats').textContent = `${m.stats.shots} · ${m.stats.hits} · ${m.stats.dmg.toFixed(0)}`;
+  setBar('hHeat', m.heat, m.heat > PERS[m.persKey].heatLimit ? '#ff3a2a' : '#ff8a2a'); $('hHeatT').textContent = `${Math.round(m.heat * 100)}%`;
+  const hpc = f => f > 0.5 ? '#7dffb0' : f > 0.25 ? '#ffd24a' : '#ff4a3a';
+  for (const [id, key, max] of [['hTorso', 'torso', 100], ['hArmL', 'armL', 45], ['hArmR', 'armR', 45], ['hLegs', 'legs', 70]]) {
+    setBar(id, m.hp[key] / max, hpc(m.hp[key] / max)); $(id + 'T').textContent = Math.round(m.hp[key]);
+  }
+  $('log').innerHTML = ai.log.map(l => `<div>${l}</div>`).join('');
+  $('card').innerHTML = `<b style="color:${m.T.css}">${m.name}</b> · ${m.dead ? 'DESTROYED' : ai.action}<br>torso ${Math.round(m.hp.torso)} · heat ${Math.round(m.heat * 100)}% · ${ai.target ? '→ ' + ai.target.name : 'no target'}`;
+}
+
+// ---------- camera ----------
+const cam = { mode: 'overview', theta: 0.7, phi: 0.95, zoom: 1, lastDrag: -99, ft: 0, fp: 0.8, fr: 42, ov: null };
+const chasePos = new V3(), chaseLook = new V3(), ovCenter = new V3();
+let shadowExt = 0;
+function setShadowExtent(e) {
+  if (e === shadowExt) return; shadowExt = e;
+  Object.assign(sun.shadow.camera, { left: -e, right: e, top: e, bottom: -e });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+function updateCamera(dt) {
+  const now = performance.now() / 1000;
+  let focus;
+  if (cam.mode === 'overview') {
+    const alive = mechs.filter(m => !m.dead); const set = alive.length ? alive : mechs;
+    let cx = 0, cz = 0; for (const m of set) { cx += m.x; cz += m.z; } cx /= set.length; cz /= set.length;
+    let sep = 0; for (const a of set) for (const b of set) sep = Math.max(sep, dist2(a, b));
+    if (!cam.ov) cam.ov = new V3(cx, 0, cz);
+    cam.ov.lerp(vA.set(cx, 0, cz), 1 - Math.exp(-dt * 1.5));
+    const r = clamp(sep * 0.85 + 45, 55, 175) * cam.zoom;
+    if (now - cam.lastDrag > 5) cam.theta += dt * 0.04;
+    camera.position.set(cam.ov.x + r * Math.sin(cam.phi) * Math.sin(cam.theta), r * Math.cos(cam.phi) + 4, cam.ov.z + r * Math.sin(cam.phi) * Math.cos(cam.theta));
+    camera.lookAt(cam.ov.x, 4, cam.ov.z);
+    focus = cam.ov; setShadowExtent(110);
+  } else if (cam.mode === 'follow') {
+    const p = sel.parts.pelvis.position, r = cam.fr * cam.zoom;
+    camera.position.set(p.x + r * Math.sin(cam.fp) * Math.sin(cam.ft), 5 + r * Math.cos(cam.fp), p.z + r * Math.sin(cam.fp) * Math.cos(cam.ft));
+    camera.lookAt(p.x, 5, p.z);
+    focus = p; setShadowExtent(35);
+  } else if (cam.mode === 'chase') {
+    const p = sel.parts.pelvis.position, dir = sel.psi + sel.twist + sel.sp.tYaw.x * 0.5;
+    const sx = Math.cos(dir) * -3.5, sz = -Math.sin(dir) * -3.5;
+    chasePos.lerp(vA.set(p.x - Math.sin(dir) * 21 + sx, 13 - sel.aim * 6, p.z - Math.cos(dir) * 21 + sz), 1 - Math.exp(-dt * 4));
+    chaseLook.lerp(vA.set(p.x + Math.sin(dir) * 18 + sx * 0.5, 6 + sel.aim * 16, p.z + Math.cos(dir) * 18 + sz * 0.5), 1 - Math.exp(-dt * 6));
+    camera.position.copy(chasePos); camera.position.y += 0.35 * jankNoise(sel);
+    camera.lookAt(chaseLook);
+    focus = p; setShadowExtent(35);
+  } else {
+    sel.parts.camMount.updateMatrixWorld(true);
+    sel.parts.camMount.getWorldPosition(camera.position);
+    sel.parts.camMount.getWorldQuaternion(q1);
+    q2.setFromAxisAngle(UP, Math.PI);
+    camera.quaternion.copy(q1).multiply(q2);
+    focus = sel.parts.pelvis.position; setShadowExtent(45);
+  }
+  sun.position.set(focus.x + 40, 80, focus.z + 30);
+  sun.target.position.set(focus.x, 0, focus.z);
+}
+function setCam(mode) {
+  if (sel) sel.parts.head.visible = mode !== 'cockpit';
+  if (mode === 'chase' && sel) { chasePos.copy(sel.parts.pelvis.position).add(vA.set(0, 13, 0)); chaseLook.copy(sel.parts.pelvis.position); }
+  if (mode === 'follow' && sel && cam.mode !== 'follow') cam.ft = sel.psi + Math.PI + 0.5;
+  cam.mode = mode; cam.zoom = 1;
+  document.querySelectorAll('.cams button').forEach(b => b.classList.toggle('on', b.dataset.cam === mode));
+  applyFov();
+}
+function applyFov() {
+  const base = cam.mode === 'cockpit' ? 68 : 50, asp = innerWidth / innerHeight;
+  camera.fov = asp < 1 ? Math.min(90, base / Math.sqrt(asp)) : base; camera.updateProjectionMatrix();
+}
+
+// ---------- input ----------
+const pointers = new Map(); let pinch0 = 0, z0 = 1, downAt = null;
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); z0 = cam.zoom; }
+});
+canvas.addEventListener('pointermove', e => {
+  const prev = pointers.get(e.pointerId); if (!prev) return;
+  const cur = { x: e.clientX, y: e.clientY }; pointers.set(e.pointerId, cur);
+  if (pointers.size === 1) {
+    const dx = cur.x - prev.x, dy = cur.y - prev.y;
+    if (cam.mode === 'overview') { cam.theta -= dx * 0.005; cam.phi = clamp(cam.phi - dy * 0.004, 0.2, 1.45); cam.lastDrag = performance.now() / 1000; }
+    else if (cam.mode === 'follow') { cam.ft -= dx * 0.006; cam.fp = clamp(cam.fp - dy * 0.005, 0.25, 1.5); }
+  } else if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d > 0) cam.zoom = clamp(z0 * pinch0 / d, 0.3, 2.5);
+  }
+});
+const endPtr = e => {
+  pointers.delete(e.pointerId);
+  if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 8 && performance.now() - downAt.t < 400) {
+    ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(mechs.map(m => m.parts.pelvis), true);
+    if (hits.length) { let o = hits[0].object; while (o && !o.userData.mech) o = o.parent; if (o) select(o.userData.mech); }
+  }
+  downAt = null;
+};
+canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', e => pointers.delete(e.pointerId));
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.exp(e.deltaY * 0.001), 0.3, 2.5); }, { passive: false });
+addEventListener('keydown', e => {
+  if (e.code === 'Tab') { e.preventDefault(); const i = mechs.indexOf(sel); select(mechs[(i + 1) % mechs.length]); }
+  if (e.code === 'Digit1') setCam('overview'); if (e.code === 'Digit2') setCam('follow');
+  if (e.code === 'Digit3') setCam('chase'); if (e.code === 'Digit4') setCam('cockpit');
+  if (e.code === 'Space') { e.preventDefault(); setSpeed(speed === 0 ? 1 : 0); }
+  if (e.code === 'KeyR') startMatch();
+});
+
+let speed = 1, dbgOn = true;
+function setSpeed(s) { speed = s; document.querySelectorAll('[data-spd]').forEach(b => b.classList.toggle('on', +b.dataset.spd === s)); }
+document.querySelectorAll('[data-spd]').forEach(b => b.onclick = () => setSpeed(+b.dataset.spd));
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x === b)); startMatch(b.dataset.mode);
+});
+$('restart').onclick = () => startMatch();
+document.querySelectorAll('.cams button').forEach(b => b.onclick = () => setCam(b.dataset.cam));
+$('dbg').onchange = e => { dbgOn = e.target.checked; };
+$('tog').onclick = () => $('panel').classList.toggle('hide');
+const isTouch = matchMedia('(pointer:coarse)').matches;
+if (innerWidth < 700 || isTouch) $('panel').classList.add('hide');
+setTimeout(() => { $('hint').style.opacity = '0'; $('hint').style.transition = 'opacity 1s'; }, 9000);
+
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; applyFov(); }
+addEventListener('resize', resize); resize();
+
+// ---------- loop ----------
+function updatePool(pool, dt) {
+  for (const d of pool) {
+    if (!d.m.visible) continue;
+    d.life += dt; const t = d.life / d.max;
+    if (t >= 1) { d.m.visible = false; continue; }
+    d.m.position.addScaledVector(d.vel, dt);
+    d.vel.multiplyScalar(Math.max(0, 1 - d.drag * dt));
+    const s = d.s0 * (1 + d.grow * t); d.m.scale.set(s, s, s);
+    d.m.material.opacity = d.op * (1 - t);
+  }
+}
+startMatch('1v1');
+setCam('overview');
+const H = 1 / 120;
+let last = performance.now(), acc = 0;
+window.__arena = { get mechs() { return mechs; }, get simT() { return simT; }, setSpeed, startMatch,
+  ff(sec) { const n = Math.round(sec / H); for (let i = 0; i < n; i++) { sim(H); if (i % 4 === 0) { for (const m of mechs) poseMech(m); updateShells(H * 4); } } } };
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  acc += dt * speed;
+  let steps = 0;
+  while (acc >= H && steps < 600) { sim(H); acc -= H; steps++; }
+  if (steps >= 600) acc = 0;
+  for (const m of mechs) poseMech(m);
+  const fdt = dt * speed;
+  updatePool(dust, fdt); updatePool(fire, fdt); updatePool(smoke, fdt);
+  updateShells(fdt);
+  if (flashT > 0) { flashT -= fdt; flashLight.intensity = flashI * Math.max(0, flashT / flashMax); } else flashLight.intensity = 0;
+  if (roundOver && now > restartAt) startMatch();
+  updateCamera(dt);
+  updateDebug(dt);
+  updateTags();
+  updatePanel(dt);
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
