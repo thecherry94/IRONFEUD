@@ -42,6 +42,22 @@ public sealed class MechTuning
     public Vector3 ShoulderOffset = new(2.4f, 1.9f, 0f);     // left arm mirrors X
     public Vector3 ElbowOffset = new(0.45f, -2.1f, 0f);      // left arm mirrors X
     public float AimOriginY = 1.2f;                            // torso-local height of the aim ray origin
+    public Vector3 HeadOffset = new(0f, 2.75f, -1.0f);         // torso-local
+
+    // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
+    public float TorsoHitY = 1.2f;
+    public float TorsoHitRadius = 2.4f;
+    public Vector3 ArmHitOffset = new(0f, 0f, -1.7f);           // elbow-local (forearm)
+    public float ArmHitRadius = 1.4f;
+    public float LegsHitDrop = 2.4f;                           // below the pelvis
+    public float LegsHitRadius = 2.0f;
+    public Vector3 CockpitHitOffset = new(0f, 0.05f, -0.85f);  // head-local, just in front of the torso sphere
+    public float CockpitHitRadius = 0.3f;
+
+    // Damage effects
+    public float CrippledSpeedFactor = 0.45f;
+    public float CollapseDrop = 2.5f;
+    public float CollapseTime = 1.4f;
 
     // Heat (unitless, weapons lock at >= 1)
     public float HeatStart = 0.1f;

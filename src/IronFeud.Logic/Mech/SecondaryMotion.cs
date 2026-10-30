@@ -44,6 +44,33 @@ public sealed class SecondaryMotion
         Trauma = MathF.Max(0f, Trauma - h * 1.6f);
     }
 
+    /// <summary>Wreck: everything relaxes to rest except the torso, which slumps forward.</summary>
+    public void StepCollapsed(float h)
+    {
+        BounceY.Step(0f, h);
+        TorsoYaw.Step(0f, h);
+        TorsoRoll.Step(0f, h);
+        TorsoPitch.Step(0f, h);
+        for (int i = 0; i < 2; i++)
+        {
+            Arms[i].Step(0f, h);
+            Elbows[i].Step(0f, h);
+        }
+        TorsoPitch.X = MathUtil.Lerp(TorsoPitch.X, 0.45f, h * 1.5f);
+        Trauma = MathF.Max(0f, Trauma - h * 1.6f);
+    }
+
+    /// <summary>A hit shakes the torso proportionally to damage.</summary>
+    public void ApplyHit(float damage)
+    {
+        AddTrauma(damage * 0.03f);
+        TorsoPitch.V += (_rng.NextFloat() - 0.5f) * damage * 0.05f;
+        TorsoRoll.V += (_rng.NextFloat() - 0.5f) * damage * 0.05f;
+    }
+
+    /// <summary>Signed random number in [-0.5, 0.5) from this mech's stream.</summary>
+    public float RandomSigned() => _rng.NextFloat() - 0.5f;
+
     /// <summary>The "weight": kick every spring when a foot lands.</summary>
     public void ApplyFootfall(in Footfall f, int side, float v)
     {

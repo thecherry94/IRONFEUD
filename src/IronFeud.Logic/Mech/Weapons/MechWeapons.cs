@@ -14,6 +14,9 @@ public sealed class WeaponMount
     public readonly Vector3 Offset;
     public float Cooldown;
 
+    /// <summary>The arm carrying it is destroyed.</summary>
+    public bool Offline;
+
     public WeaponMount(WeaponSpec spec, int arm, Vector3 offset)
     {
         Spec = spec;
@@ -60,7 +63,7 @@ public sealed class MechWeapons
         return pose.ElbowWorldPositions[m.Arm] + Vector3.Transform(m.Offset, pose.ElbowWorldRotations[m.Arm]);
     }
 
-    public bool CanFire(int weapon) => Mounts[weapon].Cooldown <= 0f && !HeatLocked;
+    public bool CanFire(int weapon) => Mounts[weapon].Cooldown <= 0f && !Mounts[weapon].Offline && !HeatLocked;
 
     /// <summary>Dissipates heat, ticks cooldowns, fires requested weapons and applies recoil to the springs.</summary>
     public void Step(in MechInput input, MechLocomotion loco, float h, List<ShotFired> shots)

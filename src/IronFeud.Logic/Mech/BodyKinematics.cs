@@ -28,12 +28,13 @@ public sealed class BodyState
 
 public static class BodyKinematics
 {
-    public static void Step(BodyState s, in MechInput input, MechTuning t, float h)
+    /// <param name="speedFactor">Forward top-speed multiplier (crippled legs).</param>
+    public static void Step(BodyState s, in MechInput input, MechTuning t, float h, float speedFactor = 1f)
     {
         float throttle = MathUtil.Clamp(input.Throttle, -1f, 1f);
         float turn = MathUtil.Clamp(input.Turn, -1f, 1f);
 
-        float vT = throttle >= 0f ? throttle * t.VMax : throttle * t.VRev;
+        float vT = throttle >= 0f ? throttle * t.VMax * speedFactor : throttle * t.VRev;
         float dv = vT - s.V;
         float refSign = MathF.Sign(s.V != 0f ? s.V : vT);
         float a = MathF.Abs(vT) > MathF.Abs(s.V) && MathF.Sign(vT) == refSign ? t.Accel : t.Decel;

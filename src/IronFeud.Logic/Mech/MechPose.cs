@@ -29,6 +29,9 @@ public sealed class MechPose
     public Vector3 AimOrigin;
     public Vector3 AimDirection = -Vector3.UnitZ;
 
+    /// <summary>World-space hit spheres, indexed by <see cref="Damage.MechSection"/>.</summary>
+    public readonly Damage.HitVolume[] HitVolumes = new Damage.HitVolume[Damage.MechDamage.SectionCount];
+
     /// <summary>Signed shake this tick, for cameras.</summary>
     public float Jank;
 }

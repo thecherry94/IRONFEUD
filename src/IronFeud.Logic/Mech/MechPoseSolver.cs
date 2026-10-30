@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using IronFeud.Logic.Core;
+using IronFeud.Logic.Mech.Damage;
 
 namespace IronFeud.Logic.Mech;
 
@@ -10,7 +11,9 @@ namespace IronFeud.Logic.Mech;
 /// </summary>
 public static class MechPoseSolver
 {
-    public static void Solve(MechPose pose, BodyState body, GaitController gait, SecondaryMotion sec, MechTuning t, float time)
+    /// <param name="collapse">0..1 slump of a mech that is out (pelvis drops and pitches, arms hang).</param>
+    public static void Solve(MechPose pose, BodyState body, GaitController gait, SecondaryMotion sec, MechTuning t, float time,
+        float collapse = 0f, float collapseRoll = 0f)
     {
         float p = gait.Phase, g = gait.G;
         float jn = sec.Jank(time, t);
@@ -22,8 +25,9 @@ public static class MechPoseSolver
         float swayLeft = 0.32f * t.Sway * g * cs;
         Vector3 sway = MathUtil.RotateY(new Vector3(-swayLeft, 0f, 0f), body.Psi);
         float bob = -0.17f * t.Bob * g * MathF.Cos(MathUtil.Tau * (2f * p - 0.1f));
-        pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + bob + sec.BounceY.X + 0.09f * jn, 0f);
-        pose.PelvisRotation = Rot.Yxz(-0.03f, body.Psi - 0.07f * t.Sway * g * c0, 0.025f * t.Sway * g * cs);
+        float drop = t.CollapseDrop * collapse;
+        pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + bob + sec.BounceY.X + 0.09f * jn - drop, 0f);
+        pose.PelvisRotation = Rot.Yxz(-0.03f - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * c0, 0.025f * t.Sway * g * cs - collapseRoll * collapse);
 
         pose.TorsoRotation = Rot.Yxz(
             -(sec.TorsoPitch.X + 0.01f * jn),
@@ -36,7 +40,7 @@ public static class MechPoseSolver
         for (int i = 0; i < 2; i++)
         {
             float side = i == 0 ? 1f : -1f;
-            pose.Shoulders[i] = Rot.X(body.Aim - sec.Arms[i].X);
+            pose.Shoulders[i] = Rot.X(body.Aim - sec.Arms[i].X - 0.6f * collapse);
             float elbowJank = i == 0 ? 0.02f * jn : -0.02f * jn;
             pose.Elbows[i] = Rot.X(-(sec.Elbows[i].X * 0.25f + elbowJank));
 
@@ -55,12 +59,26 @@ public static class MechPoseSolver
         pose.AimOrigin = torsoPos + Vector3.Transform(new Vector3(0f, t.AimOriginY, 0f), torsoRot);
         pose.AimDirection = MathUtil.Forward(aimYaw) * MathF.Cos(aimPitch) + Vector3.UnitY * MathF.Sin(aimPitch);
 
+        Quaternion headRot = torsoRot * pose.HeadRotation;
+        Vector3 headPos = torsoPos + Vector3.Transform(t.HeadOffset, torsoRot);
+        pose.HitVolumes[(int)MechSection.Torso] = Sphere(MechSection.Torso, torsoPos + Vector3.Transform(new Vector3(0f, t.TorsoHitY, 0f), torsoRot), t.TorsoHitRadius);
+        pose.HitVolumes[(int)MechSection.ArmLeft] = Sphere(MechSection.ArmLeft, Elbow(pose, 0, t.ArmHitOffset), t.ArmHitRadius);
+        pose.HitVolumes[(int)MechSection.ArmRight] = Sphere(MechSection.ArmRight, Elbow(pose, 1, t.ArmHitOffset), t.ArmHitRadius);
+        pose.HitVolumes[(int)MechSection.Legs] = Sphere(MechSection.Legs, pose.PelvisPosition - new Vector3(0f, t.LegsHitDrop, 0f), t.LegsHitRadius);
+        pose.HitVolumes[(int)MechSection.Cockpit] = Sphere(MechSection.Cockpit, headPos + Vector3.Transform(t.CockpitHitOffset, headRot), t.CockpitHitRadius);
+
         Quaternion pelvisInv = Quaternion.Inverse(pose.PelvisRotation);
         for (int i = 0; i < gait.Legs.Length; i++)
         {
             var leg = gait.Legs[i];
             var lp = pose.Legs[i];
             var target = gait.Evaluate(i, body, t);
+            if (collapse > 0f)
+            {
+                // Feet are all planted when collapsing; flatten them onto the ground.
+                target.Pitch *= 1f - collapse;
+                target.Ankle.Y = MathUtil.Lerp(target.Ankle.Y, body.Position.Y + t.AnkleHeight, collapse);
+            }
 
             Vector3 rootLocal = new(-leg.Side * t.HipWidth, t.HipRootY, 0f);
             Vector3 rootWorld = pose.PelvisPosition + Vector3.Transform(rootLocal, pose.PelvisRotation);
@@ -83,4 +101,9 @@ public static class MechPoseSolver
             lp.FootWorld = footWorld;
         }
     }
+
+    private static HitVolume Sphere(MechSection s, Vector3 c, float r) => new() { Section = s, Center = c, Radius = r };
+
+    private static Vector3 Elbow(MechPose pose, int arm, Vector3 local) =>
+        pose.ElbowWorldPositions[arm] + Vector3.Transform(local, pose.ElbowWorldRotations[arm]);
 }

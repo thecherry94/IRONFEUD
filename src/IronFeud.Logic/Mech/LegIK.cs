@@ -26,7 +26,7 @@ public static class LegIK
     {
         float roll = MathF.Atan2(d.X, -d.Y);
         float r = MathF.Sqrt(d.X * d.X + d.Y * d.Y);
-        float l = MathUtil.Clamp(MathF.Sqrt(r * r + d.Z * d.Z), 1e-4f, l1 + l2 - 1e-3f);
+        float l = MathUtil.Clamp(MathF.Sqrt(r * r + d.Z * d.Z), 0.3f, l1 + l2 - 1e-3f);
         float kneeInterior = MathF.Acos(MathUtil.Clamp((l1 * l1 + l2 * l2 - l * l) / (2f * l1 * l2), -1f, 1f));
         float alpha = MathF.Atan2(-d.Z, r);
         float beta = MathF.Acos(MathUtil.Clamp((l1 * l1 + l * l - l2 * l2) / (2f * l1 * l), -1f, 1f));
