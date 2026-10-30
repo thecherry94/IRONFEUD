@@ -167,6 +167,10 @@ Ground is an `IGround` (the `ArenaMap`, backed by a `HeightField`: 4 m grid, bil
 - **Reach cap:** the pose solver evaluates both foot targets first and lowers the pelvis so no leg needs more than
   97 % of its length. Continuous, only ever lowers; it is what keeps long running strides over crests and down
   slopes in reach.
-- **Slopes:** climbing costs top speed (−12 % per 10 % grade, floor 45 %); the pelvis leans 0.35·slope into climbs.
+- **Slopes:** climbing costs top speed (−14 % per 10 % grade, down to a 20 % crawl up the steepest walls); the pelvis
+  leans 0.35·slope into climbs. Soles follow the ground up to 30° of tilt and stay at 30° on steeper faces.
+- **Maps:** `HeightField` composes ridged/rolling noise, mounds and ridges with a bounded flank slope, craters with
+  rims, zig-zag trenches with parapets. Hills arena (3 m grid) and No Man's Land (2 m grid, trench walls ~50°,
+  mound flanks 35-45°). `--map=nml|hills|flat`, T cycles.
 - Rendering: the heightfield mesh plus a flat frame outside the grid at y = 0 (a full horizon plane would cover
   every valley below zero). `T` / `--flat` toggles the hills.

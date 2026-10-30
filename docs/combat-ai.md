@@ -22,6 +22,21 @@ describes the prototype.
 - Headless duels (12 matchups): 13-116 s, mostly 70-115 s; 2 in 12 end with a cockpit kill. Lights beat mediums in
   3 of 4 (they are hard to hit at 36 m/s).
 
+## Terrain tactics (Godot port, not in the prototype)
+- **Partial sight:** a contact is visible if the torso centre, the top of the torso or the cockpit is in line of
+  sight; the AI aims at the lowest visible one. Hull-down mechs are seen and shot at by what shows.
+- **Firing positions (ENGAGE on terrain):** 49 candidates (7 rings at 0.75-1.25x preferred range x 7 bearings within
+  ±0.6 rad of the orbit bearing) plus the current spot. Score: lowest working muzzle has line of fire to the target
+  (+1, else -0.5), legs hidden from the target's cockpit (+0.6), torso hidden too while able to shoot (+0.25),
+  -|range error|/450, -travel/300, +0.015/m of height over the target *only when hull-down*, +0.1 near the current
+  destination (no dithering). The fine rings matter: on a low ridge the only hull-down band is the reverse slope just
+  behind the crest. Flat maps keep the prototype's orbit point.
+- **Terrain cover:** `ArenaMap` adds cover points on a 12 m grid wherever the ground rises 5 m within 22 m (behind
+  berms and mounds, in craters and trenches); COOL/RETREAT pick among them with the usual hidden-from-target check.
+- **Steering** refuses climbs steeper than 0.8 averaged over 8 m (trench walls pass, cliffs don't).
+- Headless No Man's Land duels: AIs spend ~75 % of their engaging time hull-down; 23-140 s matches.
+  A light Sicklefoot beats a heavy outright (the heavy hit 0-1 of ~40 shots at a 130 km/h target): balance item.
+
 ## Weapons
 | | cannon (right arm) | laser (left arm) |
 |---|---|---|
