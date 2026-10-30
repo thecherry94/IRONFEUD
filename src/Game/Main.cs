@@ -33,17 +33,17 @@ public partial class Main : Node3D
     private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lights vs medium · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
     private const string PlayHelp =
         "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · LMB/Space cannon · RMB/F laser\n" +
-        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
+        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · T hills on/off · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
     private const string WatchHelp =
-        "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · P pause · O slow-mo\n" + ModeKeys;
+        "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · T hills on/off · P pause · O slow-mo\n" + ModeKeys;
     private const string ParadeHelp =
-        "Tab next mech · 1 chase · 2 cockpit · 3 orbit (drag / wheel) · 4 overview · F3 gait debug · O slow-mo (¼ speed) · P pause · R restart\n" + ModeKeys;
+        "Tab next mech · 1 chase · 2 cockpit · 3 orbit (drag / wheel) · 4 overview · F3 gait debug · O slow-mo (¼ speed) · P pause · R restart · T hills on/off\n" + ModeKeys;
 
     private GameMode _mode = GameMode.Watch1v1;
     private ChassisClass _playerClass = ChassisClass.Medium;
     private MechModel _playerModel = MechModel.Hauberk;
     private uint _round;
-    private bool _rangeDemo, _gaitDebug, _aiOverlay = true;
+    private bool _rangeDemo, _gaitDebug, _aiOverlay = true, _terrain = true;
     private CameraMode? _cameraOverride;
     private readonly Dictionary<string, Personality> _personalities = new();
 
@@ -90,6 +90,7 @@ public partial class Main : Node3D
                 case "--assault": _playerClass = ChassisClass.Assault; break;
                 case "--sicklefoot": _playerModel = MechModel.Sicklefoot; break;
                 case "--debug": _gaitDebug = true; break;
+                case "--flat": _terrain = false; break;
                 case "--camera=chase": _cameraOverride = CameraMode.Chase; break;
                 case "--camera=cockpit": _cameraOverride = CameraMode.Cockpit; break;
                 case "--camera=orbit": _cameraOverride = CameraMode.Orbit; break;
@@ -127,7 +128,7 @@ public partial class Main : Node3D
         }
         else if (mode == GameMode.Parade)
         {
-            battle = new BattleSim(new ArenaMap(), _round) { TrackOutcome = false };
+            battle = new BattleSim(ArenaMap.Open(ArenaSeed, _terrain), _round) { TrackOutcome = false };
             foreach (var (cls, model, radius) in ParadeLanes)
             {
                 var c = MechChassis.Create(cls, model);
@@ -136,7 +137,7 @@ public partial class Main : Node3D
         }
         else
         {
-            battle = new BattleSim(ArenaMap.Arena(ArenaSeed), ArenaSeed * 31u + _round);
+            battle = new BattleSim(ArenaMap.Arena(ArenaSeed, _terrain), ArenaSeed * 31u + _round);
             SpawnTeams(battle, mode);
         }
         Arena.Build(_session, battle.Map, ArenaSeed);
@@ -281,6 +282,11 @@ public partial class Main : Node3D
         {
             _playerClass = (ChassisClass)(((int)_playerClass + 1) % System.Enum.GetValues<ChassisClass>().Length);
             if (_player != null) StartSession(_mode);
+        }
+        else if (e.IsAction("toggle_terrain"))
+        {
+            _terrain = !_terrain;
+            if (_mode != GameMode.Range) StartSession(_mode);
         }
         else if (e.IsAction("cycle_model"))
         {

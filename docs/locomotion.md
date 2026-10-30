@@ -155,3 +155,18 @@ no jitter. Knee points forward, hock backward. The gait is unchanged: its "ankle
 AMAX (70 % of the horizontal reach at 95 % extension) and walk-to-run speeds from its leg geometry, so new models
 only describe their bodies. A plain reverse knee (2 segments, knee back) would be the other root of the 2-bone solve
 (hip pitch α − β); not used yet.
+
+## Terrain (step 5)
+Ground is an `IGround` (the `ArenaMap`, backed by a `HeightField`: 4 m grid, bilinear, value-noise hills of ~±9 m at
+140 m wavelength, fading to 0 at the map edge, flattened at spawns). Null ground = flat y = 0 (tests, range).
+- **Feet:** plants and predicted landings get the ground height; a swinging foot is lifted over any crest between its
+  footholds; soles align to the ground normal (`Rot.YawOnSlope`), blended from take-off to landing.
+- **Body height:** rides exactly on the ground under it (any smoothing lags ~1 m at running speed on a 17° slope)
+  minus a smoothed drop toward the lowest *stance* foot and `0.5·|grade|·AMAX` on slopes. The swinging leg is
+  ignored: its last plant can be a whole stride behind.
+- **Reach cap:** the pose solver evaluates both foot targets first and lowers the pelvis so no leg needs more than
+  97 % of its length. Continuous, only ever lowers; it is what keeps long running strides over crests and down
+  slopes in reach.
+- **Slopes:** climbing costs top speed (−12 % per 10 % grade, floor 45 %); the pelvis leans 0.35·slope into climbs.
+- Rendering: the heightfield mesh plus a flat frame outside the grid at y = 0 (a full horizon plane would cover
+  every valley below zero). `T` / `--flat` toggles the hills.

@@ -123,7 +123,7 @@ public partial class Effects : Node3D
         {
             _prints[i] = new Decal
             {
-                Size = new Vector3(1.6f, 1.0f, 3.0f),
+                Size = new Vector3(1.6f, 2.0f, 3.0f), // tall enough to reach a sloped ground
                 TextureAlbedo = printTex,
                 Modulate = new Color(0.165f, 0.149f, 0.125f, 0.35f),
                 Visible = false,
@@ -216,7 +216,7 @@ public partial class Effects : Node3D
         for (int k = 0; k < dust; k++)
         {
             float a = _rng.NextFloat() * Mathf.Tau;
-            _dust.Emit(new Vector3(at.X, Mathf.Max(0.3f, at.Y), at.Z), new Vector3(Mathf.Cos(a) * 3f, 1f + _rng.NextFloat() * 2f, Mathf.Sin(a) * 3f),
+            _dust.Emit(at, new Vector3(Mathf.Cos(a) * 3f, 1f + _rng.NextFloat() * 2f, Mathf.Sin(a) * 3f),
                 max: 1.6f + _rng.NextFloat(), size0: 0.6f + size * 0.6f, grow: 3f, opacity: 0.55f, drag: 2.2f);
         }
         Flash(at, 15f + size * 25f, 0.08f + size * 0.03f);

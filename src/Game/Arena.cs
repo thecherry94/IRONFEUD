@@ -18,7 +18,7 @@ public static class Arena
     {
         var rng = new DeterministicRng(seed);
         BuildEnvironment(root);
-        BuildGround(root, seed);
+        BuildGround(root, seed, map.Terrain);
 
         var panel = ProceduralTextures.ArmorPanel(seed);
         var propMats = new[]
@@ -55,29 +55,40 @@ public static class Arena
             {
                 Mesh = rockMesh,
                 MaterialOverride = propMats[2],
-                Position = new Vector3(p.X, s * 0.4f, p.Y),
+                Position = new Vector3(p.X, map.Height(p.X, p.Y) + s * 0.4f, p.Y),
                 Rotation = new Vector3(rng.NextFloat() * 3f, rng.NextFloat() * 3f, 0),
                 Scale = new Vector3(s * (1f + rng.NextFloat()), s, s * (1f + rng.NextFloat())),
             });
         }
 
-        if (map.Radius > 0f)
+        if (map.Radius > 0f) BuildBoundary(root, map);
+    }
+
+    /// <summary>The arena edge: a 2 m band draped over the ground.</summary>
+    private static void BuildBoundary(Node3D root, ArenaMap map)
+    {
+        const int segments = 192;
+        var st = new SurfaceTool();
+        st.Begin(Mesh.PrimitiveType.TriangleStrip);
+        for (int i = 0; i <= segments; i++)
         {
-            root.AddChild(new MeshInstance3D
-            {
-                Name = "Boundary",
-                Mesh = new TorusMesh { InnerRadius = map.Radius + 4f, OuterRadius = map.Radius + 6f, Rings = 96, RingSegments = 4 },
-                Scale = new Vector3(1f, 0.05f, 1f),
-                Position = new Vector3(0f, 0.05f, 0f),
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-                MaterialOverride = new StandardMaterial3D
-                {
-                    AlbedoColor = new Color(1f, 0.54f, 0.16f, 0.35f),
-                    Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                    ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                },
-            });
+            float a = Mathf.Tau * i / segments, c = Mathf.Cos(a), s = Mathf.Sin(a);
+            foreach (float r in new[] { map.Radius + 4f, map.Radius + 6f })
+                st.AddVertex(new Vector3(c * r, map.Height(c * r, s * r) + 0.15f, s * r));
         }
+        root.AddChild(new MeshInstance3D
+        {
+            Name = "Boundary",
+            Mesh = st.Commit(),
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(1f, 0.54f, 0.16f, 0.35f),
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            },
+        });
     }
 
     private static StandardMaterial3D Prop(string color, float rough, float metal, Texture2D panel) => new()
@@ -91,24 +102,74 @@ public static class Arena
         TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
     };
 
-    private static void BuildGround(Node3D root, uint seed)
+    /// <summary>
+    /// Flat ground to the horizon at y = 0, plus the heightfield as a mesh. With terrain the flat part is a frame
+    /// around the grid (the grid fades to 0 at its edge): a full plane would cover every valley below y = 0.
+    /// </summary>
+    private static void BuildGround(Node3D root, uint seed, HeightField? terrain)
     {
-        var ground = new StaticBody3D { Name = "Ground" };
-        ground.AddChild(new MeshInstance3D
+        var groundTex = ProceduralTextures.Ground(seed);
+        if (terrain == null)
         {
-            Mesh = new PlaneMesh { Size = new Vector2(GroundSize, GroundSize) },
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoTexture = ProceduralTextures.Ground(seed),
-                Roughness = 0.95f,
-                Uv1Scale = new Vector3(GroundSize / 10f, GroundSize / 10f, 1f),
-                TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
-            },
+            FlatGround(root, groundTex, 0f, 0f, GroundSize, GroundSize);
+            return;
+        }
+        float e = terrain.HalfExtent, outer = GroundSize / 2f, w = outer - e;
+        FlatGround(root, groundTex, -(e + w / 2f), 0f, w, GroundSize);
+        FlatGround(root, groundTex, e + w / 2f, 0f, w, GroundSize);
+        FlatGround(root, groundTex, 0f, -(e + w / 2f), 2f * e, w);
+        FlatGround(root, groundTex, 0f, e + w / 2f, 2f * e, w);
+
+        // Grid mesh with smooth normals; UVs in world metres / 10 to match the plane's tiling.
+        int n = terrain.N;
+        var st = new SurfaceTool();
+        st.Begin(Mesh.PrimitiveType.Triangles);
+        for (int iz = 0; iz < n; iz++)
+        for (int ix = 0; ix < n; ix++)
+        {
+            float x = terrain.Origin + ix * terrain.Cell, z = terrain.Origin + iz * terrain.Cell;
+            st.SetNormal(terrain.NormalAt(x, z, terrain.Cell).ToGodot());
+            st.SetUV(new Vector2(x / 10f, z / 10f));
+            st.AddVertex(new Vector3(x, terrain.Height(x, z), z));
+        }
+        for (int iz = 0; iz < n - 1; iz++)
+        for (int ix = 0; ix < n - 1; ix++)
+        {
+            int a = iz * n + ix, b = a + 1, c = a + n, d = c + 1;
+            st.AddIndex(a); st.AddIndex(b); st.AddIndex(c);
+            st.AddIndex(b); st.AddIndex(d); st.AddIndex(c);
+        }
+        root.AddChild(new MeshInstance3D
+        {
+            Name = "Terrain",
+            Mesh = st.Commit(),
+            MaterialOverride = GroundMaterial(groundTex, 1f),
+        });
+    }
+
+    /// <summary>A flat ground rectangle; world-space UVs (triplanar) so pieces tile seamlessly.</summary>
+    private static void FlatGround(Node3D root, Texture2D tex, float x, float z, float w, float d)
+    {
+        var mat = GroundMaterial(tex, 0.1f);
+        mat.Uv1Triplanar = true;
+        mat.Uv1WorldTriplanar = true;
+        root.AddChild(new MeshInstance3D
+        {
+            Name = "Ground",
+            Mesh = new PlaneMesh { Size = new Vector2(w, d) },
+            Position = new Vector3(x, 0f, z),
+            MaterialOverride = mat,
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         });
-        ground.AddChild(new CollisionShape3D { Shape = new WorldBoundaryShape3D() });
-        root.AddChild(ground);
     }
+
+    private static StandardMaterial3D GroundMaterial(Texture2D tex, float uvScale) => new()
+    {
+        AlbedoTexture = tex,
+        Roughness = 0.95f,
+        Uv1Scale = new Vector3(uvScale, uvScale, 1f),
+        TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+    };
 
     private static void BuildEnvironment(Node3D root)
     {

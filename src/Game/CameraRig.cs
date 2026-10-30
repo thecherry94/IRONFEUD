@@ -115,7 +115,7 @@ public partial class CameraRig : Camera3D
         {
             case CameraMode.Orbit:
             {
-                var c = new Vector3(pelvis.X, 5.2f * k, pelvis.Z);
+                var c = new Vector3(pelvis.X, body.Position.Y + 5.2f * k, pelvis.Z);
                 var offset = new Vector3(Mathf.Sin(_phi) * Mathf.Sin(_theta), Mathf.Cos(_phi), Mathf.Sin(_phi) * Mathf.Cos(_theta));
                 LookAtFromPosition(c + offset * (_radius * k), c, Vector3.Up);
                 break;
@@ -124,8 +124,8 @@ public partial class CameraRig : Camera3D
             {
                 float dir = body.Psi + body.Twist + loco.Secondary.TorsoYaw.X * 0.5f;
                 Vector3 fwd = MathUtil.Forward(dir).ToGodot(), right = MathUtil.Right(dir).ToGodot();
-                Vector3 wantPos = new Vector3(pelvis.X, 0, pelvis.Z) - (fwd * 21f - right * 3.5f - Vector3.Up * (13f - body.Aim * 6f)) * k;
-                Vector3 wantLook = new Vector3(pelvis.X, 0, pelvis.Z) + (fwd * 18f + right * 1.75f + Vector3.Up * (6f + body.Aim * 16f)) * k;
+                Vector3 wantPos = new Vector3(pelvis.X, body.Position.Y, pelvis.Z) - (fwd * 21f - right * 3.5f - Vector3.Up * (13f - body.Aim * 6f)) * k;
+                Vector3 wantLook = new Vector3(pelvis.X, body.Position.Y, pelvis.Z) + (fwd * 18f + right * 1.75f + Vector3.Up * (6f + body.Aim * 16f)) * k;
                 if (!_chaseInit)
                 {
                     _chasePos = wantPos;
@@ -172,7 +172,7 @@ public partial class CameraRig : Camera3D
         _overviewCenter = _overviewCenter.Lerp(c, 1f - Mathf.Exp(-dt * 1.5f));
         float r = Mathf.Clamp(sep * 0.85f + 45f, 55f, 420f) * _ovZoom;
         if (_clock - _lastDrag > 5f) _ovTheta += dt * 0.04f;
-        var look = new Vector3(_overviewCenter.X, 4f, _overviewCenter.Z);
+        var look = _overviewCenter + Vector3.Up * 4f;
         var offset = new Vector3(Mathf.Sin(_ovPhi) * Mathf.Sin(_ovTheta), Mathf.Cos(_ovPhi), Mathf.Sin(_ovPhi) * Mathf.Cos(_ovTheta));
         LookAtFromPosition(look + offset * r, look, Vector3.Up);
     }

@@ -54,7 +54,7 @@ dotnet test tests/                 # pure-logic unit tests (xUnit)
 # --parade (all chassis classes running laps, for gait work); in game F5-F11.
 # Captures: --autopilot (range, scripted walk, fires 3-9 s), --range-demo (range, scripted shooting);
 # --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light|--heavy|--assault and --sicklefoot pick the player's class and model (L / M cycle in game);
-# --seed=N picks the arena layout:
+# --flat turns the hills off (T in game); --seed=N picks the arena layout:
 godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --watch=2v2
 dotnet test tests/ --filter AiDuels --logger "console;verbosity=detailed"   # headless AI duel summary
 ```
