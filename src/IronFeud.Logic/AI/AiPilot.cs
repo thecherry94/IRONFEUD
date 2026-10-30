@@ -448,6 +448,9 @@ public sealed class AiPilot
         float bearing = MathUtil.Heading(lead - me.Position);
         float needTwist = MathUtil.WrapAngle(bearing + _errYaw - body.Psi);
         if (MathF.Abs(needTwist) > c.TwistMax * 0.9f && dist < 8f) input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
+        // Not in the prototype (its mechs stood at their orbit point to fire): a fast mech running across the target's
+        // bearing runs out of torso twist, so with a weapon ready and the target in sight it swings its legs round.
+        else if (k.Visible && MathF.Abs(needTwist) > c.TwistMax * 0.85f && AnyReady(weapons)) input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
 
         // Spread damage: twist the weaker arm away while every weapon recycles.
         float extraTwist = 0f;
@@ -506,6 +509,13 @@ public sealed class AiPilot
         foreach (var m in w.Mounts)
             if (!m.Offline && m.Spec.Kind == WeaponKind.Projectile) return m.Spec;
         return null;
+    }
+
+    private static bool AnyReady(MechWeapons w)
+    {
+        for (int i = 0; i < w.Mounts.Count; i++)
+            if (w.CanFire(i)) return true;
+        return false;
     }
 
     private static bool AllRecycling(MechWeapons w, float threshold)

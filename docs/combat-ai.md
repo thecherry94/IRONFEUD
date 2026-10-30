@@ -16,8 +16,10 @@ describes the prototype.
   the prototype's; with 90 tall blocks the AIs saw their target only ~17 % of the time.
 - AI: cover search radius 200 m, distance weights halved; aim error counts target speed against **20 m/s**;
   steering probes look **1.2 s** ahead at current speed; arrival speed is capped by the chassis' braking distance;
-  backing up applies inside 90 m.
-- Headless duels (12 matchups): 32-369 s, median ~150 s; 1 in 12 ends with a cockpit kill. Lights beat mediums in
+  backing up applies inside 90 m. With a weapon ready, the target visible and more than 85 % of max twist needed,
+  the AI swings its legs toward the target (fast mechs running across the bearing otherwise never got a firing angle;
+  one light-vs-medium duel went 400 s without a winner).
+- Headless duels (12 matchups): 13-116 s, mostly 70-115 s; 2 in 12 end with a cockpit kill. Lights beat mediums in
   3 of 4 (they are hard to hit at 36 m/s).
 
 ## Weapons
