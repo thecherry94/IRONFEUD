@@ -102,3 +102,11 @@ Tunable "Jank" multiplier. Recoil and hits also add trauma.
   average planted-foot height plus slope pitch/roll.
 - Mid-stride speed changes can shift the predicted landing by a few cm. Fine so far.
 - Mech-vs-geometry collision in the prototype is AABB push-out; use `CharacterBody3D` or a custom capsule sweep.
+
+## Chassis classes (Godot addition)
+All constants above are the **medium** chassis (`MechChassis.Medium()`, the prototype mech).
+`MechChassis.Light()` is the prototype rig scaled by 0.72 with 10 % longer legs, ~9 m/s top speed, faster
+turn/twist, duty 0.5 (a jog), FMIN 0.6, DMAX 5 m and thinner armour. Its numbers are first guesses for feel tuning.
+`MechChassis.Scale` multiplies the gait's built-in lengths (lift, outward arc, foot pivot lengths, settle threshold,
+pelvis sway/bob, footfall bounce); the rig builds prototype-size meshes and scales the pelvis node.
+Spring frequencies are not scaled yet (a smaller mech should probably ring faster).

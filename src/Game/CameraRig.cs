@@ -67,22 +67,23 @@ public partial class CameraRig : Camera3D
         var pose = loco.Pose;
         var body = loco.Body;
         Vector3 pelvis = pose.PelvisPosition.ToGodot();
+        float k = loco.Chassis.Scale; // framing follows mech size
 
         switch (Mode)
         {
             case CameraMode.Orbit:
             {
-                var c = new Vector3(pelvis.X, 5.2f, pelvis.Z);
+                var c = new Vector3(pelvis.X, 5.2f * k, pelvis.Z);
                 var offset = new Vector3(Mathf.Sin(_phi) * Mathf.Sin(_theta), Mathf.Cos(_phi), Mathf.Sin(_phi) * Mathf.Cos(_theta));
-                LookAtFromPosition(c + offset * _radius, c, Vector3.Up);
+                LookAtFromPosition(c + offset * (_radius * k), c, Vector3.Up);
                 break;
             }
             case CameraMode.Chase:
             {
                 float dir = body.Psi + body.Twist + loco.Secondary.TorsoYaw.X * 0.5f;
                 Vector3 fwd = MathUtil.Forward(dir).ToGodot(), right = MathUtil.Right(dir).ToGodot();
-                Vector3 wantPos = new Vector3(pelvis.X, 0, pelvis.Z) - fwd * 21f + right * 3.5f + Vector3.Up * (13f - body.Aim * 6f);
-                Vector3 wantLook = new Vector3(pelvis.X, 0, pelvis.Z) + fwd * 18f + right * 1.75f + Vector3.Up * (6f + body.Aim * 16f);
+                Vector3 wantPos = new Vector3(pelvis.X, 0, pelvis.Z) - (fwd * 21f - right * 3.5f - Vector3.Up * (13f - body.Aim * 6f)) * k;
+                Vector3 wantLook = new Vector3(pelvis.X, 0, pelvis.Z) + (fwd * 18f + right * 1.75f + Vector3.Up * (6f + body.Aim * 16f)) * k;
                 if (!_chaseInit)
                 {
                     _chasePos = wantPos;
@@ -96,7 +97,7 @@ public partial class CameraRig : Camera3D
                 break;
             }
             case CameraMode.Cockpit:
-                GlobalTransform = Target.Rig.CamMount.GlobalTransform;
+                GlobalTransform = Target.Rig.CamMount.GlobalTransform.Orthonormalized();
                 break;
         }
     }

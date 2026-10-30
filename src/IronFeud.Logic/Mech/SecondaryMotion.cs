@@ -71,11 +71,11 @@ public sealed class SecondaryMotion
     /// <summary>Signed random number in [-0.5, 0.5) from this mech's stream.</summary>
     public float RandomSigned() => _rng.NextFloat() - 0.5f;
 
-    /// <summary>The "weight": kick every spring when a foot lands.</summary>
-    public void ApplyFootfall(in Footfall f, int side, float v)
+    /// <summary>The "weight": kick every spring when a foot lands. <paramref name="scale"/> = chassis scale (the bounce is in metres).</summary>
+    public void ApplyFootfall(in Footfall f, int side, float v, float scale = 1f)
     {
         float k = f.Strength;
-        BounceY.V -= 2.4f * k;
+        BounceY.V -= 2.4f * scale * k;
         TorsoPitch.V += 0.55f * k * (v < 0f ? -1f : 1f);
         TorsoRoll.V += -side * 0.35f * k;
         Arms[0].V += 0.8f * k;

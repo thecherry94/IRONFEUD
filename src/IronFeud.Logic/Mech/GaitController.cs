@@ -118,7 +118,7 @@ public sealed class GaitController
         {
             if (leg.Swing) { unsettled = true; continue; }
             var n = Neutral(leg, body, t);
-            if (MathUtil.PlanarDistance(leg.Plant.Position, n.Position) > 0.45f ||
+            if (MathUtil.PlanarDistance(leg.Plant.Position, n.Position) > 0.45f * t.Scale ||
                 MathF.Abs(MathUtil.WrapAngle(leg.Plant.Yaw - body.Psi)) > 0.2f)
                 unsettled = true;
         }
@@ -146,11 +146,11 @@ public sealed class GaitController
                 leg.Swing = false;
                 leg.Plant = Landing(leg, body, t, 0f);
                 leg.StepLength = MathUtil.PlanarDistance(leg.Plant.Position, leg.From.Position);
-                float k = t.Impact * (0.45f + 0.55f * MathF.Min(1f, leg.StepLength / 3f));
+                float k = t.Impact * (0.45f + 0.55f * MathF.Min(1f, leg.StepLength / (3f * t.Scale)));
                 footfalls?.Add(new Footfall
                 {
                     Leg = i,
-                    Position = leg.Plant.Position + MathUtil.Forward(leg.Plant.Yaw) * 0.3f,
+                    Position = leg.Plant.Position + MathUtil.Forward(leg.Plant.Yaw) * (0.3f * t.Scale),
                     Yaw = leg.Plant.Yaw,
                     Strength = k,
                     SpeedFraction = spd / t.VMax,
@@ -165,7 +165,8 @@ public sealed class GaitController
         var leg = Legs[legIndex];
         float lp = MathUtil.Frac(Phase + leg.PhaseOffset);
         float lift = 0f, outward = 0f, pitch, yaw;
-        float scale = MathUtil.Clamp01(leg.StepLength / 3f);
+        float s0 = t.Scale;
+        float scale = MathUtil.Clamp01(leg.StepLength / (3f * s0));
         Vector3 cur;
         FootPlant landing;
 
@@ -184,15 +185,15 @@ public sealed class GaitController
             cur = Vector3.Lerp(leg.From.Position, landing.Position, e);
             yaw = MathUtil.LerpAngle(leg.From.Yaw, landing.Yaw, e);
             float dist = MathUtil.PlanarDistance(landing.Position, leg.From.Position);
-            scale = MathUtil.Clamp01(dist / 3f);
-            lift = 0.95f * t.Lift * MathUtil.Clamp(dist / 1.6f, 0.35f, 1f) * MathF.Sin(MathF.PI * MathF.Pow(s, 0.75f));
+            scale = MathUtil.Clamp01(dist / (3f * s0));
+            lift = 0.95f * s0 * t.Lift * MathUtil.Clamp(dist / (1.6f * s0), 0.35f, 1f) * MathF.Sin(MathF.PI * MathF.Pow(s, 0.75f));
             pitch = MathUtil.Lerp(0.38f, -0.14f, MathUtil.Smoothstep(0f, 0.75f, s));
-            outward = 0.22f * MathF.Sin(MathF.PI * s) * MathUtil.Clamp01(dist / 2f);
+            outward = 0.22f * s0 * MathF.Sin(MathF.PI * s) * MathUtil.Clamp01(dist / (2f * s0));
         }
 
         pitch *= scale * (body.V < -0.1f ? 0.3f : 1f);
         // Raise the ankle so the pivot (toe when toe-down, heel when toe-up) stays on the ground.
-        float rise = pitch > 0f ? 1.7f * MathF.Sin(pitch) : 1.05f * MathF.Sin(-pitch);
+        float rise = s0 * (pitch > 0f ? 1.7f * MathF.Sin(pitch) : 1.05f * MathF.Sin(-pitch));
         Vector3 outOffset = MathUtil.RotateY(new Vector3(-leg.Side * outward, 0f, 0f), yaw);
 
         return new FootTarget

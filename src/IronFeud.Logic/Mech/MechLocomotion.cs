@@ -83,7 +83,7 @@ public sealed class MechLocomotion
         BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor);
         Gait.Step(Body, Chassis, h, Footfalls);
         foreach (var f in Footfalls)
-            Secondary.ApplyFootfall(f, Gait.Legs[f.Leg].Side, Body.V);
+            Secondary.ApplyFootfall(f, Gait.Legs[f.Leg].Side, Body.V, Chassis.Scale);
         Secondary.Step(Body, Gait, Chassis, h);
         Solve();
     }

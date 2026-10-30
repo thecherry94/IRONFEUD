@@ -32,15 +32,15 @@ public sealed class MechDamage
     public readonly float[] MaxHp = new float[SectionCount];
     public MechStatus Status = MechStatus.Operational;
 
-    /// <summary>Prototype values plus the cockpit: extremely fragile, one solid hit kills the pilot.</summary>
-    public static MechDamage CreateDefault()
+    /// <summary>Fresh armour for a chassis. The cockpit is extremely fragile: one solid hit kills the pilot.</summary>
+    public static MechDamage Create(MechChassis c)
     {
         var d = new MechDamage();
-        d.Set(MechSection.Torso, 100f);
-        d.Set(MechSection.ArmLeft, 45f);
-        d.Set(MechSection.ArmRight, 45f);
-        d.Set(MechSection.Legs, 70f);
-        d.Set(MechSection.Cockpit, 5f);
+        d.Set(MechSection.Torso, c.TorsoHp);
+        d.Set(MechSection.ArmLeft, c.ArmHp);
+        d.Set(MechSection.ArmRight, c.ArmHp);
+        d.Set(MechSection.Legs, c.LegsHp);
+        d.Set(MechSection.Cockpit, c.CockpitHp);
         return d;
     }
 

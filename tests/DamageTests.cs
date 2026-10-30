@@ -138,7 +138,7 @@ public class DamageTests
     [Fact]
     public void Damage_PersistsIntoANewSim()
     {
-        var damage = MechDamage.CreateDefault();
+        var damage = MechDamage.Create(MechChassis.Medium());
         damage.Apply(MechSection.ArmLeft, 100f);
         damage.Apply(MechSection.Torso, 30f);
 

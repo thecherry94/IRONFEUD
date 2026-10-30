@@ -22,6 +22,7 @@ public partial class MechNode : Node3D
     [Export(PropertyHint.Range, "0,2.5,0.01")] public float Jank { get; set; } = 1f;
 
     [ExportGroup("")]
+    [Export] public ChassisClass Chassis { get; set; } = ChassisClass.Medium;
     [Export] public uint Seed { get; set; } = 1;
 
     /// <summary>Carried-over damage (e.g. from a previous battle); set before the node enters the tree.</summary>
@@ -41,7 +42,7 @@ public partial class MechNode : Node3D
 
     public override void _Ready()
     {
-        var chassis = new MechChassis();
+        var chassis = MechChassis.Create(Chassis);
         Sim = new MechSim(chassis, Seed, InitialDamage);
         var start = GlobalPosition;
         Locomotion.Reset(new System.Numerics.Vector3(start.X, 0f, start.Z), Rotation.Y);

@@ -52,8 +52,8 @@ public sealed class MechWeapons
     public static MechWeapons Default(MechChassis t)
     {
         var w = new MechWeapons { Heat = t.HeatStart };
-        w.Mounts.Add(new WeaponMount(WeaponSpec.Cannon, 1, new Vector3(0f, 0.05f, -5.4f)));
-        w.Mounts.Add(new WeaponMount(WeaponSpec.Laser, 0, new Vector3(0f, 0.1f, -3.5f)));
+        w.Mounts.Add(new WeaponMount(WeaponSpec.Cannon, 1, t.RightArmMuzzle));
+        w.Mounts.Add(new WeaponMount(WeaponSpec.Laser, 0, t.LeftArmMuzzle));
         return w;
     }
 

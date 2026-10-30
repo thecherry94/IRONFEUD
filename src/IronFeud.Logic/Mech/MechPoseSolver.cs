@@ -22,11 +22,12 @@ public static class MechPoseSolver
         pose.Jank = jn;
 
         // Pelvis: lateral sway toward the stance leg (+ = left), bob lowest just after footfall, counter-yaw.
-        float swayLeft = 0.32f * t.Sway * g * cs;
+        float s = t.Scale;
+        float swayLeft = 0.32f * s * t.Sway * g * cs;
         Vector3 sway = MathUtil.RotateY(new Vector3(-swayLeft, 0f, 0f), body.Psi);
-        float bob = -0.17f * t.Bob * g * MathF.Cos(MathUtil.Tau * (2f * p - 0.1f));
+        float bob = -0.17f * s * t.Bob * g * MathF.Cos(MathUtil.Tau * (2f * p - 0.1f));
         float drop = t.CollapseDrop * collapse;
-        pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + bob + sec.BounceY.X + 0.09f * jn - drop, 0f);
+        pose.PelvisPosition = body.Position + sway + new Vector3(0f, t.HipHeight + bob + sec.BounceY.X + 0.09f * s * jn - drop, 0f);
         pose.PelvisRotation = Rot.Yxz(-0.03f - 0.3f * collapse, body.Psi - 0.07f * t.Sway * g * c0, 0.025f * t.Sway * g * cs - collapseRoll * collapse);
 
         pose.TorsoRotation = Rot.Yxz(

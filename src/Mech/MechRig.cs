@@ -6,7 +6,8 @@ namespace IronFeud.Mech;
 
 /// <summary>
 /// Builds the placeholder mech node hierarchy in code and applies <see cref="MechPose"/> to it.
-/// Geometry is the prototype's, mirrored into Godot's frame (forward -Z, left -X).
+/// Geometry is the prototype's, mirrored into Godot's frame (forward -Z, left -X). Smaller chassis build the same
+/// meshes at prototype size (leg lengths from the chassis) and scale the whole pelvis node by <see cref="MechChassis.Scale"/>.
 ///
 /// Pelvis (top-level, world space)
 ///   LegRoot[i] → Hip → Knee → Ankle
@@ -32,6 +33,7 @@ public sealed class MechRig
     public Node3D Pelvis = null!, TorsoBase = null!, Torso = null!, Head = null!, CamMount = null!;
     public readonly LegNodes[] Legs = new LegNodes[2];
     public readonly ArmNodes[] Arms = new ArmNodes[2];
+    public float Scale = 1f;
 
     private static readonly float[] PistonX = { -0.38f, 0.38f };
 
@@ -77,9 +79,10 @@ public sealed class MechRig
 
     public static MechRig Build(Node3D owner, MechChassis t)
     {
-        var r = new MechRig();
+        float s = t.Scale;
+        var r = new MechRig { Scale = s };
         var m = new Mats();
-        float l1 = t.L1, l2 = t.L2;
+        float l1 = t.L1 / s, l2 = t.L2 / s;
         const float halfPi = Mathf.Pi / 2f;
 
         r.Pelvis = Group(owner, "Pelvis", 0, t.HipHeight, 0);
@@ -89,17 +92,17 @@ public sealed class MechRig
         Box(pelvis, 2.2f, 0.7f, 2.1f, m.ArmorDark, 0, -0.25f, -0.05f);
         Box(pelvis, 1.0f, 1.3f, 0.45f, m.Armor, 0, -0.35f, -1.08f, -0.15f);
         Box(pelvis, 1.2f, 0.9f, 0.4f, m.ArmorDark, 0, -0.2f, 1.08f, 0.15f);
-        foreach (int s in new[] { -1, 1 })
+        foreach (int side in new[] { -1, 1 })
         {
-            Cyl(pelvis, 0.68f, 0.68f, 0.7f, m.Frame, -s * 1.3f, -0.1f, 0, 0, 0, -halfPi);
-            Cyl(pelvis, 0.42f, 0.42f, 0.8f, m.Accent, -s * 1.3f, -0.1f, 0, 0, 0, -halfPi);
+            Cyl(pelvis, 0.68f, 0.68f, 0.7f, m.Frame, -side * 1.3f, -0.1f, 0, 0, 0, -halfPi);
+            Cyl(pelvis, 0.42f, 0.42f, 0.8f, m.Accent, -side * 1.3f, -0.1f, 0, 0, 0, -halfPi);
         }
 
         for (int i = 0; i < 2; i++)
         {
             int side = i == 0 ? +1 : -1;
             var leg = new LegNodes();
-            leg.Root = Group(pelvis, i == 0 ? "LegRootL" : "LegRootR", -side * t.HipWidth, t.HipRootY, 0);
+            leg.Root = Group(pelvis, i == 0 ? "LegRootL" : "LegRootR", -side * t.HipWidth / s, t.HipRootY / s, 0);
             leg.Hip = Group(leg.Root, "Hip");
             Cyl(leg.Hip, 0.55f, 0.55f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -halfPi);
             Box(leg.Hip, 0.9f, l1 * 0.9f, 1.0f, m.Frame, 0, -l1 * 0.5f, 0);
@@ -131,17 +134,17 @@ public sealed class MechRig
             leg.Pistons = new (MeshInstance3D, MeshInstance3D)[PistonX.Length];
             for (int p = 0; p < PistonX.Length; p++)
             {
-                var outer = Cyl(owner, 0.15f, 0.15f, 1f, m.Frame, segments: 10);
-                var rod = Cyl(owner, 0.085f, 0.085f, 1f, m.Chrome, segments: 10);
+                var outer = Cyl(owner, 0.15f * s, 0.15f * s, 1f, m.Frame, segments: 10);
+                var rod = Cyl(owner, 0.085f * s, 0.085f * s, 1f, m.Chrome, segments: 10);
                 outer.TopLevel = rod.TopLevel = true;
                 leg.Pistons[p] = (outer, rod);
             }
             r.Legs[i] = leg;
         }
 
-        r.TorsoBase = Group(pelvis, "TorsoBase", 0, t.TorsoBaseY, 0);
+        r.TorsoBase = Group(pelvis, "TorsoBase", 0, t.TorsoBaseY / s, 0);
         Cyl(r.TorsoBase, 0.75f, 0.95f, 0.8f, m.Frame, 0, 0.25f, 0, segments: 12);
-        r.Torso = Group(r.TorsoBase, "Torso", 0, t.TorsoY, 0);
+        r.Torso = Group(r.TorsoBase, "Torso", 0, t.TorsoY / s, 0);
         var torso = r.Torso;
         Box(torso, 3.6f, 2.4f, 2.8f, m.Armor, 0, 1.3f, 0);
         Box(torso, 3.9f, 0.6f, 2.6f, m.ArmorDark, 0, 0.2f, 0);
@@ -152,7 +155,8 @@ public sealed class MechRig
         for (int i = 0; i < 4; i++) Box(torso, 0.42f, 1.2f, 0.08f, m.Glow, 1.05f - i * 0.7f, 1.4f, 1.68f);
         for (int i = 0; i < 5; i++) Box(torso, 3.0f, 0.08f, 0.25f, m.Frame, 0, 0.85f + i * 0.28f, 1.75f);
 
-        r.Head = Group(torso, "Head", t.HeadOffset.X, t.HeadOffset.Y, t.HeadOffset.Z);
+        var head0 = t.HeadOffset / s;
+        r.Head = Group(torso, "Head", head0.X, head0.Y, head0.Z);
         var head = r.Head;
         Box(head, 1.7f, 0.9f, 1.9f, m.ArmorDark);
         Box(head, 1.4f, 0.42f, 0.3f, m.Glass, 0, 0.05f, -0.98f, 0.2f);
@@ -174,12 +178,14 @@ public sealed class MechRig
         {
             int side = i == 0 ? +1 : -1;
             var arm = new ArmNodes();
-            arm.Shoulder = Group(torso, i == 0 ? "ShoulderL" : "ShoulderR", -side * t.ShoulderOffset.X, t.ShoulderOffset.Y, t.ShoulderOffset.Z);
+            var sh = t.ShoulderOffset / s;
+            arm.Shoulder = Group(torso, i == 0 ? "ShoulderL" : "ShoulderR", -side * sh.X, sh.Y, sh.Z);
             Box(arm.Shoulder, 1.25f, 1.0f, 1.8f, m.Armor, -side * 0.35f, 0.3f, 0);
             Box(arm.Shoulder, 0.2f, 0.85f, 1.6f, m.Accent, -side * 1.0f, 0.25f, 0);
             Cyl(arm.Shoulder, 0.5f, 0.5f, 0.9f, m.Frame, -side * 0.2f, 0, 0, 0, 0, -halfPi);
             Box(arm.Shoulder, 0.75f, 1.9f, 0.8f, m.Frame, -side * 0.45f, -1.1f, 0);
-            arm.Elbow = Group(arm.Shoulder, "Elbow", -side * t.ElbowOffset.X, t.ElbowOffset.Y, t.ElbowOffset.Z);
+            var el = t.ElbowOffset / s;
+            arm.Elbow = Group(arm.Shoulder, "Elbow", -side * el.X, el.Y, el.Z);
             Cyl(arm.Elbow, 0.42f, 0.42f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -halfPi);
             Box(arm.Elbow, 1.0f, 1.0f, 2.4f, m.ArmorDark, 0, 0, -1.0f);
             if (i == 1)
@@ -206,7 +212,7 @@ public sealed class MechRig
 
     public void Apply(MechPose pose)
     {
-        Pelvis.Transform = new Transform3D(new Basis(pose.PelvisRotation.ToGodot()), pose.PelvisPosition.ToGodot());
+        Pelvis.Transform = new Transform3D(new Basis(pose.PelvisRotation.ToGodot()).Scaled(Vector3.One * Scale), pose.PelvisPosition.ToGodot());
         TorsoBase.Quaternion = pose.TorsoRotation.ToGodot();
         Head.Quaternion = pose.HeadRotation.ToGodot();
         for (int i = 0; i < 2; i++)
@@ -227,8 +233,8 @@ public sealed class MechRig
                 Vector3 a = hip * new Vector3(px, -0.6f, 0.68f);
                 Vector3 b = knee * new Vector3(px, -1.35f, 0.62f);
                 Vector3 dir = (b - a).Normalized();
-                leg.Pistons[p].Outer.Transform = GodotConv.Segment(a, a + dir * 1.7f);
-                leg.Pistons[p].Rod.Transform = GodotConv.Segment(a + dir * 1.5f, b);
+                leg.Pistons[p].Outer.Transform = GodotConv.Segment(a, a + dir * (1.7f * Scale));
+                leg.Pistons[p].Rod.Transform = GodotConv.Segment(a + dir * (1.5f * Scale), b);
             }
         }
     }

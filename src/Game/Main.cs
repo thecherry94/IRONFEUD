@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
 using IronFeud.Mech;
 
@@ -38,7 +39,8 @@ public partial class Main : Node3D
         AddChild(_projectiles);
         _battlefield.Damaged += (mech, report, at, _) => _effects.OnDamaged(mech, report, at);
 
-        var player = SpawnMech("Player", Vector3.Zero, 0f, seed: 1);
+        var playerClass = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--light") >= 0 ? ChassisClass.Light : ChassisClass.Medium;
+        var player = SpawnMech("Player", Vector3.Zero, 0f, seed: 1, playerClass);
 
         var camera = new CameraRig { Name = "Camera", Target = player };
         AddChild(camera);
@@ -68,9 +70,9 @@ public partial class Main : Node3D
         if (e is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.R }) SpawnTargets();
     }
 
-    private MechNode SpawnMech(string name, Vector3 position, float heading, uint seed)
+    private MechNode SpawnMech(string name, Vector3 position, float heading, uint seed, ChassisClass chassis = ChassisClass.Medium)
     {
-        var mech = new MechNode { Name = name, Position = position, Rotation = new Vector3(0f, heading, 0f), Seed = seed };
+        var mech = new MechNode { Name = name, Position = position, Rotation = new Vector3(0f, heading, 0f), Seed = seed, Chassis = chassis };
         AddChild(mech);
         _battlefield.Add(mech);
         mech.Footfall += f => _effects.Footfall(f);
@@ -90,7 +92,8 @@ public partial class Main : Node3D
         uint seed = 100;
         foreach (var (name, pos, circle) in TargetSpawns)
         {
-            var mech = SpawnMech(name, pos, Mathf.Pi, seed++); // facing the player
+            var mech = SpawnMech(name, pos, Mathf.Pi, seed, seed % 2 == 0 ? ChassisClass.Medium : ChassisClass.Light); // facing the player
+            seed++;
             _targets.Add(mech);
             var dummy = new TargetDummy { Mech = mech, Circle = circle };
             mech.AddChild(dummy);
