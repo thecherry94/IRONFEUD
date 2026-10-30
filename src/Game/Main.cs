@@ -266,8 +266,8 @@ public partial class Main : Node3D
         {
             _restartAt = _clock + 9.0;
             string text = battle.Winner < 0 ? "DRAW" : $"{Battlefield.TeamName[battle.Winner]} WINS";
-            _hud.ShowBanner($"{text}\nnext round in a few seconds · R to restart now",
-                battle.Winner < 0 ? Colors.White : Battlefield.TeamColor[battle.Winner]);
+            _hud.ShowBanner(text, battle.Winner < 0 ? Colors.White : Battlefield.TeamColor[battle.Winner],
+                "next round in a few seconds · R to restart now");
         }
         else if (_restartAt > 0 && _clock > _restartAt) StartSession(_mode);
     }

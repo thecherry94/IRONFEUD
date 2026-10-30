@@ -17,7 +17,7 @@ public partial class Hud : CanvasLayer
     public PlayerMechController? Pilot;
     public Battlefield? Battlefield;
 
-    private Label _stat = null!, _target = null!, _feed = null!, _banner = null!;
+    private Label _stat = null!, _target = null!, _feed = null!, _banner = null!, _bannerSub = null!;
     private ColorRect _heatBar = null!, _heatBack = null!;
     private Reticle _reticle = null!;
     private double _uiTimer, _time;
@@ -56,6 +56,7 @@ public partial class Hud : CanvasLayer
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;
+        Layer = 2; // above the AI panel, so the result banner is never hidden
 
         _heatBack = new ColorRect { Position = new Vector2(10, 8), Size = new Vector2(HeatBarWidth, 5), Color = new Color(1, 1, 1, 0.1f) };
         AddChild(_heatBack);
@@ -80,13 +81,18 @@ public partial class Hud : CanvasLayer
         help.GrowHorizontal = Control.GrowDirection.Both;
         help.Position += new Vector2(0, -12);
 
+        var bannerBox = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+        bannerBox.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        AddChild(bannerBox);
         _banner = NewLabel(Vector2.Zero);
-        _banner.AddThemeFontSizeOverride("font_size", 40);
-        _banner.HorizontalAlignment = HorizontalAlignment.Center;
-        _banner.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
-        _banner.GrowHorizontal = Control.GrowDirection.Both;
-        _banner.GrowVertical = Control.GrowDirection.Both;
-        _banner.Visible = false;
+        _bannerSub = NewLabel(Vector2.Zero);
+        foreach (var (l, size) in new[] { (_banner, 44), (_bannerSub, 15) })
+        {
+            l.Reparent(bannerBox);
+            l.AddThemeFontSizeOverride("font_size", size);
+            l.HorizontalAlignment = HorizontalAlignment.Center;
+            l.Visible = false;
+        }
 
         bool player = Mech != null;
         _heatBack.Visible = _heatBar.Visible = _stat.Visible = _target.Visible = player;
@@ -176,11 +182,12 @@ public partial class Hud : CanvasLayer
         else _target.Text = "";
     }
 
-    /// <summary>Big centred message (match result); null hides it.</summary>
-    public void ShowBanner(string? text, Color color)
+    /// <summary>Big centred message with a small line under it (match result); null hides it.</summary>
+    public void ShowBanner(string? text, Color color, string sub = "")
     {
-        _banner.Visible = text != null;
+        _banner.Visible = _bannerSub.Visible = text != null;
         _banner.Text = text ?? "";
+        _bannerSub.Text = sub;
         _banner.AddThemeColorOverride("font_color", color);
     }
 
