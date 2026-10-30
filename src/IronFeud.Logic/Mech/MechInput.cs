@@ -17,4 +17,10 @@ public struct MechInput
 
     /// <summary>Torso aim pitch target in radians, positive = up.</summary>
     public float AimTarget;
+
+    /// <summary>Trigger bits, one per weapon mount. Held triggers fire whenever the weapon is ready.</summary>
+    public uint FireMask;
+
+    /// <summary>Distance along the torso aim ray where arm weapons converge, meters. 0 = default.</summary>
+    public float Convergence;
 }

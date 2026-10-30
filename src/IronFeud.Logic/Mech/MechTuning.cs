@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace IronFeud.Logic.Mech;
 
 /// <summary>
@@ -33,6 +35,19 @@ public sealed class MechTuning
     public float HipWidth = 1.6f;
     public float HipHeight = 5.75f;
     public float HipRootY = -0.15f;
+
+    // Upper-body attachment points (MechRig builds the same hierarchy from these)
+    public float TorsoBaseY = 0.55f;
+    public float TorsoY = 0.6f;
+    public Vector3 ShoulderOffset = new(2.4f, 1.9f, 0f);     // left arm mirrors X
+    public Vector3 ElbowOffset = new(0.45f, -2.1f, 0f);      // left arm mirrors X
+    public float AimOriginY = 1.2f;                            // torso-local height of the aim ray origin
+
+    // Heat (unitless, weapons lock at >= 1)
+    public float HeatStart = 0.1f;
+    public float HeatFloor = 0.08f;
+    public float HeatDissipation = 0.055f;
+    public float HeatDissipationMovePenalty = 0.015f;
 
     // Feel multipliers (prototype sliders)
     public float Sway = 1f;

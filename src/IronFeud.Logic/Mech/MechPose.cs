@@ -21,6 +21,14 @@ public sealed class MechPose
 
     public readonly LegPose[] Legs = { new(), new() };
 
+    // World-space upper body, for weapons and aiming.
+    public readonly Vector3[] ElbowWorldPositions = new Vector3[2];
+    public readonly Quaternion[] ElbowWorldRotations = { Quaternion.Identity, Quaternion.Identity };
+
+    /// <summary>Torso aim ray: yaw from the torso (including sway), pitch from the aim actuator. Weapons converge on it.</summary>
+    public Vector3 AimOrigin;
+    public Vector3 AimDirection = -Vector3.UnitZ;
+
     /// <summary>Signed shake this tick, for cameras.</summary>
     public float Jank;
 }

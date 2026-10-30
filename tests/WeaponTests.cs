@@ -1,0 +1,136 @@
+using System;
+using System.Numerics;
+using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Weapons;
+
+namespace IronFeud.Tests;
+
+public class WeaponTests
+{
+    private const float H = 1f / 120f;
+    private const uint Cannon = 1u << 0, Laser = 1u << 1;
+
+    private static MechSim NewSim() => new(new MechTuning());
+
+    [Fact]
+    public void DefaultLoadout_CannonRight_LaserLeft()
+    {
+        var sim = NewSim();
+        Assert.Equal("Cannon", sim.Weapons.Mounts[0].Spec.Name);
+        Assert.Equal(1, sim.Weapons.Mounts[0].Arm);
+        Assert.True(sim.Weapons.MuzzlePosition(0, sim.Pose).X > 0f, "cannon muzzle should be on the right (+X)");
+        Assert.True(sim.Weapons.MuzzlePosition(1, sim.Pose).X < 0f, "laser emitter should be on the left (-X)");
+        Assert.True(sim.Weapons.MuzzlePosition(0, sim.Pose).Z < -3f, "cannon barrel points forward (-Z)");
+    }
+
+    [Fact]
+    public void HeldTrigger_FiresAtCooldownRate_AndAddsHeat()
+    {
+        var sim = NewSim();
+        int shots = 0;
+        float heat0 = sim.Weapons.Heat;
+        for (int i = 0; i < 120 * 3; i++)
+        {
+            sim.Step(new MechInput { FireMask = Cannon }, H);
+            shots += sim.Shots.Count;
+        }
+        Assert.Equal(4, shots); // t = 0, 0.75, 1.5, 2.25 (3 s window)
+        Assert.True(sim.Weapons.Heat > heat0 + 4 * 0.08f - 3f * 0.055f - 1e-3f);
+    }
+
+    [Fact]
+    public void HeatLock_BlocksFiring_UntilBelowOne()
+    {
+        var sim = NewSim();
+        sim.Weapons.Heat = 1.01f; // one tick of dissipation (~0.0005) keeps it above 1
+        sim.Step(new MechInput { FireMask = Cannon | Laser }, H);
+        Assert.Empty(sim.Shots);
+
+        // Below 1 the cannon fires, and its heat locks the laser in the same tick (checks are sequential).
+        sim.Weapons.Heat = 0.99f;
+        sim.Step(new MechInput { FireMask = Cannon | Laser }, H);
+        Assert.Equal("Cannon", Assert.Single(sim.Shots).Spec.Name);
+    }
+
+    [Fact]
+    public void Heat_Dissipates_SlowerWhileWalking_DownToFloor()
+    {
+        var standing = NewSim();
+        var walking = NewSim();
+        standing.Weapons.Heat = walking.Weapons.Heat = 0.8f;
+        for (int i = 0; i < 120 * 5; i++)
+        {
+            standing.Step(default, H);
+            walking.Step(new MechInput { Throttle = 1f }, H);
+        }
+        Assert.Equal(0.8f - 5f * 0.055f, standing.Weapons.Heat, 3);
+        Assert.True(walking.Weapons.Heat > standing.Weapons.Heat);
+
+        for (int i = 0; i < 120 * 30; i++) standing.Step(default, H);
+        Assert.Equal(0.08f, standing.Weapons.Heat, 5);
+    }
+
+    [Fact]
+    public void BothWeapons_ConvergeOnTheAimRay()
+    {
+        var sim = NewSim();
+        // Walk and twist so the pose is not trivial.
+        for (int i = 0; i < 120 * 4; i++) sim.Step(new MechInput { Throttle = 1f, TwistTarget = 0.6f, AimTarget = 0.1f }, H);
+        const float conv = 85f;
+        sim.Step(new MechInput { Throttle = 1f, TwistTarget = 0.6f, AimTarget = 0.1f, FireMask = Cannon | Laser, Convergence = conv }, H);
+        Assert.Equal(2, sim.Shots.Count);
+
+        // Shots are computed from the pose of the firing tick, before this tick's recoil lands.
+        Vector3 target = sim.Pose.AimOrigin + sim.Pose.AimDirection * conv;
+        foreach (var s in sim.Shots)
+        {
+            float along = Vector3.Dot(target - s.Origin, s.Direction);
+            Vector3 closest = s.Origin + s.Direction * along;
+            Assert.True(Vector3.Distance(closest, target) < 1e-2f, $"{s.Spec.Name} misses convergence point by {Vector3.Distance(closest, target)}");
+        }
+    }
+
+    [Fact]
+    public void AimRay_FollowsTwistAndAim()
+    {
+        var sim = NewSim();
+        for (int i = 0; i < 120 * 4; i++) sim.Step(new MechInput { TwistTarget = 1.0f, AimTarget = 0.3f }, H);
+        var d = sim.Pose.AimDirection;
+        Assert.True(d.X < -0.5f, "positive twist turns the torso left (-X)");
+        Assert.True(d.Y > 0.2f, "positive aim pitches up");
+        Assert.Equal(1f, d.Length(), 4);
+    }
+
+    [Fact]
+    public void CannonRecoil_KicksSpringsAndTrauma()
+    {
+        var sim = NewSim();
+        sim.Step(new MechInput { FireMask = Cannon }, H);
+        var sec = sim.Locomotion.Secondary;
+        Assert.True(sec.Arms[1].V < -3f);
+        Assert.True(sec.TorsoYaw.V < -0.3f, "right-arm recoil twists the torso right");
+        Assert.True(sec.Trauma > 0.25f);
+    }
+
+    [Fact]
+    public void Projectile_DropsUnderGravity()
+    {
+        var shot = new ShotFired { Spec = WeaponSpec.Cannon, Origin = new Vector3(0, 10, 0), Direction = -Vector3.UnitZ };
+        var p = Projectile.From(shot);
+        for (int i = 0; i < 120; i++) p.Step(H);
+        Assert.Equal(-150f, p.Position.Z, 1);
+        Assert.Equal(10f - 0.5f * 4f, p.Position.Y, 1);
+        Assert.False(p.Expired);
+    }
+
+    [Fact]
+    public void Laser_FallsOffLinearlyBeyond100m()
+    {
+        var l = WeaponSpec.Laser;
+        Assert.Equal(9f, l.DamageAt(50f));
+        Assert.Equal(9f, l.DamageAt(100f));
+        Assert.Equal(4.5f, l.DamageAt(130f), 3);
+        Assert.Equal(9f * 0.2f, l.DamageAt(160f), 3);
+        Assert.Equal(14f, WeaponSpec.Cannon.DamageAt(300f));
+    }
+}
