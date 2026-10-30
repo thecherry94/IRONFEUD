@@ -14,6 +14,7 @@ public partial class PlayerMechController : Node
 {
     public MechNode? Mech;
     public CameraRig? Camera;
+    public Battlefield? Battlefield;
 
     private float _throttle, _twistTarget, _aimTarget;
 
@@ -30,7 +31,10 @@ public partial class PlayerMechController : Node
     private const float MaxConvergence = 400f, MinConvergence = 15f;
 
     /// <summary>Where the weapons converge this tick (world space), for the reticle.</summary>
-    public Vector3 AimPoint { get; private set; }
+    public Vector3 AimPoint => AimHit.Point;
+
+    /// <summary>What the torso aim ray is on: geometry, or a mech section.</summary>
+    public BattleHit AimHit { get; private set; }
 
     public override void _Ready()
     {
@@ -104,12 +108,14 @@ public partial class PlayerMechController : Node
             fire = _autopilotTime is > 3f and < 9f ? 0b11u : 0u;
         }
 
-        // Converge on whatever the torso aim ray hits (last tick's pose; one tick of lag is invisible).
+        // Converge on whatever the torso aim ray hits, mechs included (last tick's pose; one tick of lag is invisible).
         var pose = Mech.Sim.Pose;
         Vector3 from = pose.AimOrigin.ToGodot(), dir = pose.AimDirection.ToGodot();
-        var hit = Mech.GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(from, from + dir * MaxConvergence));
-        float convergence = hit.Count > 0 ? Mathf.Max(MinConvergence, from.DistanceTo((Vector3)hit["position"])) : MaxConvergence;
-        AimPoint = from + dir * convergence;
+        BattleHit aim;
+        if (Battlefield != null) Battlefield.Raycast(Mech.GetWorld3D(), from, dir, MaxConvergence, Mech, out aim);
+        else aim = new BattleHit { Point = from + dir * MaxConvergence, Distance = MaxConvergence };
+        AimHit = aim;
+        float convergence = Mathf.Max(MinConvergence, aim.Distance);
 
         Mech.PilotInput = new MechInput
         {

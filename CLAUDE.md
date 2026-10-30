@@ -50,7 +50,8 @@ dotnet build IRONFEUD.sln          # compile everything (bare `dotnet build` fai
 godot --path . &                   # run the editor/game (Godot .NET build on PATH)
 godot --path . --headless --quit   # import/validate project in CI or before commits
 dotnet test tests/                 # pure-logic unit tests (xUnit)
-# Unattended capture (scripted walk, fires both weapons 3-9 s; camera: orbit|cockpit, default chase):
+# Unattended captures: --autopilot (scripted walk, fires 3-9 s) or --range-demo (scripted shooting at the
+# targets); --camera=orbit|cockpit (default chase); --debug shows gait and hit spheres:
 godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --autopilot --camera=orbit
 ```
 Pinned: `Godot 4.7.2 .NET` (Godot.NET.Sdk 4.7.2), all projects target `net8.0` (built with .NET SDK 10).

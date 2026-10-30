@@ -152,7 +152,7 @@ public sealed class MechRig
         for (int i = 0; i < 4; i++) Box(torso, 0.42f, 1.2f, 0.08f, m.Glow, 1.05f - i * 0.7f, 1.4f, 1.68f);
         for (int i = 0; i < 5; i++) Box(torso, 3.0f, 0.08f, 0.25f, m.Frame, 0, 0.85f + i * 0.28f, 1.75f);
 
-        r.Head = Group(torso, "Head", 0, 2.75f, -1.0f);
+        r.Head = Group(torso, "Head", t.HeadOffset.X, t.HeadOffset.Y, t.HeadOffset.Z);
         var head = r.Head;
         Box(head, 1.7f, 0.9f, 1.9f, m.ArmorDark);
         Box(head, 1.4f, 0.42f, 0.3f, m.Glass, 0, 0.05f, -0.98f, 0.2f);

@@ -24,6 +24,14 @@ Arm destroyed → arm hidden, its weapon offline. Legs destroyed → speed ×0.4
 (pelvis collapses ~2.5 m over 1.4 s, legs fold via the same IK, smoke and fire emitters).
 Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
 
+**Godot additions (not in the prototype):**
+- **Cockpit** section: 5 HP, a 0.3 m sphere on the canopy glass, just outside the torso sphere so it can only be
+  struck from the front. Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the
+  frame intact (salvage). One cannon hit, or one laser hit inside ~127 m, kills the pilot. Cannon shells drop
+  ~0.3 m over 60 m, so a cockpit shot needs holdover.
+- Mechs that are out keep their hit spheres (shots stop on wrecks) but take no further damage.
+- Section damage lives in `MechDamage` (plain data) and can be passed into a new `MechSim` to persist.
+
 ## AI architecture
 AI writes only to `MechInput`. Layers:
 

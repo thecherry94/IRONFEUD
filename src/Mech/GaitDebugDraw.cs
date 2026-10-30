@@ -1,17 +1,21 @@
+using System.Collections.Generic;
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Core;
 using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Damage;
 
 namespace IronFeud.Mech;
 
 /// <summary>
 /// Draws gait state through geometry: plants (green), swing origin (blue), predicted landing (orange),
-/// ankle targets (white), leg bones (yellow) and heading / torso aim (cyan / red).
+/// ankle targets (white), leg bones (yellow) and heading / torso aim ray (cyan / red) for <see cref="Mech"/>,
+/// plus hit spheres for every mech in <see cref="AllMechs"/> (cockpit magenta).
 /// </summary>
 public partial class GaitDebugDraw : MeshInstance3D
 {
     public MechNode? Mech;
+    public IReadOnlyList<MechNode>? AllMechs;
 
     private readonly ImmediateMesh _mesh = new();
 
@@ -22,6 +26,8 @@ public partial class GaitDebugDraw : MeshInstance3D
     private static readonly Color Bone = new(1f, 0.9f, 0.2f);
     private static readonly Color Heading = new(0.2f, 1f, 1f);
     private static readonly Color Aim = new(1f, 0.25f, 0.2f);
+    private static readonly Color HitSphere = new(0.9f, 0.9f, 0.9f, 0.6f);
+    private static readonly Color CockpitSphere = new(1f, 0.2f, 1f);
 
     public override void _Ready()
     {
@@ -47,10 +53,8 @@ public partial class GaitDebugDraw : MeshInstance3D
         Vector3 root = body.Position.ToGodot() + Vector3.Up * 0.05f;
         Line(root, root + MathUtil.Forward(body.Psi).ToGodot() * 4f, Heading);
 
-        Vector3 pelvis = loco.Pose.PelvisPosition.ToGodot();
-        float aimYaw = body.Psi + body.Twist + loco.Secondary.TorsoYaw.X;
-        Vector3 aimDir = MathUtil.Forward(aimYaw).ToGodot() * Mathf.Cos(body.Aim) + Vector3.Up * Mathf.Sin(body.Aim);
-        Line(pelvis + Vector3.Up * 3f, pelvis + Vector3.Up * 3f + aimDir * 25f, Aim);
+        Vector3 aimFrom = loco.Pose.AimOrigin.ToGodot();
+        Line(aimFrom, aimFrom + loco.Pose.AimDirection.ToGodot() * 40f, Aim);
 
         for (int i = 0; i < loco.Gait.Legs.Length; i++)
         {
@@ -68,7 +72,27 @@ public partial class GaitDebugDraw : MeshInstance3D
             Line(lp.HipWorld.ToGodot(), lp.KneeWorld.ToGodot(), Bone);
             Line(lp.KneeWorld.ToGodot(), lp.AnkleWorld.ToGodot(), Bone);
         }
+        if (AllMechs != null)
+            foreach (var m in AllMechs)
+            {
+                if (!IsInstanceValid(m)) continue;
+                foreach (var v in m.Sim.Pose.HitVolumes)
+                    Sphere(v.Center.ToGodot(), v.Radius, v.Section == MechSection.Cockpit ? CockpitSphere : HitSphere);
+            }
         _mesh.SurfaceEnd();
+    }
+
+    private void Sphere(Vector3 c, float r, Color col)
+    {
+        const int n = 20;
+        for (int i = 0; i < n; i++)
+        {
+            float a0 = Mathf.Tau * i / n, a1 = Mathf.Tau * (i + 1) / n;
+            Vector2 p0 = new(Mathf.Cos(a0) * r, Mathf.Sin(a0) * r), p1 = new(Mathf.Cos(a1) * r, Mathf.Sin(a1) * r);
+            Line(c + new Vector3(p0.X, p0.Y, 0), c + new Vector3(p1.X, p1.Y, 0), col);
+            Line(c + new Vector3(p0.X, 0, p0.Y), c + new Vector3(p1.X, 0, p1.Y), col);
+            Line(c + new Vector3(0, p0.X, p0.Y), c + new Vector3(0, p1.X, p1.Y), col);
+        }
     }
 
     private void Line(Vector3 a, Vector3 b, Color c)

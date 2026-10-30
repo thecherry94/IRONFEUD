@@ -1,16 +1,23 @@
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Core;
+using System.Collections.Generic;
 using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Damage;
+using IronFeud.Mech;
 
 namespace IronFeud.Game;
 
 /// <summary>
-/// World-space cosmetic effects shared by all mechs: dust and fire puffs, footprints, beams and a flash light.
+/// World-space cosmetic effects shared by all mechs: dust, fire and smoke puffs, footprints, beams, a flash light,
+/// and damage reactions (section blow-outs, wreck smoke and fire).
 /// Pooled, animated in <c>_Process</c>, and therefore excluded from physics interpolation.
 /// </summary>
 public partial class Effects : Node3D
 {
+    /// <summary>Optional: mechs to emit damage smoke and wreck fire for.</summary>
+    public Battlefield? Battlefield;
+
     private sealed class PuffPool
     {
         private sealed class Puff
@@ -79,7 +86,9 @@ public partial class Effects : Node3D
         public float T, Duration;
     }
 
-    private PuffPool _dust = null!, _fire = null!;
+    private PuffPool _dust = null!, _fire = null!, _smoke = null!;
+    private readonly List<(float At, Vector3 Pos, float Size)> _delayed = new();
+    private float _time;
     private readonly Decal[] _prints = new Decal[40];
     private readonly Beam[] _beams = new Beam[6];
     private OmniLight3D _flash = null!;
@@ -94,6 +103,8 @@ public partial class Effects : Node3D
 
         _dust = new PuffPool(this, 120, Billboard(
             ProceduralTextures.RadialPuff(Color.Color8(150, 135, 115, 230), Color.Color8(150, 135, 115, 0)), additive: false));
+        _smoke = new PuffPool(this, 120, Billboard(
+            ProceduralTextures.RadialPuff(Color.Color8(40, 38, 36, 230), Color.Color8(40, 38, 36, 0)), additive: false));
         var fireGradient = new Gradient
         {
             Offsets = new[] { 0f, 0.35f, 1f },
@@ -190,22 +201,41 @@ public partial class Effects : Node3D
         Flash(at, 30f, 0.07f);
     }
 
-    public void Explosion(Vector3 at, bool big)
+    /// <summary>Prototype sizes: 0 laser hit, 1 shell, 1.5 legs, 2 arm, 3 mech destroyed.</summary>
+    public void Explosion(Vector3 at, float size)
     {
-        int n = big ? 7 : 3;
-        for (int k = 0; k < n; k++)
+        int fire = 3 + Mathf.RoundToInt(size * 3);
+        for (int k = 0; k < fire; k++)
         {
-            var jitter = new Vector3(_rng.NextFloat() - 0.5f, _rng.NextFloat() - 0.5f, _rng.NextFloat() - 0.5f);
-            _fire.Emit(at + jitter, new Vector3((_rng.NextFloat() - 0.5f) * 4f, _rng.NextFloat() * 3f, (_rng.NextFloat() - 0.5f) * 4f),
-                max: 0.35f + _rng.NextFloat() * 0.3f, size0: big ? 2.2f : 1.0f, grow: 1.6f, opacity: 1f, drag: 3f);
+            var jitter = new Vector3(_rng.NextFloat() - 0.5f, _rng.NextFloat() - 0.5f, _rng.NextFloat() - 0.5f) * size;
+            _fire.Emit(at + jitter, new Vector3((_rng.NextFloat() - 0.5f) * 4f * size, _rng.NextFloat() * 3f, (_rng.NextFloat() - 0.5f) * 4f * size),
+                max: 0.3f + _rng.NextFloat() * 0.35f, size0: 0.8f + size, grow: 1.6f, opacity: 1f, drag: 3f);
         }
-        for (int k = 0; k < (big ? 6 : 2); k++)
+        int dust = 1 + Mathf.RoundToInt(size * 2);
+        for (int k = 0; k < dust; k++)
         {
             float a = _rng.NextFloat() * Mathf.Tau;
             _dust.Emit(new Vector3(at.X, Mathf.Max(0.3f, at.Y), at.Z), new Vector3(Mathf.Cos(a) * 3f, 1f + _rng.NextFloat() * 2f, Mathf.Sin(a) * 3f),
-                max: 1.6f + _rng.NextFloat(), size0: big ? 2f : 1f, grow: 3f, opacity: 0.6f, drag: 2.2f);
+                max: 1.6f + _rng.NextFloat(), size0: 0.6f + size * 0.6f, grow: 3f, opacity: 0.55f, drag: 2.2f);
         }
-        Flash(at, big ? 60f : 25f, big ? 0.12f : 0.08f);
+        Flash(at, 15f + size * 25f, 0.08f + size * 0.03f);
+    }
+
+    /// <summary>Visual reaction to a hit that destroyed something.</summary>
+    public void OnDamaged(MechNode mech, in DamageReport r, Vector3 at)
+    {
+        if (!r.SectionDestroyed) return;
+        Vector3 torso = mech.Sim.Pose.HitVolumes[(int)MechSection.Torso].Center.ToGodot();
+        switch (r.Applied)
+        {
+            case MechSection.ArmLeft or MechSection.ArmRight: Explosion(at, 2f); break;
+            case MechSection.Legs: Explosion(at, 1.5f); break;
+            case MechSection.Cockpit: Explosion(at, 0.3f); break; // canopy burst; the frame stays intact
+            case MechSection.Torso:
+                Explosion(torso, 3f);
+                _delayed.Add((_time + 0.25f, torso, 2f));
+                break;
+        }
     }
 
     public void BeamShot(Vector3 from, Vector3 to, float duration)
@@ -221,16 +251,46 @@ public partial class Effects : Node3D
     /// <summary>Intensity uses the prototype's numbers; scaled to Godot light energy here.</summary>
     private void Flash(Vector3 at, float intensity, float duration)
     {
+        // Don't let a small flash cut off a bigger one that is still bright.
+        if (_flashT > 0f && intensity / 6f < _flashEnergy * (_flashT / _flashMax)) return;
         _flash.Position = at;
         _flashEnergy = intensity / 6f;
         _flashT = _flashMax = duration;
     }
 
+    /// <summary>Wrecks smoke heavily and burn for a few seconds; badly damaged torsos trail light smoke.</summary>
+    private void DamageSmoke(MechNode m, float dt)
+    {
+        if (!IsInstanceValid(m)) return;
+        var sim = m.Sim;
+        bool wreck = sim.Damage.Status == MechStatus.Destroyed;
+        bool damaged = sim.Damage.Fraction(MechSection.Torso) < 0.35f;
+        if (!wreck && !damaged) return;
+
+        Vector3 c = sim.Pose.HitVolumes[(int)MechSection.Torso].Center.ToGodot();
+        if (_rng.NextFloat() < (wreck ? 21f : 7f) * dt)
+            _smoke.Emit(c + new Vector3(_rng.NextFloat() - 0.5f, 1f, _rng.NextFloat() - 0.5f),
+                new Vector3(-0.6f, 2.2f + _rng.NextFloat(), -0.3f),
+                max: 2.5f + _rng.NextFloat() * 1.5f, size0: 1.2f, grow: 3.5f, opacity: wreck ? 0.55f : 0.35f, drag: 0.4f);
+        if (wreck && sim.Locomotion.CollapseTime < 3f && _rng.NextFloat() < 15f * dt)
+            _fire.Emit(c + new Vector3((_rng.NextFloat() - 0.5f) * 2f, _rng.NextFloat() * 2f, (_rng.NextFloat() - 0.5f) * 2f),
+                new Vector3(0f, 2f, 0f), max: 0.4f, size0: 1.2f, grow: 1.5f, opacity: 0.9f, drag: 1f);
+    }
+
     public override void _Process(double delta)
     {
         float dt = (float)delta;
+        _time += dt;
+        for (int i = _delayed.Count - 1; i >= 0; i--)
+        {
+            if (_delayed[i].At > _time) continue;
+            Explosion(_delayed[i].Pos, _delayed[i].Size);
+            _delayed.RemoveAt(i);
+        }
+        if (Battlefield != null) foreach (var m in Battlefield.Mechs) DamageSmoke(m, dt);
         _dust.Update(dt);
         _fire.Update(dt);
+        _smoke.Update(dt);
 
         foreach (var b in _beams)
         {

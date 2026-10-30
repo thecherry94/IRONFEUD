@@ -4,14 +4,17 @@ using IronFeud.Logic.Core;
 
 namespace IronFeud.Game;
 
-/// <summary>Flat test ground with scattered blocks and rocks, environment and sun. Placeholder for step 4's arena.</summary>
+/// <summary>
+/// Flat test ground with scattered blocks and rocks, environment and sun. Placeholder for step 4's arena.
+/// Blocks avoid the <c>clear</c> (x/z rectangle) so a firing range can stay open.
+/// </summary>
 public static class Arena
 {
     private const float GroundSize = 2000f;
     private const float Scatter = 160f;
     private static readonly Color Fog = new("8d98a0");
 
-    public static void Build(Node3D root, uint seed)
+    public static void Build(Node3D root, uint seed, Rect2? clear = null)
     {
         var rng = new DeterministicRng(seed);
         BuildEnvironment(root);
@@ -30,6 +33,7 @@ public static class Arena
         {
             float h = 3f + rng.NextFloat() * rng.NextFloat() * 26f, w = 3f + rng.NextFloat() * 9f, d = 3f + rng.NextFloat() * 9f;
             Vector2 p = RandomSpot(rng, 16f);
+            while (clear is { } c && c.Grow(Mathf.Max(w, d) * 0.75f).HasPoint(p)) p = RandomSpot(rng, 16f);
             var body = new StaticBody3D
             {
                 Position = new Vector3(p.X, h / 2f, p.Y),

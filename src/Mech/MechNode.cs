@@ -2,6 +2,7 @@ using System;
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Damage;
 using IronFeud.Logic.Mech.Weapons;
 
 namespace IronFeud.Mech;
@@ -23,6 +24,9 @@ public partial class MechNode : Node3D
     [ExportGroup("")]
     [Export] public uint Seed { get; set; } = 1;
 
+    /// <summary>Carried-over damage (e.g. from a previous battle); set before the node enters the tree.</summary>
+    public MechDamage? InitialDamage;
+
     public MechInput PilotInput;
     public MechSim Sim { get; private set; } = null!;
     public MechLocomotion Locomotion => Sim.Locomotion;
@@ -32,14 +36,18 @@ public partial class MechNode : Node3D
     public event Action<Footfall>? Footfall;
     public event Action<ShotFired>? ShotFired;
 
+    /// <summary>A hit was applied: report, world point, attacker (if known).</summary>
+    public event Action<DamageReport, Vector3, MechNode?>? Damaged;
+
     public override void _Ready()
     {
         var tuning = new MechTuning();
-        Sim = new MechSim(tuning, Seed);
+        Sim = new MechSim(tuning, Seed, InitialDamage);
         var start = GlobalPosition;
         Locomotion.Reset(new System.Numerics.Vector3(start.X, 0f, start.Z), Rotation.Y);
 
         Rig = MechRig.Build(this, tuning);
+        SyncSectionVisibility();
 
         SyncFromSimulation();
         ResetPhysicsInterpolation();
@@ -59,6 +67,21 @@ public partial class MechNode : Node3D
         SyncFromSimulation();
         foreach (var f in Locomotion.Footfalls) Footfall?.Invoke(f);
         foreach (var s in Sim.Shots) ShotFired?.Invoke(s);
+    }
+
+    public DamageReport ApplyHit(MechSection section, float amount, Vector3 at, MechNode? attacker)
+    {
+        var report = Sim.ApplyHit(section, amount);
+        if (report.Ignored) return report;
+        if (report.SectionDestroyed) SyncSectionVisibility();
+        Damaged?.Invoke(report, at, attacker);
+        return report;
+    }
+
+    private void SyncSectionVisibility()
+    {
+        Rig.Arms[0].Shoulder.Visible = !Sim.Damage.IsDestroyed(MechSection.ArmLeft);
+        Rig.Arms[1].Shoulder.Visible = !Sim.Damage.IsDestroyed(MechSection.ArmRight);
     }
 
     private void SyncFromSimulation()

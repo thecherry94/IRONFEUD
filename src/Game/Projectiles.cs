@@ -1,25 +1,28 @@
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Mech.Weapons;
+using IronFeud.Mech;
 
 namespace IronFeud.Game;
 
 /// <summary>
-/// Resolves shots against the physics world: shells fly (ballistics from IronFeud.Logic) and sweep a ray each tick,
-/// beams are a single raycast. Damage comes with step 3; for now hits only produce effects.
+/// Resolves shots against the battlefield: shells fly (ballistics from IronFeud.Logic) and sweep a ray each tick,
+/// beams are a single raycast. Hits on mech volumes apply damage; the shooter's own volumes are ignored.
 /// </summary>
 public partial class Projectiles : Node3D
 {
+    public Battlefield Battlefield = null!;
     public Effects? Effects;
 
     private sealed class Shell
     {
         public Projectile State;
+        public MechNode? Owner;
         public MeshInstance3D Mesh = null!;
         public bool Active;
     }
 
-    private readonly Shell[] _shells = new Shell[24];
+    private readonly Shell[] _shells = new Shell[32];
 
     public override void _Ready()
     {
@@ -34,7 +37,7 @@ public partial class Projectiles : Node3D
         }
     }
 
-    public void Fire(in ShotFired shot)
+    public void Fire(MechNode owner, in ShotFired shot)
     {
         Vector3 origin = shot.Origin.ToGodot(), dir = shot.Direction.ToGodot();
         switch (shot.Spec.Kind)
@@ -45,6 +48,7 @@ public partial class Projectiles : Node3D
                 {
                     if (s.Active) continue;
                     s.Active = true;
+                    s.Owner = owner;
                     s.State = Projectile.From(shot);
                     Place(s);
                     s.Mesh.Visible = true;
@@ -55,10 +59,11 @@ public partial class Projectiles : Node3D
 
             case WeaponKind.Beam:
             {
-                Vector3 end = origin + dir * shot.Spec.Range;
-                bool hit = Raycast(origin, end, out Vector3 at);
-                Effects?.BeamShot(origin, hit ? at : end, shot.Spec.BeamVisualTime);
-                if (hit) Effects?.Explosion(at, big: false);
+                bool hit = Battlefield.Raycast(GetWorld3D(), origin, dir, shot.Spec.Range, owner, out var bh);
+                Effects?.BeamShot(origin, bh.Point, shot.Spec.BeamVisualTime);
+                if (!hit) break;
+                Effects?.Explosion(bh.Point, 0f);
+                bh.Mech?.ApplyHit(bh.Section, shot.Spec.DamageAt(bh.Distance), bh.Point, owner);
                 break;
             }
         }
@@ -70,24 +75,20 @@ public partial class Projectiles : Node3D
         foreach (var s in _shells)
         {
             if (!s.Active) continue;
-            Vector3 start = s.State.Step(h).ToGodot();
-            bool hit = Raycast(start, s.State.Position.ToGodot(), out Vector3 at);
+            Vector3 start = s.State.Step(h).ToGodot(), end = s.State.Position.ToGodot();
+            float len = start.DistanceTo(end);
+            bool hit = Battlefield.Raycast(GetWorld3D(), start, (end - start) / len, len, s.Owner, out var bh);
             if (hit || s.State.Expired)
             {
                 s.Active = false;
                 s.Mesh.Visible = false;
-                if (hit) Effects?.Explosion(at, big: true);
+                if (!hit) continue;
+                Effects?.Explosion(bh.Point, 1f);
+                bh.Mech?.ApplyHit(bh.Section, s.State.Spec.Damage, bh.Point, IsInstanceValid(s.Owner) ? s.Owner : null);
                 continue;
             }
             Place(s);
         }
-    }
-
-    private bool Raycast(Vector3 from, Vector3 to, out Vector3 at)
-    {
-        var hit = GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(from, to));
-        at = hit.Count > 0 ? (Vector3)hit["position"] : to;
-        return hit.Count > 0;
     }
 
     private static void Place(Shell s)
