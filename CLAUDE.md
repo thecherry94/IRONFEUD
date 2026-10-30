@@ -50,7 +50,8 @@ dotnet build IRONFEUD.sln          # compile everything (bare `dotnet build` fai
 godot --path . &                   # run the editor/game (Godot .NET build on PATH)
 godot --path . --headless --quit   # import/validate project in CI or before commits
 dotnet test tests/                 # pure-logic unit tests (xUnit)
-# Modes: --watch=1v1|2v2|lights (AI vs AI, default 1v1), --play=1v1|2v2, --range (firing range); in game F5-F10.
+# Modes: --watch=1v1|2v2|lights (AI vs AI, default 1v1), --play=1v1|2v2, --range (firing range),
+# --parade (all chassis classes running laps, for gait work); in game F5-F11.
 # Captures: --autopilot (range, scripted walk, fires 3-9 s), --range-demo (range, scripted shooting);
 # --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light|--heavy|--assault picks the player's chassis (L cycles in game);
 # --seed=N picks the arena layout:

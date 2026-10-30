@@ -110,7 +110,7 @@ public partial class MechNode : Node3D
     {
         var d = Sim.Damage;
         string who = Unit.Ai is { } ai ? $"{Unit.Name} · {ai.Personality.Name}" : Unit.Name;
-        if (Sim.Chassis.Class != ChassisClass.Medium) who += $" · {Sim.Chassis.Name}";
+        if (Sim.Chassis.Class != ChassisClass.Medium && Unit.Name != Sim.Chassis.Name) who += $" · {Sim.Chassis.Name}";
         string state = d.Status switch
         {
             MechStatus.Destroyed => "DESTROYED",

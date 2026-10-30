@@ -11,7 +11,7 @@ using Vec3 = System.Numerics.Vector3;
 
 namespace IronFeud.Game;
 
-public enum GameMode { Range, Watch1v1, Watch2v2, WatchLights, Play1v1, Play2v2 }
+public enum GameMode { Range, Watch1v1, Watch2v2, WatchLights, Play1v1, Play2v2, Parade }
 
 /// <summary>
 /// Test bed. Each mode builds a session: an <see cref="ArenaMap"/> + <see cref="BattleSim"/>, their Godot views,
@@ -30,12 +30,14 @@ public partial class Main : Node3D
         ("Target D", new(10f, 0f, -135f), true),
     };
 
-    private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lights vs medium · F9 play 1v1 · F10 play 2v2";
+    private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lights vs medium · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
     private const string PlayHelp =
         "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · LMB/Space cannon · RMB/F laser\n" +
         "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next chassis class · R restart · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
     private const string WatchHelp =
         "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · P pause · O slow-mo\n" + ModeKeys;
+    private const string ParadeHelp =
+        "Tab next mech · 1 chase · 2 cockpit · 3 orbit (drag / wheel) · 4 overview · F3 gait debug · O slow-mo (¼ speed) · P pause · R restart\n" + ModeKeys;
 
     private GameMode _mode = GameMode.Watch1v1;
     private ChassisClass _playerClass = ChassisClass.Medium;
@@ -56,6 +58,12 @@ public partial class Main : Node3D
 
     private bool Watching => _mode is GameMode.Watch1v1 or GameMode.Watch2v2 or GameMode.WatchLights;
 
+    /// <summary>Gait parade lanes, inner to outer: slow classes inside, the light (widest turning circle) outside.</summary>
+    private static readonly (ChassisClass Class, float Radius)[] ParadeLanes =
+    {
+        (ChassisClass.Assault, 110f), (ChassisClass.Heavy, 135f), (ChassisClass.Medium, 160f), (ChassisClass.Light, 185f),
+    };
+
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always; // keys work while paused; the session itself is pausable
@@ -72,6 +80,7 @@ public partial class Main : Node3D
                 case "--watch=lights": _mode = GameMode.WatchLights; break;
                 case "--play=1v1": _mode = GameMode.Play1v1; break;
                 case "--play=2v2": _mode = GameMode.Play2v2; break;
+                case "--parade": _mode = GameMode.Parade; break;
                 case "--light": _playerClass = ChassisClass.Light; break;
                 case "--heavy": _playerClass = ChassisClass.Heavy; break;
                 case "--assault": _playerClass = ChassisClass.Assault; break;
@@ -111,6 +120,12 @@ public partial class Main : Node3D
                 battle.AddUnit(name, 1, MechChassis.Create(i % 2 == 0 ? ChassisClass.Medium : ChassisClass.Light), pos, Mathf.Pi);
             }
         }
+        else if (mode == GameMode.Parade)
+        {
+            battle = new BattleSim(new ArenaMap(), _round) { TrackOutcome = false };
+            foreach (var (cls, radius) in ParadeLanes)
+                battle.AddUnit(MechChassis.Create(cls).Name, 0, MechChassis.Create(cls), new Vec3(radius, 0f, 0f), 0f);
+        }
         else
         {
             battle = new BattleSim(ArenaMap.Arena(ArenaSeed), ArenaSeed * 31u + _round);
@@ -129,7 +144,7 @@ public partial class Main : Node3D
         _camera = new CameraRig { Name = "Camera", Mechs = _battlefield.Mechs };
         _session.AddChild(_camera);
         _camera.MakeCurrent();
-        _camera.SetMode(_cameraOverride ?? (_player != null ? CameraMode.Chase : CameraMode.Overview));
+        _camera.SetMode(_cameraOverride ?? (_player != null ? CameraMode.Chase : mode == GameMode.Parade ? CameraMode.Orbit : CameraMode.Overview));
         _cameraOverride = null;
 
         PlayerMechController? pilot = null;
@@ -146,17 +161,23 @@ public partial class Main : Node3D
                 _battlefield.Mechs[i + 1].AddChild(new TargetDummy { Mech = _battlefield.Mechs[i + 1], Circle = TargetSpawns[i].Circle });
             if (_rangeDemo) AddRangeDemo();
         }
+        if (mode == GameMode.Parade)
+        {
+            var parade = new ParadeDirector { Name = "Parade" };
+            for (int i = 0; i < ParadeLanes.Length; i++) parade.Lanes.Add((_battlefield.Mechs[i], ParadeLanes[i].Radius));
+            _session.AddChild(parade);
+        }
 
         _gait = new GaitDebugDraw { Name = "GaitDebug", AllMechs = _battlefield.Mechs, Visible = _gaitDebug };
         _session.AddChild(_gait);
         _aiDraw = new AiDebugDraw { Name = "AiDebug", Battle = battle, Player = _player, ShowAi = _aiOverlay && Watching };
         _session.AddChild(_aiDraw);
-        _hud = new Hud { Name = "Hud", Mech = _player, Camera = _camera, Pilot = pilot, Battlefield = _battlefield, HelpText = Watching ? WatchHelp : PlayHelp };
+        _hud = new Hud { Name = "Hud", Mech = _player, Camera = _camera, Pilot = pilot, Battlefield = _battlefield, HelpText = mode == GameMode.Parade ? ParadeHelp : Watching ? WatchHelp : PlayHelp };
         _session.AddChild(_hud);
         _panel = new AiPanel { Name = "AiPanel", Battle = battle, Visible = _aiOverlay && Watching };
         _session.AddChild(_panel);
 
-        Select(_player ?? _battlefield.Mechs[0]);
+        Select(_player ?? _battlefield.Mechs[mode == GameMode.Parade ? 3 : 0]); // parade: start on the light
     }
 
     private void SpawnTeams(BattleSim b, GameMode mode)
@@ -258,6 +279,7 @@ public partial class Main : Node3D
         else if (e.IsAction("mode_watch_lights")) StartSession(GameMode.WatchLights);
         else if (e.IsAction("mode_play_1v1")) StartSession(GameMode.Play1v1);
         else if (e.IsAction("mode_play_2v2")) StartSession(GameMode.Play2v2);
+        else if (e.IsAction("mode_parade")) StartSession(GameMode.Parade);
     }
 
     public override void _Process(double delta)
