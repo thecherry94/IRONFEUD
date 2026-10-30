@@ -33,7 +33,7 @@ public partial class Main : Node3D
     private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lights vs medium · F9 play 1v1 · F10 play 2v2";
     private const string PlayHelp =
         "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · LMB/Space cannon · RMB/F laser\n" +
-        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L light/medium · R restart · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
+        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next chassis class · R restart · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
     private const string WatchHelp =
         "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · P pause · O slow-mo\n" + ModeKeys;
 
@@ -73,6 +73,8 @@ public partial class Main : Node3D
                 case "--play=1v1": _mode = GameMode.Play1v1; break;
                 case "--play=2v2": _mode = GameMode.Play2v2; break;
                 case "--light": _playerClass = ChassisClass.Light; break;
+                case "--heavy": _playerClass = ChassisClass.Heavy; break;
+                case "--assault": _playerClass = ChassisClass.Assault; break;
                 case "--debug": _gaitDebug = true; break;
                 case "--camera=chase": _cameraOverride = CameraMode.Chase; break;
                 case "--camera=cockpit": _cameraOverride = CameraMode.Cockpit; break;
@@ -245,9 +247,9 @@ public partial class Main : Node3D
         else if (e.IsAction("pause")) GetTree().Paused = !GetTree().Paused;
         else if (e.IsAction("slow_motion")) Engine.TimeScale = Engine.TimeScale < 1.0 ? 1.0 : 0.25;
         else if (e.IsAction("restart")) StartSession(_mode);
-        else if (e.IsAction("toggle_light"))
+        else if (e.IsAction("cycle_chassis"))
         {
-            _playerClass = _playerClass == ChassisClass.Light ? ChassisClass.Medium : ChassisClass.Light;
+            _playerClass = (ChassisClass)(((int)_playerClass + 1) % System.Enum.GetValues<ChassisClass>().Length);
             if (_player != null) StartSession(_mode);
         }
         else if (e.IsAction("mode_range")) StartSession(GameMode.Range);

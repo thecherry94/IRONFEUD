@@ -52,7 +52,7 @@ godot --path . --headless --quit   # import/validate project in CI or before com
 dotnet test tests/                 # pure-logic unit tests (xUnit)
 # Modes: --watch=1v1|2v2|lights (AI vs AI, default 1v1), --play=1v1|2v2, --range (firing range); in game F5-F10.
 # Captures: --autopilot (range, scripted walk, fires 3-9 s), --range-demo (range, scripted shooting);
-# --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light puts the player in a light mech;
+# --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light|--heavy|--assault picks the player's chassis (L cycles in game);
 # --seed=N picks the arena layout:
 godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --watch=2v2
 dotnet test tests/ --filter AiDuels --logger "console;verbosity=detailed"   # headless AI duel summary
