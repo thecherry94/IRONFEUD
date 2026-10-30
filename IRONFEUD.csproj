@@ -1,0 +1,16 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>IronFeud</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Pure logic and tests are separate projects; keep them out of the Godot glob. -->
+    <Compile Remove="src/IronFeud.Logic/**" />
+    <Compile Remove="tests/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="src/IronFeud.Logic/IronFeud.Logic.csproj" />
+  </ItemGroup>
+</Project>
