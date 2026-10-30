@@ -40,6 +40,9 @@ public static class MathUtil
     /// <summary>World forward for heading psi: (-sin psi, 0, -cos psi).</summary>
     public static Vector3 Forward(float psi) => new(-MathF.Sin(psi), 0f, -MathF.Cos(psi));
 
+    /// <summary>Heading psi whose <see cref="Forward"/> points along the planar part of <paramref name="d"/>.</summary>
+    public static float Heading(Vector3 d) => MathF.Atan2(-d.X, -d.Z);
+
     /// <summary>World right for heading psi: (cos psi, 0, -sin psi).</summary>
     public static Vector3 Right(float psi) => new(MathF.Cos(psi), 0f, -MathF.Sin(psi));
 

@@ -83,6 +83,28 @@ Team focus = enemy maximizing `1.5·(1 − hp%) + Σ allies(visible ? 1 : known 
 | Balanced | 100 m | 0.82 | 1.0 | 0.30 s | yes |
 | Sniper | 165 m | 0.75 | 0.85 | 0.35 s | no |
 
+## Godot port (`IronFeud.Logic/Battle`, `IronFeud.Logic/AI`)
+The whole battle runs headless in plain C#: `ArenaMap` (ground + axis-aligned blocks, cover points, rays, LOS),
+`BattleSim` (units, AI, shells, beams, damage, collision, outcome), `AiPilot` (everything above). Godot only renders.
+`tests/BattleTests.cs` plays AI duels over several seeds and prints a summary (run with
+`dotnet test tests/ --filter AiDuels --logger "console;verbosity=detailed"`).
+
+Deviations from the prototype, and why:
+- **Retreat nerve:** RETREAT is multiplied by `exp(−max(0, t − lastHurt − 10)/12)`. Without it two damaged pilots hid
+  behind cover forever (seen in headless duels).
+- **Heights from the pose:** eye = cockpit sphere, target = torso sphere (prototype: constants 8.3/7.0). Contacts remember
+  the target's torso/cockpit height, so aim and hiding work for any chassis. Cover hides a point at 0.85 × own torso height.
+- **Weapons are generic:** fire discipline loops over mounts (projectiles get drop compensation, beams fire inside 0.9·range);
+  `hp` uses the fraction of weapons online; twist-away waits for every online weapon to recycle.
+- **Aim error scales with target speed / 4.2 m/s** (the medium's top speed), so fast lights are genuinely harder to hit.
+- **Aiming is open loop like the prototype** (twist = bearing + error − heading). A closed-loop `AimSolver` version that
+  cancelled torso sway made duels last ~15 s with ~75 % hit rates; open loop gives 25–70 s for mediums.
+- **Destination clamp** leaves a block by the nearest face that stays inside the ring (prototype: dominant axis, could
+  push points outside).
+- **Collision:** mechs push apart (radius 3 m × chassis scale each, wrecks don't move) and are pushed out of blocks
+  (the prototype had no mech-vs-block collision; steering avoided blocks).
+- Seeded RNG per pilot: battles are deterministic for a given seed.
+
 ## Observed in prototype matches (things to fix/tune)
 - Matches last 70–140 s. Brawlers dominate in dense layouts; snipers often lack sight lines.
 - Two flankers can circle the same block for 20+ s. Fix: squad-level flank side assignment, or one commits to a push.

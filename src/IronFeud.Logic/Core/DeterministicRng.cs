@@ -1,3 +1,5 @@
+using System;
+
 namespace IronFeud.Logic.Core;
 
 /// <summary>Small seeded PRNG (xorshift32) so simulation runs are reproducible.</summary>
@@ -20,4 +22,11 @@ public sealed class DeterministicRng
     public float NextFloat() => (NextUInt() >> 8) * (1f / 16777216f);
 
     public float Range(float a, float b) => a + (b - a) * NextFloat();
+
+    /// <summary>Standard normal sample (Box-Muller).</summary>
+    public float NextGaussian()
+    {
+        float u = 1f - NextFloat(), v = NextFloat();
+        return MathF.Sqrt(-2f * MathF.Log(u)) * MathF.Cos(2f * MathF.PI * v);
+    }
 }
