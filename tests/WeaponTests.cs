@@ -134,3 +134,23 @@ public class WeaponTests
         Assert.Equal(14f, WeaponSpec.Cannon.DamageAt(300f));
     }
 }
+
+public class AimSolverTests
+{
+    [Fact]
+    public void Track_PutsTheAimRayOnAPoint()
+    {
+        var sim = new MechSim(new MechTuning());
+        var target = new Vector3(25f, 7f, -60f);
+        float twist = 0f, aim = 0f, err = 1f;
+        for (int i = 0; i < 120 * 4; i++)
+        {
+            err = AimSolver.Track(sim.Pose, sim.Locomotion.Body, sim.Tuning, target, ref twist, ref aim);
+            sim.Step(new MechInput { TwistTarget = twist, AimTarget = aim }, 1f / 120f);
+        }
+        var p = sim.Pose;
+        float along = Vector3.Dot(target - p.AimOrigin, p.AimDirection);
+        float miss = Vector3.Distance(p.AimOrigin + p.AimDirection * along, target);
+        Assert.True(miss < 0.1f, $"aim ray misses by {miss} m (err {err})");
+    }
+}
