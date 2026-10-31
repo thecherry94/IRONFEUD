@@ -32,6 +32,9 @@ public sealed class MechLocomotion
     /// <summary>Forward top-speed multiplier; MechSim lowers it when the legs are destroyed.</summary>
     public float SpeedFactor = 1f;
 
+    /// <summary>Top-speed multiplier from the ground this tick (climbs, steep descents, rough ground ahead).</summary>
+    public float TerrainSpeedFactor { get; private set; } = 1f;
+
     /// <summary>The mech is out (wreck or dead pilot): it ignores input and slumps over <see cref="MechChassis.CollapseTime"/>.</summary>
     public bool Collapsed { get; private set; }
     public float CollapseTime { get; private set; }
@@ -90,7 +93,8 @@ public sealed class MechLocomotion
         }
 
         Body.Slope = MathUtil.Lerp(Body.Slope, MathF.Atan(Grade()), MathF.Min(1f, h * 3f));
-        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor * UphillFactor() * RoughGroundFactor());
+        TerrainSpeedFactor = UphillFactor() * RoughGroundFactor();
+        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor * TerrainSpeedFactor);
         // Shorter strides (and so quicker steps) on slopes keep footholds up and down the hill within reach.
         Gait.ReachScale = 1f / (1f + 1.5f * MathF.Abs(MathF.Tan(Body.Slope)));
         Gait.Step(Body, Chassis, h, Footfalls);
@@ -139,7 +143,7 @@ public sealed class MechLocomotion
             steepest = MathF.Max(steepest, MathF.Abs(hq - prev) / step);
             prev = hq;
         }
-        return MathUtil.Clamp(1.15f - 0.8f * steepest, 0.35f, 1f);
+        return MathUtil.Clamp(1.15f - 0.8f * Chassis.RoughGroundCaution * steepest, 0.35f, 1f);
     }
 
     /// <summary>

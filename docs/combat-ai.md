@@ -48,6 +48,35 @@ duels over 20 seeds x both spawn sides per matchup, on No Man's Land and the hil
   crests; the Hauberk's tall torso shows), so it was hit 45-50 % vs 28-35 %. Rather than nerf it, the Hauberk carries
   1.3x armour on torso/arms/legs (cockpit unchanged): now 18-22, 18-21, and 24-16 when brawling up close.
 
+## Class roles (Godot port)
+Classes are meant to complement each other, not to be equal. Loadouts step up: light no heavy gun (pulse laser +
+autocannon), medium one (heavy cannon + laser), heavy two (heavy cannon + heavy laser), assault the obliterator
+(siege cannon + heavy laser). Heat sinks grow with the guns (dissipation .06 / .055 / .065 / .075 per second).
+`AiRole` comes from the class:
+- **Skirmisher (light):** never parks: runs for a point 0.9 rad further round the target at 0.9x range (re-picked each
+  think), reverses the circle every 5-8 s, weaves ±0.35 rad, carves turns at ≥ 50 % throttle, never backs up, and
+  doesn't swing its legs toward the target. Rough ground slows lights half as much as others.
+- **Flex (medium):** fights from firing positions but relocates (≥ 30 m) when hit or after 8-12 s on one spot.
+- **Line (heavy) / Anchor (assault):** hold their hull-down firing positions (stronger stay bonus).
+
+**Evasion and fire discipline** (all AI):
+- Aim error grows with the target's crossing rate (angular speed across the line of sight, x0.12 s); a jinking
+  target also spoils the lead estimate. Personalities scale aim error: Sniper 0.6, Balanced 0.9, Brawler 1.1.
+- Fire when the reticle is on the target: tolerance 0.004 rad + target radius / distance (the prototype's 0.02 + 1.6/d
+  was wider than a light's torso). Heavy guns (≥ 30 dmg): 0.003 + 0.8·radius/d, and only if the target crosses
+  slower than 0.05 rad/s or is within 90 m. Lighter weapons leave heat for a (nearly) loaded heavy gun.
+- Test numbers (4 seeds x 40 s, light at 160 m): a medium hits a standing light 45/61, a circling one 4/53; an assault
+  lands 28/39 on a standing light and 1/41 on a running one.
+
+**Lance report** (`IRONFEUD_BALANCE=1 ... --filter Lances_ShowTheClassRoles`, 20 lance battles, both maps):
+
+| class | dealt/game | taken/game | kills/game | hit % | survived | fast | moving | hull-down |
+|---|---|---|---|---|---|---|---|---|
+| Light | 141 | 94 | 0.68 | 61 | 40 % | 45 % | 88 % | 62 % |
+| Medium | 136 | 137 | 0.65 | 45 | 28 % | 11 % | 33 % | 75 % |
+| Heavy | 153 | 180 | 0.55 | 51 | 20 % | 13 % | 36 % | 78 % |
+| Assault | 192 | 209 | 0.88 | 36 | 38 % | 14 % | 37 % | 81 % |
+
 ## Weapon roster and class loadouts (Godot port)
 Right arm = fire bit 0, left arm = bit 1. Projectiles do full damage at any range; beams fall off past the start.
 
@@ -56,9 +85,9 @@ Right arm = fire bit 0, left arm = bit 1. Projectiles do full damage at any rang
 | Pulse laser | beam | 5 | .05 | 0.5 s | 280 (falloff 180) | | light (L) |
 | Autocannon | 2 barrels | 4 | .03 | 0.25 s | 520 | 560 | light (R) |
 | Laser | beam | 9 | .11 | 1.0 s | 320 (falloff 200) | | medium (L) |
-| Cannon | shell | 14 | .08 | 0.75 s | 640 | 450 | medium (R) |
+| Cannon | shell | 14 | .08 | 0.75 s | 640 | 450 | (prototype) |
 | Heavy laser | beam | 22 | .24 | 2.4 s | 380 (falloff 240) | | heavy, assault (L) |
-| Heavy cannon | shell | 32 | .20 | 2.2 s | 600 | 330 | heavy (R) |
+| Heavy cannon | shell | 32 | .20 | 2.2 s | 600 | 330 | medium, heavy (R) |
 | Siege cannon | shell | 75 | .36 | 4.5 s | 700 | 240 | assault (R) |
 
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross

@@ -11,6 +11,13 @@ namespace IronFeud.Logic.AI;
 
 public enum AiAction { Engage, Cool, Flank, Retreat, Search }
 
+/// <summary>
+/// What a mech is for in a team, from its weight class: lights skirmish (never park, circle and weave, hard to track),
+/// mediums fight from cover but relocate when hit or after 8-12 s on a spot, heavies hold a line from hull-down spots,
+/// assaults anchor it and save their big guns for clean shots.
+/// </summary>
+public enum AiRole { Skirmisher, Flex, Line, Anchor }
+
 /// <summary>What a pilot remembers about an enemy. Position and velocity are ground-plane estimates.</summary>
 public sealed class Contact
 {
@@ -24,6 +31,9 @@ public sealed class Contact
 
     /// <summary>Torso centre and cockpit height above the ground, as last observed.</summary>
     public float AimHeight = 7f, EyeHeight = 8.3f;
+
+    /// <summary>Torso size as last observed (radius of its hit sphere): how big the target looks.</summary>
+    public float Radius = 2.4f;
 }
 
 /// <summary>
@@ -37,14 +47,25 @@ public sealed class AiPilot
     // Distances are the prototype's ×2 (its mechs walked at 4 m/s; ours run at 11-36 m/s).
     public const float SensorRange = 600f, RadarRange = 260f, ContactMemory = 15f;
 
-    /// <summary>Target speed that counts as "moving" for aim error (about a medium's top speed).</summary>
-    public const float ReferenceSpeed = 20f;
-
     public const int LogLength = 9;
     public static readonly int ActionCount = Enum.GetValues<AiAction>().Length;
     private static readonly float[] SteerOffsets = { 0f, 0.3f, -0.3f, 0.6f, -0.6f, 0.9f, -0.9f, 1.3f, -1.3f, 1.8f, -1.8f, 2.4f, -2.4f };
 
     public Personality Personality;
+
+    /// <summary>Set from the chassis class on the first tick.</summary>
+    public AiRole Role { get; private set; } = AiRole.Flex;
+
+    public static AiRole RoleFor(ChassisClass c) => c switch
+    {
+        ChassisClass.Light => AiRole.Skirmisher,
+        ChassisClass.Medium => AiRole.Flex,
+        ChassisClass.Heavy => AiRole.Line,
+        _ => AiRole.Anchor,
+    };
+
+    /// <summary>Damage from which a weapon counts as a heavy gun: precious shots, fired only at predictable targets.</summary>
+    public const float HeavyShot = 30f;
     public AiAction Action { get; private set; } = AiAction.Search;
 
     /// <summary>Human-readable reason for the last action change.</summary>
@@ -75,6 +96,8 @@ public sealed class AiPilot
 
     private readonly DeterministicRng _rng;
     private readonly List<string> _log = new();
+    private float _jinkPeriod = 1.8f, _settledAt, _holdFor = 10f;
+    private bool _relocate, _settled;
     private float _now, _thinkTimer, _lastThink, _noLos, _orbitUntil, _errYaw, _errPitch, _dmgRecent, _coverUntil, _lastHurt;
     private int _orbit;
     private BattleUnit? _lastAttacker;
@@ -97,6 +120,7 @@ public sealed class AiPilot
     {
         _dmgRecent += damage;
         _lastHurt = _now;
+        if (Role == AiRole.Flex) _relocate = true; // spotted: shoot and move
         if (attacker != null) _lastAttacker = attacker;
     }
 
@@ -107,6 +131,8 @@ public sealed class AiPilot
         {
             _started = true;
             _home = me.Position;
+            Role = RoleFor(me.Chassis.Class);
+            _jinkPeriod = 1.2f + _rng.NextFloat() * 1.2f;
             Destination = me.Position;
             DesiredHeading = me.Sim.Locomotion.Body.Psi;
             _lastThink = _now;
@@ -175,16 +201,24 @@ public sealed class AiPilot
         if (_now > _orbitUntil)
         {
             _orbit = -_orbit;
-            _orbitUntil = _now + 6f + _rng.NextFloat() * 6f;
+            // Skirmishers reverse their circle a little more often: a jink the enemy's lead estimate can't follow.
+            _orbitUntil = _now + (Role == AiRole.Skirmisher ? 5f + _rng.NextFloat() * 3f : 6f + _rng.NextFloat() * 6f);
         }
+
+        // Mediums don't camp: after 8-12 s on one spot they relocate (as they do when hit).
+        bool atSpot = MathUtil.PlanarDistance(me.Position, Destination) < 8f;
+        if (atSpot && !_settled) { _settled = true; _settledAt = _now; _holdFor = 8f + _rng.NextFloat() * 4f; }
+        else if (!atSpot) _settled = false;
+        if (Role == AiRole.Flex && _settled && _now - _settledAt > _holdFor) _relocate = true;
 
         Destination = PlanDestination(b, me, k);
         DesiredHeading = Steer(b, me, Destination);
 
-        // Aim error grows with own speed, heat and target speed.
-        float targetSpeed = k != null ? new Vector2(k.Velocity.X, k.Velocity.Z).Length() / ReferenceSpeed : 0f;
+        // Aim error grows with own speed, heat and how fast the target crosses the line of sight (≈ 0.12 s of tracking
+        // lag): a light running across your nose at close range is genuinely hard to hit.
         Sigma = 0.006f + 0.014f * MathF.Abs(me.Sim.Locomotion.Body.V) / me.Chassis.VMax
-                       + 0.03f * MathF.Max(0f, heat - 0.45f) + 0.008f * targetSpeed;
+                       + 0.03f * MathF.Max(0f, heat - 0.45f) + 0.12f * (k != null ? Crossing(me, k) : 0f);
+        Sigma *= Personality.AimError;
         _errYaw = _rng.NextGaussian() * Sigma;
         _errPitch = _rng.NextGaussian() * Sigma * 0.6f;
         _dmgRecent *= 0.6f;
@@ -284,6 +318,7 @@ public sealed class AiPilot
         float ground = e.Position.Y;
         k.AimHeight = e.Volume(MechSection.Torso).Center.Y - ground;
         k.EyeHeight = e.Volume(MechSection.Cockpit).Center.Y - ground;
+        k.Radius = e.Volume(MechSection.Torso).Radius;
     }
 
     private void SelectTarget(BattleSim b, BattleUnit me)
@@ -310,6 +345,12 @@ public sealed class AiPilot
         float range = Personality.Range;
         switch (Action)
         {
+            case AiAction.Engage when k != null && Role == AiRole.Skirmisher:
+            {
+                // Never park: run for a point 0.9 rad further round the target at 0.9x range, re-picked every think.
+                float a = MathUtil.Heading(me.Position - k.Position) + _orbit * 0.9f;
+                return map.ClampDestination(k.Position + MathUtil.Forward(a) * (range * 0.9f));
+            }
             case AiAction.Engage when k != null:
             {
                 // Orbit point at preferred range, ±0.35 rad around the target.
@@ -379,6 +420,8 @@ public sealed class AiPilot
         Vector3 targetEye = k.Position + Vector3.UnitY * k.EyeHeight;
         Vector3 targetAim = k.Position + Vector3.UnitY * k.AimHeight;
         float range = Personality.Range;
+        float stay = Role is AiRole.Line or AiRole.Anchor ? 0.25f : _relocate ? -1f : 0.1f; // heavies hold their ground
+        bool relocating = _relocate;
 
         Vector3 best = me.Position;
         float bestScore = float.NegativeInfinity;
@@ -396,12 +439,18 @@ public sealed class AiPilot
             bool legsHidden = !map.LineClear(targetEye, c + up * legHeight);
             bool torsoHidden = legsHidden && !map.LineClear(targetEye, c + up * (0.8f * gunHeight));
             // High ground only counts from behind a crest; on an exposed hilltop it just makes a better target.
+            if (relocating && MathUtil.PlanarDistance(c, me.Position) < 30f) continue; // a new spot, not a shuffle
             float score = (shoot ? 1f : -0.5f) + (legsHidden ? 0.6f : 0f) + (shoot && torsoHidden ? 0.25f : 0f)
                           - MathF.Abs(MathUtil.PlanarDistance(c, k.Position) - range) / 450f
                           - MathUtil.PlanarDistance(c, me.Position) / 300f
                           + (legsHidden ? MathUtil.Clamp(c.Y - k.Position.Y, -10f, 10f) * 0.015f : 0f)
-                          + (MathUtil.PlanarDistance(c, Destination) < 15f ? 0.1f : 0f); // don't dither between equals
+                          + (MathUtil.PlanarDistance(c, Destination) < 15f ? stay : 0f); // don't dither between equals
             if (score > bestScore) { bestScore = score; best = c; }
+        }
+        if (relocating && bestScore > float.NegativeInfinity)
+        {
+            _relocate = false;
+            _settled = false;
         }
         return best;
     }
@@ -480,12 +529,16 @@ public sealed class AiPilot
         var c = me.Chassis;
         var input = new MechInput();
 
-        // Legs: follow the planned heading; back up when the goal is behind during a fight.
+        // Legs: follow the planned heading; back up when the goal is behind during a fight (skirmishers wheel round
+        // at speed instead: their circle reverses every few seconds).
         float dist = MathUtil.PlanarDistance(me.Position, Destination);
-        float err = MathUtil.WrapAngle(DesiredHeading - body.Psi);
+        // Skirmishers weave ±0.35 rad around their course while fighting.
+        float jink = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null
+            ? 0.35f * MathF.Sin(MathUtil.Tau * _now / _jinkPeriod) : 0f;
+        float err = MathUtil.WrapAngle(DesiredHeading + jink - body.Psi);
         Contact? k = Target != null && Contacts.TryGetValue(Target, out var kk) ? kk : null;
         if (dist < 5f) { }
-        else if (Action is AiAction.Engage or AiAction.Retreat && k != null && MathF.Abs(err) > 2.1f && dist < 90f)
+        else if (Action is AiAction.Engage or AiAction.Retreat && k != null && MathF.Abs(err) > 2.1f && dist < 90f && Role != AiRole.Skirmisher)
         {
             input.Turn = MathUtil.Clamp(MathUtil.WrapAngle(DesiredHeading + MathF.PI - body.Psi) * 2f, -1f, 1f);
             input.Throttle = -0.9f;
@@ -496,7 +549,9 @@ public sealed class AiPilot
             // distance (prototype: dist / 20 m, fine at 4 m/s). Never slower than ~1.3 m/s.
             float brake = MathF.Sqrt(2f * c.Decel * MathF.Max(0f, dist - 4f)) / c.VMax;
             input.Turn = MathUtil.Clamp(err * 2.2f, -1f, 1f);
-            input.Throttle = MathUtil.Clamp(brake, MathF.Min(0.3f, 1.3f / c.VMax), 1f) * MathF.Max(0.1f, MathF.Cos(err));
+            // Skirmishers carve their turns at speed; everyone else slows to turn.
+            float turnThrottle = Role == AiRole.Skirmisher ? MathF.Max(0.5f, MathF.Cos(err)) : MathF.Max(0.1f, MathF.Cos(err));
+            input.Throttle = MathUtil.Clamp(brake, MathF.Min(0.3f, 1.3f / c.VMax), 1f) * turnThrottle;
         }
 
         bool wasHolding = HoldingFire;
@@ -520,7 +575,9 @@ public sealed class AiPilot
         if (MathF.Abs(needTwist) > c.TwistMax * 0.9f && dist < 8f) input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
         // Not in the prototype (its mechs stood at their orbit point to fire): a fast mech running across the target's
         // bearing runs out of torso twist, so with a weapon ready and the target in sight it swings its legs round.
-        else if (k.Visible && MathF.Abs(needTwist) > c.TwistMax * 0.85f && AnyReady(weapons)) input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
+        // Not for skirmishers: circling the target is their job, the legs stay on course.
+        else if (k.Visible && Role != AiRole.Skirmisher && MathF.Abs(needTwist) > c.TwistMax * 0.85f && AnyReady(weapons))
+            input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
 
         // Spread damage: twist the weaker arm away while every weapon recycles.
         float extraTwist = 0f;
@@ -545,20 +602,31 @@ public sealed class AiPilot
         // Fire discipline: alignment, range, heat budget, clear line of fire.
         float heatCap = Action == AiAction.Retreat ? p.HeatLimit + 0.05f : p.HeatLimit;
         float heatAfter = weapons.Heat;
+        // Save heat for a heavy gun that is (nearly) loaded, or the light weapons keep it from ever firing.
+        float reserve = 0f;
+        foreach (var m in weapons.Mounts)
+            if (!m.Offline && m.Spec.Damage >= HeavyShot && m.Cooldown < 1f) reserve = MathF.Max(reserve, m.Spec.Heat);
         for (int i = 0; i < weapons.Mounts.Count; i++)
         {
             if (!weapons.CanFire(i)) continue;
             var spec = weapons.Mounts[i].Spec;
             bool projectile = spec.Kind == WeaponKind.Projectile;
             if (d >= (projectile ? spec.Range : spec.Range * 0.9f)) continue;
-            if (heatAfter + spec.Heat >= heatCap) continue;
+            if (heatAfter + spec.Heat + (spec.Damage >= HeavyShot ? 0f : reserve) >= heatCap) continue;
             Vector3 point = aimBase;
             if (projectile)
             {
                 float t = d / spec.MuzzleVelocity;
                 point.Y += 0.5f * spec.Gravity * t * t;
             }
-            if (!Aligned(sim.Pose, point, 0.02f)) continue;
+            // Fire when the reticle is on the target: the tolerance is the target's apparent size (the prototype's fixed
+            // 0.02 + 1.6/d was ~5 m at 160 m, wider than a light's whole torso). Heavy guns cycle slowly: they want a
+            // tighter lay (0.8 of the size), on a target that isn't crossing fast (or is close).
+            if (spec.Damage >= HeavyShot)
+            {
+                if (!Aligned(sim.Pose, point, 0.003f, 0.8f * k.Radius) || Crossing(me, k) > 0.05f && d > 90f) continue;
+            }
+            else if (!Aligned(sim.Pose, point, 0.004f, k.Radius)) continue;
             // Check the shot that would actually leave: toward the convergence point on the current aim ray (minus the
             // shell's drop: the chord to the impact lies below the arc). Alignment tolerates metres of error at range,
             // which is fine on flat ground but puts the round into a crest the mech is firing over.
@@ -609,12 +677,24 @@ public sealed class AiPilot
         return any;
     }
 
-    /// <summary>Aim-ray angle to the point is inside the tolerance (which widens up close).</summary>
-    private static bool Aligned(MechPose pose, Vector3 point, float tolerance)
+    /// <summary>Aim-ray angle to the point is inside the tolerance (which widens up close by <paramref name="slack"/>/d).</summary>
+    private static bool Aligned(MechPose pose, Vector3 point, float tolerance, float slack = 1.6f)
     {
         Vector3 v = point - pose.AimOrigin;
         float d = v.Length();
-        return MathF.Acos(MathUtil.Clamp(Vector3.Dot(pose.AimDirection, v / d), -1f, 1f)) < tolerance + 1.6f / d;
+        return MathF.Acos(MathUtil.Clamp(Vector3.Dot(pose.AimDirection, v / d), -1f, 1f)) < tolerance + slack / d;
+    }
+
+    /// <summary>Angular rate (rad/s) at which the contact crosses this mech's line of sight, from its estimated velocity.</summary>
+    private static float Crossing(BattleUnit me, Contact k)
+    {
+        Vector3 los = k.Position - me.Position;
+        los.Y = 0f;
+        float d = los.Length();
+        if (d < 1f) return 0f;
+        los /= d;
+        Vector3 v = new(k.Velocity.X, 0f, k.Velocity.Z);
+        return (v - los * Vector3.Dot(v, los)).Length() / d;
     }
 
     private enum FireLine { Clear, Blocked, Ally }

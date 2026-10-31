@@ -98,6 +98,9 @@ public sealed class MechChassis
     /// <summary>Gait arm swing multiplier (weapon pods on a hull barely swing).</summary>
     public float ArmSwing = 1f;
 
+    /// <summary>How much rough ground ahead slows the mech (1 = fully; lights are nimble and keep their speed).</summary>
+    public float RoughGroundCaution = 1f;
+
     // Loadout: one weapon per arm, bolted on at the mount point (elbow frame); the muzzle is the weapon's length ahead.
     public WeaponSpec RightArmWeapon = WeaponSpec.Cannon;
     public WeaponSpec LeftArmWeapon = WeaponSpec.Laser;
@@ -184,11 +187,15 @@ public sealed class MechChassis
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
                 c.SetWeapons(WeaponSpec.Autocannon, WeaponSpec.PulseLaser);
+                c.RoughGroundCaution = 0.5f;
                 c.HeatDissipation = 0.06f;
                 c.CollapseTime = 1.1f;
                 break;
             case ChassisClass.Medium:
+                // Quick to reposition, and one hard-hitting gun.
                 c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
+                c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
+                c.RoughGroundCaution = 0.8f;
                 c.TurnSpeedPenalty = 0.5f;
                 break;
             case ChassisClass.Heavy:
@@ -198,7 +205,7 @@ public sealed class MechChassis
                 c.TurnSpeedPenalty = 0.45f;
                 c.SetArmour(140f, 60f, 95f, 6f);
                 c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.HeavyLaser);
-                c.HeatDissipation = 0.05f;
+                c.HeatDissipation = 0.065f; // big guns need big heat sinks
                 c.CollapseTime = 1.7f;
                 break;
             case ChassisClass.Assault:
@@ -208,7 +215,7 @@ public sealed class MechChassis
                 c.TurnSpeedPenalty = 0.4f;
                 c.SetArmour(180f, 75f, 120f, 7f);
                 c.SetWeapons(WeaponSpec.SiegeCannon, WeaponSpec.HeavyLaser);
-                c.HeatDissipation = 0.045f;
+                c.HeatDissipation = 0.075f;
                 c.CollapseTime = 2f;
                 break;
         }

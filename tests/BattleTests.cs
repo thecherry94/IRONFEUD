@@ -97,8 +97,8 @@ public class BattleTests
     {
         var b = new BattleSim(new ArenaMap()) { TrackOutcome = false };
         b.Map.Blocks.Add(new Block(0f, -30f, 20f, 4f, 30f));
-        var shooter = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f);
-        var target = b.AddUnit("B", 1, MechChassis.Medium(), new Vector3(0, 0, -60), MathF.PI);
+        var shooter = b.AddUnit("A", 0, MechChassis.Prototype(), Vector3.Zero, 0f); // quick-firing cannon
+        var target = b.AddUnit("B", 1, MechChassis.Prototype(), new Vector3(0, 0, -60), MathF.PI);
         shooter.Input = new MechInput { FireMask = 0b01u, Convergence = 60f };
         for (int i = 0; i < 120 * 2; i++) b.Step(H);
         Assert.True(shooter.Stats.Shots >= 2);
@@ -258,7 +258,9 @@ public class BattleTests
         f.UpdateBounds();
         var b = new BattleSim(new ArenaMap { Terrain = f }) { TrackOutcome = false };
         var ai = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f, Personality.Balanced);
-        var target = b.AddUnit("T", 1, MechChassis.Medium(), new Vector3(0, 0, -260), MathF.PI);
+        var tough = MechDamage.Create(MechChassis.Medium());
+        tough.Hp[(int)MechSection.Torso] = tough.MaxHp[(int)MechSection.Torso] = 1e6f; // a target that lasts the whole test
+        var target = b.AddUnit("T", 1, MechChassis.Medium(), new Vector3(0, 0, -260), MathF.PI, damage: tough);
         return (b, ai, target);
     }
 
@@ -296,5 +298,54 @@ public class BattleTests
         var k = Assert.Contains(target, (System.Collections.Generic.IDictionary<BattleUnit, Contact>)ai.Ai!.Contacts);
         Assert.True(k.Visible);
         Assert.True(k.AimHeight > torso.Y - target.Position.Y + 0.5f, $"aims at {k.AimHeight:0.0} m, torso centre at {torso.Y - target.Position.Y:0.0} m");
+    }
+
+    /// <summary>Shots an AI lands on a light 160 m away, standing or running a tight circle (4 seeds x 40 s).</summary>
+    private static (int Shots, int Hits, int Shells) ShootAtLight(bool running, ChassisClass shooter = ChassisClass.Medium)
+    {
+        int shots = 0, hits = 0, shellCount = 0;
+        for (uint seed = 1; seed <= 4; seed++)
+        {
+            var (s, h, sh) = ShootAtLight(running, shooter, seed);
+            shots += s; hits += h; shellCount += sh;
+        }
+        return (shots, hits, shellCount);
+    }
+
+    private static (int Shots, int Hits, int Shells) ShootAtLight(bool running, ChassisClass shooter, uint seed)
+    {
+        var b = new BattleSim(new ArenaMap(), seed) { TrackOutcome = false };
+        var ai = b.AddUnit("A", 0, MechChassis.Create(shooter), Vector3.Zero, 0f, Personality.Balanced);
+        var light = MechChassis.Light();
+        var tough = MechDamage.Create(light);
+        tough.Hp[(int)MechSection.Torso] = tough.MaxHp[(int)MechSection.Torso] = 1e6f; // keep it alive to count hits
+        var target = b.AddUnit("L", 1, light, new Vector3(0, 0, -160), 0f, damage: tough);
+        target.Input = running ? new MechInput { Throttle = 1f, Turn = 1f } : default;
+        int shells = 0;
+        for (int i = 0; i < 120 * 40; i++)
+        {
+            b.Step(H);
+            foreach (var e in b.Events) if (e.Kind == BattleEventKind.ShellFired) shells++;
+        }
+        return (ai.Stats.Shots, ai.Stats.Hits, shells);
+    }
+
+    [Fact]
+    public void Evasion_ARunningLightIsMuchHarderToHit()
+    {
+        var still = ShootAtLight(false);
+        var running = ShootAtLight(true);
+        float pStill = (float)still.Hits / still.Shots, pRunning = (float)running.Hits / Math.Max(1, running.Shots);
+        _out.WriteLine($"standing light: {still.Hits}/{still.Shots} hit · running light: {running.Hits}/{running.Shots} hit");
+        Assert.True(pRunning < 0.5f * pStill, $"running {pRunning:P0} vs standing {pStill:P0}");
+    }
+
+    [Fact]
+    public void HeavyGuns_WaitForCleanShots()
+    {
+        var still = ShootAtLight(false, ChassisClass.Assault);
+        var running = ShootAtLight(true, ChassisClass.Assault);
+        _out.WriteLine($"assault vs standing light: {still.Hits}/{still.Shots} hits, {still.Shells} siege shells · vs running light: {running.Hits}/{running.Shots}, {running.Shells} shells");
+        Assert.True(running.Shells < still.Shells, "the siege cannon should hold fire on a fast-crossing light");
     }
 }
