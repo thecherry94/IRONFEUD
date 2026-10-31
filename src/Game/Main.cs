@@ -11,7 +11,7 @@ using Vec3 = System.Numerics.Vector3;
 
 namespace IronFeud.Game;
 
-public enum GameMode { Range, Watch1v1, Watch2v2, WatchLights, Play1v1, Play2v2, Parade }
+public enum GameMode { Range, Watch1v1, Watch2v2, WatchLance, Play1v1, Play2v2, Parade }
 
 /// <summary>Battle maps for the watch and play modes (T cycles). The parade uses open ground, hilly unless Flat.</summary>
 public enum MapKind { NoMansLand, Hills, Flat }
@@ -33,7 +33,7 @@ public partial class Main : Node3D
         ("Target D", new(10f, 0f, -135f), true),
     };
 
-    private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lights vs medium · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
+    private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lance 4v4 · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
     private const string PlayHelp =
         "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · LMB/Space cannon · RMB/F laser\n" +
         "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · T next map (no man's land / hills / flat) · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
@@ -42,7 +42,7 @@ public partial class Main : Node3D
     private const string ParadeHelp =
         "Tab next mech · 1 chase · 2 cockpit · 3 orbit (drag / wheel) · 4 overview · F3 gait debug · O slow-mo (¼ speed) · P pause · R restart · T next map (no man's land / hills / flat)\n" + ModeKeys;
 
-    private GameMode _mode = GameMode.Watch1v1;
+    private GameMode _mode = GameMode.WatchLance;
     private ChassisClass _playerClass = ChassisClass.Medium;
     private MechModel _playerModel = MechModel.Hauberk;
     private uint _round;
@@ -62,7 +62,7 @@ public partial class Main : Node3D
     private double _clock, _restartAt = -1;
     private int _selectAtStart = -1;
 
-    private bool Watching => _mode is GameMode.Watch1v1 or GameMode.Watch2v2 or GameMode.WatchLights;
+    private bool Watching => _mode is GameMode.Watch1v1 or GameMode.Watch2v2 or GameMode.WatchLance;
 
     /// <summary>Gait parade lanes, inner to outer: slow classes inside, lights (widest turning circles) outside.</summary>
     private static readonly (ChassisClass Class, MechModel Model, float Radius)[] ParadeLanes =
@@ -86,7 +86,7 @@ public partial class Main : Node3D
                 case "--autopilot": _mode = GameMode.Range; break;
                 case "--watch=1v1": _mode = GameMode.Watch1v1; break;
                 case "--watch=2v2": _mode = GameMode.Watch2v2; break;
-                case "--watch=lights": _mode = GameMode.WatchLights; break;
+                case "--watch=lance": _mode = GameMode.WatchLance; break;
                 case "--play=1v1": _mode = GameMode.Play1v1; break;
                 case "--play=2v2": _mode = GameMode.Play2v2; break;
                 case "--parade": _mode = GameMode.Parade; break;
@@ -222,10 +222,17 @@ public partial class Main : Node3D
                 Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced, SF);
                 Ai("Bravo-2", 1, M, x, -z2, Personality.Sniper);
                 break;
-            case GameMode.WatchLights:
-                Ai("Alpha-1", 0, L, x, z, Personality.Brawler);
-                Ai("Alpha-2", 0, L, -x, z, Personality.Balanced, SF);
-                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced);
+            case GameMode.WatchLance:
+                // One of each class per side, models mixed: light skirmisher, medium, heavy line, assault anchor.
+                foreach (var (team, sign, name) in new[] { (0, 1f, "Alpha"), (1, -1f, "Bravo") })
+                {
+                    var model = team == 0 ? MechModel.Sicklefoot : MechModel.Hauberk;
+                    var other = team == 0 ? MechModel.Hauberk : MechModel.Sicklefoot;
+                    Ai($"{name}-1", team, L, -45f * sign, sign * z, Personality.Balanced, model);
+                    Ai($"{name}-2", team, M, -15f * sign, sign * z, Personality.Balanced, other);
+                    Ai($"{name}-3", team, ChassisClass.Heavy, 15f * sign, sign * z2, Personality.Balanced, model);
+                    Ai($"{name}-4", team, ChassisClass.Assault, 45f * sign, sign * z2, Personality.Sniper, other);
+                }
                 break;
             case GameMode.Play1v1:
                 Player(0f, z);
@@ -306,7 +313,7 @@ public partial class Main : Node3D
         else if (e.IsAction("mode_range")) StartSession(GameMode.Range);
         else if (e.IsAction("mode_watch_1v1")) StartSession(GameMode.Watch1v1);
         else if (e.IsAction("mode_watch_2v2")) StartSession(GameMode.Watch2v2);
-        else if (e.IsAction("mode_watch_lights")) StartSession(GameMode.WatchLights);
+        else if (e.IsAction("mode_watch_lance")) StartSession(GameMode.WatchLance);
         else if (e.IsAction("mode_play_1v1")) StartSession(GameMode.Play1v1);
         else if (e.IsAction("mode_play_2v2")) StartSession(GameMode.Play2v2);
         else if (e.IsAction("mode_parade")) StartSession(GameMode.Parade);
