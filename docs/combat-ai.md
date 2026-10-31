@@ -37,6 +37,17 @@ describes the prototype.
 - Headless No Man's Land duels: AIs spend ~75 % of their engaging time hull-down; 23-140 s matches.
   A light Sicklefoot beats a heavy outright (the heavy hit 0-1 of ~40 shots at a 130 km/h target): balance item.
 
+## Balance (headless reports)
+`IRONFEUD_BALANCE=1 dotnet test tests/ --filter BalanceTests --logger "console;verbosity=detailed"` (≈ 3 min): medium
+duels over 20 seeds x both spawn sides per matchup, on No Man's Land and the hills arena; fails if anything wins > 70 %.
+- **Spawn side:** no bias (40 seeds per map: 17-23, 21-19, 18-22).
+- **Personalities** (Hauberk vs Hauberk, 40 games each): Brawler vs Balanced 19-21 / 18-21, Brawler vs Sniper
+  18-20 / 13-26, Balanced vs Sniper 18-21 / 17-22 (No Man's Land / hills). Brawler is not overpowered; Sniper is a
+  little strong on the open hills.
+- **Models:** the Sicklefoot won ~80 % against an equal Hauberk: smaller, lower hit spheres (its hull hides behind
+  crests; the Hauberk's tall torso shows), so it was hit 45-50 % vs 28-35 %. Rather than nerf it, the Hauberk carries
+  1.3x armour on torso/arms/legs (cockpit unchanged): now 18-22, 18-21, and 24-16 when brawling up close.
+
 ## Weapons
 | | cannon (right arm) | laser (left arm) |
 |---|---|---|

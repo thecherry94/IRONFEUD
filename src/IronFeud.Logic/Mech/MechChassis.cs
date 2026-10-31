@@ -207,6 +207,7 @@ public sealed class MechChassis
                 break;
         }
         c.FitGaitToLegs();
+        c.ApplyModelArmour(model);
         return c;
     }
 
@@ -258,6 +259,27 @@ public sealed class MechChassis
         HipHeight = AnkleHeight + h - HipRootY;
         AMax = 0.7f * MathF.Sqrt((0.95f * l) * (0.95f * l) - h * h);
         SetRunSpeedsFromLegs();
+    }
+
+    /// <summary>
+    /// Armour multiplier per body plan, on torso, arms and legs (the cockpit stays fragile). Balanced against headless
+    /// duels: the Hauberk is the bigger, taller target (more sphere area, a torso that shows over crests), so it gets
+    /// the heavier plate. 1.0 = the class's base values.
+    /// </summary>
+    public static float ArmourFactor(MechModel model) => model switch
+    {
+        MechModel.Hauberk => HauberkArmour,
+        _ => 1f,
+    };
+
+    private const float HauberkArmour = 1.3f;
+
+    private void ApplyModelArmour(MechModel model)
+    {
+        float k = ArmourFactor(model);
+        TorsoHp *= k;
+        ArmHp *= k;
+        LegsHp *= k;
     }
 
     private void SetArmour(float torso, float arm, float legs, float cockpit)
