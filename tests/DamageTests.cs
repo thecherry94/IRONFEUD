@@ -138,13 +138,14 @@ public class DamageTests
     [Fact]
     public void Damage_PersistsIntoANewSim()
     {
-        var damage = MechDamage.Create(MechChassis.Medium());
+        var chassis = MechChassis.Medium();
+        var damage = MechDamage.Create(chassis);
         damage.Apply(MechSection.ArmLeft, 100f);
         damage.Apply(MechSection.Torso, 30f);
 
         var sim = NewSim(damage);
         Assert.True(sim.Weapons.Mounts[1].Offline); // laser, left arm
-        Assert.Equal(70f, sim.Damage[MechSection.Torso]);
+        Assert.Equal(chassis.TorsoHp - 30f, sim.Damage[MechSection.Torso]);
         Assert.False(sim.IsOut);
     }
 
