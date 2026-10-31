@@ -93,8 +93,39 @@ Semantic angles (pitch + = down, roll + = lean right) become Godot Euler angles 
 6. Audio: layered footfalls, procedural servo whine from joint velocity, comms-filtered warning voice.
 Then: more weapons, mech classes, missions.
 
+**Status (2026-10-31):** steps 1-5 done, plus the pulled-forward "mech classes" item: four weight classes at genre
+speeds (light 130 / medium 80 / heavy 60 / assault 40 km/h) with a running gait, two body models (Hauberk biped,
+Sicklefoot digitigrade), a weapon roster with class loadouts, class roles in the AI, and a No Man's Land arena.
+Next: step 6 (audio). Open items: chassis `.tres` for editor tuning, spring frequencies don't scale with size,
+heavy/assault are scaled copies of the medium body, distinct loadouts per model, light counterplay (lights are close
+to unhittable when circling at range), heavies survive least in lances (intended?), squad tactics (2v2+ pick cover
+independently).
+
 ## Working agreements for Claude Code
 - Small, reviewable commits; one concern per commit. Run `dotnet build IRONFEUD.sln` and the tests before saying done.
 - When tuning feel, expose constants via `[Export]` or a `Resource` (e.g. a chassis `.tres`) rather than hard-coding.
 - When behavior differs from the prototype, say so explicitly and explain why.
 - Debug visualisation is a first-class feature: every AI decision and gait target should be drawable.
+- Check `dotnet test` by its exit code / summary line before committing, never by chaining on piped output.
+
+## Lessons learned (read before changing locomotion, AI or balance)
+- **Measure before fixing, then pin it.** Every "looks janky / feels wrong" report so far had a measurable cause
+  (hip roll flipping to 180°, a 58 m/s pelvis, 16 steps/s shuffling, torso pitching 57°, a stale assembly). Write a
+  throwaway diagnostic test that prints metrics, fix, then turn the metrics into a regression test
+  (`AcrossNoMansLand_PosesStayNatural`, `AtTopSpeed_StrideIsSetByLegReach_NotByAShuffle`, the evasion tests).
+- **Exact IK, cheated inputs.** Keep the analytic solvers exact; make it look right by feeding them well-posed targets
+  (clamp below the hip / within roll and reach, foothold selection, smoothed support height, eased crouch, gyro
+  torso, rough-ground speed cap). Never hard-clamp the pelvis per tick (pendulum) or trust raw terrain targets.
+- **Prototype numbers don't survive genre speeds.** Anything tuned for 4 m/s (stride caps, accel lean 0.06·acc, fire
+  tolerance 0.02 + 1.6/d, back-up rules, crouch rates) needs re-checking when speed, size or weapon change.
+- **Balance with the headless reports, not by eye.** One watched match conflated personality, model and spawn side;
+  the data showed the model (Sicklefoot's smaller, lower hit spheres) was the cause. Run
+  `IRONFEUD_BALANCE=1 dotnet test tests/ --filter BalanceTests --logger "console;verbosity=detailed"` (~3 min) with
+  both spawn sides and 20+ seeds per matchup; 12 games is noise.
+- **Design intent: distinct complementary roles, not parity;** prefer buffing the weaker option over nerfing.
+- **Statistical tests need samples:** several seeds and a margin, or a one-number change reshuffles RNG and flips them.
+- **Captures:** Godot runs the assembly from the last `dotnet build IRONFEUD.sln`; rebuild the solution, not just the
+  logic library, or captures show old behaviour. `--write-movie` runs far below real time and its window can take
+  keyboard focus (stray keys corrupt a capture: re-run if frames look wrong). Don't `pkill -f` a pattern that matches
+  your own command line. To let the user watch, launch `godot --path . -- --watch=lance` in the background without
+  the movie writer.
