@@ -39,7 +39,7 @@ public class ChassisTests
         Assert.True(l.HipHeight < m.HipHeight);
         Assert.True(l.TorsoHitRadius < m.TorsoHitRadius);
         Assert.True(l.TorsoHp < m.TorsoHp);
-        Assert.Equal(m.RightArmMuzzle * l.Scale, l.RightArmMuzzle);
+        Assert.Equal(m.RightArmMount * l.Scale, l.RightArmMount);
     }
 
     public static TheoryData<ChassisClass, MechModel> AllMechs()

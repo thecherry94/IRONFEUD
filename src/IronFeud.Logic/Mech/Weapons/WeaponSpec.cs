@@ -24,6 +24,12 @@ public sealed record WeaponSpec
     public float MinDamageFraction { get; init; } = 1f;
     public float BeamVisualTime { get; init; } = 0.22f;
 
+    // Looks, in the rig's medium-size units: how far the muzzle sits ahead of the arm's weapon mount, the barrel
+    // radius (or emitter size for beams) and the number of barrels (or lenses). Also sizes muzzle flash and impacts.
+    public float Length { get; init; } = 3f;
+    public float Caliber { get; init; } = 0.26f;
+    public int Barrels { get; init; } = 1;
+
     // Recoil impulses (spring velocities). The torso yaw kick is applied as side · TorsoYawKick,
     // i.e. the firing arm's shoulder is pushed back.
     public float ArmKick { get; init; }
@@ -39,36 +45,69 @@ public sealed record WeaponSpec
         return Damage * MathF.Max(MinDamageFraction, 1f - t);
     }
 
-    public static readonly WeaponSpec Cannon = new()
+    // The roster, light to heavy. Projectile damage is the same at any range; beams fall off past FalloffStart.
+    // Heavier guns hit far harder but cycle slowly, run hot and fire slower shells: a running light can dodge them.
+
+    /// <summary>Light beam: chip damage at a high rate, cheap on heat.</summary>
+    public static readonly WeaponSpec PulseLaser = new()
     {
-        Name = "Cannon",
-        Kind = WeaponKind.Projectile,
-        Damage = 14f,
-        Heat = 0.08f,
-        Cooldown = 0.75f,
-        Range = 640f,
-        MuzzleVelocity = 450f,
-        Gravity = 4f,
-        MaxLifetime = 2f,
-        ArmKick = 3.4f,
-        ElbowKick = 4f,
-        TorsoYawKick = 0.35f,
-        TorsoPitchKick = 0.25f,
-        Trauma = 0.3f,
+        Name = "Pulse laser", Kind = WeaponKind.Beam, Damage = 5f, Heat = 0.05f, Cooldown = 0.5f,
+        Range = 280f, FalloffStart = 180f, MinDamageFraction = 0.2f, BeamVisualTime = 0.12f,
+        Length = 1.1f, Caliber = 0.6f, Barrels = 1,
+        ArmKick = 0.3f, TorsoYawKick = 0.05f, Trauma = 0.03f,
+    };
+
+    /// <summary>Light gun: twin barrels, fast shells, small rounds four times a second.</summary>
+    public static readonly WeaponSpec Autocannon = new()
+    {
+        Name = "Autocannon", Kind = WeaponKind.Projectile, Damage = 4f, Heat = 0.03f, Cooldown = 0.25f,
+        Range = 520f, MuzzleVelocity = 560f, Gravity = 4f, MaxLifetime = 1.5f,
+        Length = 2.6f, Caliber = 0.12f, Barrels = 2,
+        ArmKick = 0.8f, ElbowKick = 1f, TorsoYawKick = 0.06f, TorsoPitchKick = 0.05f, Trauma = 0.05f,
     };
 
     public static readonly WeaponSpec Laser = new()
     {
-        Name = "Laser",
-        Kind = WeaponKind.Beam,
-        Damage = 9f,
-        Heat = 0.11f,
-        Cooldown = 1.0f,
-        Range = 320f,
-        FalloffStart = 200f,
-        MinDamageFraction = 0.2f,
-        ArmKick = 0.8f,
-        TorsoYawKick = 0.12f,
-        Trauma = 0.08f,
+        Name = "Laser", Kind = WeaponKind.Beam, Damage = 9f, Heat = 0.11f, Cooldown = 1.0f,
+        Range = 320f, FalloffStart = 200f, MinDamageFraction = 0.2f,
+        Length = 1.5f, Caliber = 1f, Barrels = 3,
+        ArmKick = 0.8f, TorsoYawKick = 0.12f, Trauma = 0.08f,
+    };
+
+    /// <summary>The medium's harder hitter.</summary>
+    public static readonly WeaponSpec Cannon = new()
+    {
+        Name = "Cannon", Kind = WeaponKind.Projectile, Damage = 14f, Heat = 0.08f, Cooldown = 0.75f,
+        Range = 640f, MuzzleVelocity = 450f, Gravity = 4f, MaxLifetime = 2f,
+        Length = 3.4f, Caliber = 0.26f, Barrels = 1,
+        ArmKick = 3.4f, ElbowKick = 4f, TorsoYawKick = 0.35f, TorsoPitchKick = 0.25f, Trauma = 0.3f,
+    };
+
+    public static readonly WeaponSpec HeavyLaser = new()
+    {
+        Name = "Heavy laser", Kind = WeaponKind.Beam, Damage = 22f, Heat = 0.24f, Cooldown = 2.4f,
+        Range = 380f, FalloffStart = 240f, MinDamageFraction = 0.25f, BeamVisualTime = 0.35f,
+        Length = 2f, Caliber = 1.4f, Barrels = 3,
+        ArmKick = 1.5f, TorsoYawKick = 0.2f, Trauma = 0.15f,
+    };
+
+    public static readonly WeaponSpec HeavyCannon = new()
+    {
+        Name = "Heavy cannon", Kind = WeaponKind.Projectile, Damage = 32f, Heat = 0.2f, Cooldown = 2.2f,
+        Range = 600f, MuzzleVelocity = 330f, Gravity = 4f, MaxLifetime = 2.5f,
+        Length = 3.9f, Caliber = 0.38f, Barrels = 1,
+        ArmKick = 5f, ElbowKick = 6f, TorsoYawKick = 0.6f, TorsoPitchKick = 0.45f, Trauma = 0.5f,
+    };
+
+    /// <summary>
+    /// The assault's gun: one clean torso hit destroys a light (75 vs 60 HP). Slow shell, long reload, very hot:
+    /// it has to be aimed at something that isn't dodging.
+    /// </summary>
+    public static readonly WeaponSpec SiegeCannon = new()
+    {
+        Name = "Siege cannon", Kind = WeaponKind.Projectile, Damage = 75f, Heat = 0.36f, Cooldown = 4.5f,
+        Range = 700f, MuzzleVelocity = 240f, Gravity = 5f, MaxLifetime = 3.5f,
+        Length = 4.6f, Caliber = 0.55f, Barrels = 1,
+        ArmKick = 8f, ElbowKick = 9f, TorsoYawKick = 1f, TorsoPitchKick = 0.8f, Trauma = 0.8f,
     };
 }

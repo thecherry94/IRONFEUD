@@ -83,13 +83,14 @@ public partial class Battlefield : Node3D
             switch (e.Kind)
             {
                 case BattleEventKind.ShellFired:
-                    Effects?.MuzzleBlast(from, e.Shot.Direction.ToGodot());
+                    Effects?.MuzzleBlast(from, e.Shot.Direction.ToGodot(), Weight(e.Shot.Spec));
                     break;
                 case BattleEventKind.Beam:
-                    Effects?.BeamShot(from, at, e.Shot.Spec.BeamVisualTime, NodeOf(e.Shooter)?.Accent);
+                    Effects?.BeamShot(from, at, e.Shot.Spec.BeamVisualTime, NodeOf(e.Shooter)?.Accent, Weight(e.Shot.Spec));
                     break;
                 case BattleEventKind.Impact:
-                    Effects?.Explosion(at, e.Shot.Spec.Kind == WeaponKind.Projectile ? 1f : 0f);
+                    // Size 1 = the cannon's shell; beams leave smaller scorches.
+                    Effects?.Explosion(at, Weight(e.Shot.Spec) * (e.Shot.Spec.Kind == WeaponKind.Projectile ? 1f : 0.35f));
                     break;
             }
         }
@@ -120,7 +121,8 @@ public partial class Battlefield : Node3D
             }
             Vector3 pos = s.State.Position.ToGodot(), dir = s.State.Velocity.ToGodot().Normalized();
             Vector3 up = Mathf.Abs(dir.Y) > 0.99f ? Vector3.Right : Vector3.Up;
-            mesh!.Transform = new Transform3D(Basis.LookingAt(dir, up), pos);
+            float k = s.State.Spec.Caliber / WeaponSpec.Cannon.Caliber;
+            mesh!.Transform = new Transform3D(Basis.LookingAt(dir, up) * Basis.FromScale(new Vector3(k, k, Mathf.Sqrt(k))), pos);
             if (fresh) mesh.ResetPhysicsInterpolation();
         }
         if (_shells.Count == _liveShells.Count) return;
@@ -132,6 +134,9 @@ public partial class Battlefield : Node3D
             _shells.Remove(id);
         }
     }
+
+    /// <summary>Visual weight of a weapon relative to the cannon (1): sizes flashes, beams and impacts.</summary>
+    private static float Weight(WeaponSpec spec) => Mathf.Sqrt(spec.Damage / WeaponSpec.Cannon.Damage);
 
     private MeshInstance3D NewShellMesh()
     {

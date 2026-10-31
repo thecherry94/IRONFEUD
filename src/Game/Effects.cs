@@ -194,12 +194,13 @@ public partial class Effects : Node3D
     }
 
     /// <summary>Cannon muzzle blast: fire puffs along the barrel, a dust puff and a flash.</summary>
-    public void MuzzleBlast(Vector3 at, Vector3 dir)
+    /// <param name="weight">Visual weight relative to the cannon (1); a siege cannon is ~2.3, an autocannon ~0.5.</param>
+    public void MuzzleBlast(Vector3 at, Vector3 dir, float weight = 1f)
     {
         for (int k = 0; k < 3; k++)
-            _fire.Emit(at + dir * (k * 0.5f), Vector3.Zero, max: 0.09f, size0: 1.6f - k * 0.3f, grow: 1.2f, opacity: 1f, drag: 0f);
-        _dust.Emit(at, new Vector3(dir.X * 3f, 0.6f, dir.Z * 3f), max: 1.2f, size0: 0.8f, grow: 2.5f, opacity: 0.35f, drag: 2.2f);
-        Flash(at, 30f, 0.07f);
+            _fire.Emit(at + dir * (k * 0.5f * weight), Vector3.Zero, max: 0.09f * weight, size0: (1.6f - k * 0.3f) * weight, grow: 1.2f, opacity: 1f, drag: 0f);
+        _dust.Emit(at, new Vector3(dir.X * 3f, 0.6f, dir.Z * 3f), max: 1.2f, size0: 0.8f * weight, grow: 2.5f, opacity: 0.35f, drag: 2.2f);
+        Flash(at, 30f * weight, 0.07f);
     }
 
     /// <summary>Prototype sizes: 0 laser hit, 1 shell, 1.5 legs, 2 arm, 3 mech destroyed.</summary>
@@ -240,11 +241,13 @@ public partial class Effects : Node3D
     }
 
     /// <param name="glow">Beam glow colour (team accent); default red.</param>
-    public void BeamShot(Vector3 from, Vector3 to, float duration, Color? glow = null)
+    public void BeamShot(Vector3 from, Vector3 to, float duration, Color? glow = null, float weight = 1f)
     {
         var b = _beams[_nextBeam++ % _beams.Length];
         ((StandardMaterial3D)b.Glow.MaterialOverride).AlbedoColor = glow?.Lightened(0.15f) ?? new Color("ff2a1a");
-        b.Core.Transform = GodotConv.Segment(from, to);
+        var seg = GodotConv.Segment(from, to);
+        float wgt = Mathf.Clamp(weight, 0.5f, 2f);
+        b.Core.Transform = new Transform3D(seg.Basis * Basis.FromScale(new Vector3(wgt, 1f, wgt)), seg.Origin);
         b.Glow.Transform = b.Core.Transform;
         b.Core.Visible = b.Glow.Visible = true;
         b.T = b.Duration = duration;

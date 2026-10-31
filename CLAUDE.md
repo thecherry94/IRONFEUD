@@ -54,7 +54,7 @@ dotnet test tests/                 # pure-logic unit tests (xUnit)
 # --parade (all chassis classes running laps, for gait work); in game F5-F11.
 # Captures: --autopilot (range, scripted walk, fires 3-9 s), --range-demo (range, scripted shooting);
 # --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light|--heavy|--assault and --sicklefoot pick the player's class and model (L / M cycle in game);
-# --map=nml|hills|flat picks the battle map (T cycles; No Man's Land is the default); --seed=N varies it:
+# --select=N starts on mech N (Tab order); --map=nml|hills|flat picks the battle map (T cycles; No Man's Land is the default); --seed=N varies it:
 godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --watch=2v2
 dotnet test tests/ --filter AiDuels --logger "console;verbosity=detailed"   # headless AI duel summary
 ```

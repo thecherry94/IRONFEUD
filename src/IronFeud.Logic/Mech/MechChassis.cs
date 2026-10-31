@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using IronFeud.Logic.Mech.Weapons;
 
 namespace IronFeud.Logic.Mech;
 
@@ -97,9 +98,11 @@ public sealed class MechChassis
     /// <summary>Gait arm swing multiplier (weapon pods on a hull barely swing).</summary>
     public float ArmSwing = 1f;
 
-    // Hardpoints: muzzle positions in the elbow frame. The rig carries a cannon on the right arm, a laser on the left.
-    public Vector3 RightArmMuzzle = new(0f, 0.05f, -5.4f);
-    public Vector3 LeftArmMuzzle = new(0f, 0.1f, -3.5f);
+    // Loadout: one weapon per arm, bolted on at the mount point (elbow frame); the muzzle is the weapon's length ahead.
+    public WeaponSpec RightArmWeapon = WeaponSpec.Cannon;
+    public WeaponSpec LeftArmWeapon = WeaponSpec.Laser;
+    public Vector3 RightArmMount = new(0f, 0.05f, -2f);
+    public Vector3 LeftArmMount = new(0f, 0.1f, -2f);
 
     // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
     public Vector3 TorsoHitOffset = new(0f, 1.2f, 0f);         // torso-local
@@ -180,6 +183,7 @@ public sealed class MechChassis
                 c.TurnSpeedPenalty = 0.55f;
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
+                c.SetWeapons(WeaponSpec.Autocannon, WeaponSpec.PulseLaser);
                 c.HeatDissipation = 0.06f;
                 c.CollapseTime = 1.1f;
                 break;
@@ -193,6 +197,7 @@ public sealed class MechChassis
                 c.SetSpeed(16.5f, rev: 4.5f, accel: 4f, decel: 7f, omega: 0.8f, omegaAccel: 2f, twistRate: 1.5f, aimRate: 1f);
                 c.TurnSpeedPenalty = 0.45f;
                 c.SetArmour(140f, 60f, 95f, 6f);
+                c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.HeavyLaser);
                 c.HeatDissipation = 0.05f;
                 c.CollapseTime = 1.7f;
                 break;
@@ -202,6 +207,7 @@ public sealed class MechChassis
                 c.SetSpeed(11f, rev: 3.5f, accel: 2.8f, decel: 5f, omega: 0.6f, omegaAccel: 1.5f, twistRate: 1.2f, aimRate: 0.9f);
                 c.TurnSpeedPenalty = 0.4f;
                 c.SetArmour(180f, 75f, 120f, 7f);
+                c.SetWeapons(WeaponSpec.SiegeCannon, WeaponSpec.HeavyLaser);
                 c.HeatDissipation = 0.045f;
                 c.CollapseTime = 2f;
                 break;
@@ -237,8 +243,8 @@ public sealed class MechChassis
         ArmSwing = 0.25f,
         TwistMax = 1.9f,
 
-        RightArmMuzzle = new Vector3(0f, 0f, -3.9f),
-        LeftArmMuzzle = new Vector3(0f, 0.05f, -2.7f),
+        RightArmMount = new Vector3(0f, 0f, -2.4f),
+        LeftArmMount = new Vector3(0f, 0.05f, -1.9f),
 
         TorsoHitOffset = new Vector3(0f, 0.9f, -0.4f),
         TorsoHitRadius = 2.2f,
@@ -280,6 +286,12 @@ public sealed class MechChassis
         TorsoHp *= k;
         ArmHp *= k;
         LegsHp *= k;
+    }
+
+    private void SetWeapons(WeaponSpec right, WeaponSpec left)
+    {
+        RightArmWeapon = right;
+        LeftArmWeapon = left;
     }
 
     private void SetArmour(float torso, float arm, float legs, float cockpit)
@@ -334,8 +346,8 @@ public sealed class MechChassis
         ElbowOffset *= s;
         AimOriginY *= s;
         HeadOffset *= s;
-        RightArmMuzzle *= s;
-        LeftArmMuzzle *= s;
+        RightArmMount *= s;
+        LeftArmMount *= s;
         TorsoHitOffset *= s;
         TorsoHitRadius *= s;
         ArmHitOffset *= s;

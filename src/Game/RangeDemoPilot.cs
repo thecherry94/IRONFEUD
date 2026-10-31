@@ -40,8 +40,9 @@ public partial class RangeDemoPilot : Node
         float dist = System.Numerics.Vector3.Distance(sim.Pose.AimOrigin, point);
         if ((fire & 1u) != 0)
         {
-            float tof = dist / Logic.Mech.Weapons.WeaponSpec.Cannon.MuzzleVelocity;
-            point.Y += 0.5f * Logic.Mech.Weapons.WeaponSpec.Cannon.Gravity * tof * tof;
+            var gun = sim.Weapons.Mounts[0].Spec;
+            float tof = dist / gun.MuzzleVelocity;
+            point.Y += 0.5f * gun.Gravity * tof * tof;
         }
         float err = AimSolver.Track(sim.Pose, sim.Locomotion.Body, sim.Chassis, point, ref _twist, ref _aim);
         bool aligned = err < 0.5f * volume.Radius / dist;

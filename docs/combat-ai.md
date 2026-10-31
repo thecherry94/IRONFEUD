@@ -48,6 +48,23 @@ duels over 20 seeds x both spawn sides per matchup, on No Man's Land and the hil
   crests; the Hauberk's tall torso shows), so it was hit 45-50 % vs 28-35 %. Rather than nerf it, the Hauberk carries
   1.3x armour on torso/arms/legs (cockpit unchanged): now 18-22, 18-21, and 24-16 when brawling up close.
 
+## Weapon roster and class loadouts (Godot port)
+Right arm = fire bit 0, left arm = bit 1. Projectiles do full damage at any range; beams fall off past the start.
+
+| weapon | kind | dmg | heat | cooldown | range | shell m/s | used by |
+|---|---|---|---|---|---|---|---|
+| Pulse laser | beam | 5 | .05 | 0.5 s | 280 (falloff 180) | | light (L) |
+| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 520 | 560 | light (R) |
+| Laser | beam | 9 | .11 | 1.0 s | 320 (falloff 200) | | medium (L) |
+| Cannon | shell | 14 | .08 | 0.75 s | 640 | 450 | medium (R) |
+| Heavy laser | beam | 22 | .24 | 2.4 s | 380 (falloff 240) | | heavy, assault (L) |
+| Heavy cannon | shell | 32 | .20 | 2.2 s | 600 | 330 | heavy (R) |
+| Siege cannon | shell | 75 | .36 | 4.5 s | 700 | 240 | assault (R) |
+
+The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
+200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
+them at each model's arm mount point and flashes, beams, shells and impacts scale with damage.
+
 ## Weapons
 | | cannon (right arm) | laser (left arm) |
 |---|---|---|

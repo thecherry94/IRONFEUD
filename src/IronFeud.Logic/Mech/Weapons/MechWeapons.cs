@@ -48,12 +48,15 @@ public sealed class MechWeapons
 
     public bool HeatLocked => Heat >= 1f;
 
-    /// <summary>The prototype loadout: cannon on the right arm, laser on the left. Bit 0 / bit 1 of the fire mask.</summary>
-    public static MechWeapons Default(MechChassis t)
+    /// <summary>
+    /// The chassis' loadout: right arm weapon is bit 0 of the fire mask, left arm bit 1. Muzzles sit the weapon's
+    /// length ahead of the arm's mount point.
+    /// </summary>
+    public static MechWeapons ForChassis(MechChassis t)
     {
         var w = new MechWeapons { Heat = t.HeatStart };
-        w.Mounts.Add(new WeaponMount(WeaponSpec.Cannon, 1, t.RightArmMuzzle));
-        w.Mounts.Add(new WeaponMount(WeaponSpec.Laser, 0, t.LeftArmMuzzle));
+        w.Mounts.Add(new WeaponMount(t.RightArmWeapon, 1, t.RightArmMount - Vector3.UnitZ * (t.RightArmWeapon.Length * t.Scale)));
+        w.Mounts.Add(new WeaponMount(t.LeftArmWeapon, 0, t.LeftArmMount - Vector3.UnitZ * (t.LeftArmWeapon.Length * t.Scale)));
         return w;
     }
 

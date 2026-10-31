@@ -60,6 +60,7 @@ public partial class Main : Node3D
     private GaitDebugDraw _gait = null!;
     private MechNode? _player, _selected;
     private double _clock, _restartAt = -1;
+    private int _selectAtStart = -1;
 
     private bool Watching => _mode is GameMode.Watch1v1 or GameMode.Watch2v2 or GameMode.WatchLights;
 
@@ -103,6 +104,7 @@ public partial class Main : Node3D
                 case "--camera=overview": _cameraOverride = CameraMode.Overview; break;
             }
             if (arg.StartsWith("--seed=") && uint.TryParse(arg[7..], out uint seed)) ArenaSeed = seed;
+            if (arg.StartsWith("--select=") && int.TryParse(arg[9..], out int sel)) _selectAtStart = sel;
         }
         StartSession(_mode);
     }
@@ -193,7 +195,8 @@ public partial class Main : Node3D
         _panel = new AiPanel { Name = "AiPanel", Battle = battle, Visible = _aiOverlay && Watching };
         _session.AddChild(_panel);
 
-        Select(_player ?? _battlefield.Mechs[mode == GameMode.Parade ? 5 : 0]); // parade: start on the medium Sicklefoot
+        int first = _selectAtStart >= 0 ? Mathf.Min(_selectAtStart, _battlefield.Mechs.Count - 1) : mode == GameMode.Parade ? 5 : 0;
+        Select(_player ?? _battlefield.Mechs[first]); // parade: start on the medium Sicklefoot
     }
 
     private void SpawnTeams(BattleSim b, GameMode mode)

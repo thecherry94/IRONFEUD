@@ -24,7 +24,7 @@ public sealed class MechSim
     public MechSim(MechChassis chassis, uint seed = 1, MechDamage? damage = null)
     {
         Locomotion = new MechLocomotion(chassis, seed);
-        Weapons = MechWeapons.Default(chassis);
+        Weapons = MechWeapons.ForChassis(chassis);
         Damage = damage ?? MechDamage.Create(chassis);
         ApplyDamageEffects();
     }

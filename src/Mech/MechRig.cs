@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Weapons;
 
 namespace IronFeud.Mech;
 
@@ -270,22 +271,7 @@ public sealed class MechRig
             Box(arm.Shoulder, 0.75f, 1.9f, 0.8f, m.Frame, -side * 0.45f, -1.1f, 0);
             Cyl(arm.Elbow, 0.42f, 0.42f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
             Box(arm.Elbow, 1.0f, 1.0f, 2.4f, m.ArmorDark, 0, 0, -1.0f);
-            if (i == 1)
-            {
-                // Right arm: cannon.
-                Cyl(arm.Elbow, 0.36f, 0.36f, 0.7f, m.Armor, 0, 0.05f, -2.5f, -HalfPi);
-                Cyl(arm.Elbow, 0.26f, 0.26f, 3.2f, m.Frame, 0, 0.05f, -3.6f, -HalfPi);
-                Cyl(arm.Elbow, 0.34f, 0.3f, 0.45f, m.Frame, 0, 0.05f, -5.1f, -HalfPi);
-                Cyl(arm.Elbow, 0.15f, 0.15f, 0.05f, m.Hole, 0, 0.05f, -5.33f, -HalfPi);
-            }
-            else
-            {
-                // Left arm: beam emitter.
-                Box(arm.Elbow, 1.25f, 0.85f, 1.5f, m.Armor, 0, 0.1f, -2.6f);
-                Box(arm.Elbow, 1.3f, 0.12f, 1.1f, m.Accent, 0, 0.58f, -2.5f);
-                foreach (float lx in new[] { -0.38f, 0f, 0.38f })
-                    Cyl(arm.Elbow, 0.14f, 0.14f, 0.12f, m.Lens, lx, 0.1f, -3.38f, -HalfPi);
-            }
+            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
         }
     }
 
@@ -393,19 +379,55 @@ public sealed class MechRig
             {
                 Box(pod, 1.0f, 0.9f, 3.0f, m.Armor, 0, 0, -0.9f);
                 Box(pod, 1.05f, 0.15f, 2.4f, m.Accent, 0, 0.48f, -0.9f);
-                Cyl(pod, 0.2f, 0.2f, 2.2f, m.Frame, 0, 0, -3.0f, -HalfPi);
-                Cyl(pod, 0.27f, 0.23f, 0.35f, m.Frame, 0, 0, -3.75f, -HalfPi);
-                Cyl(pod, 0.12f, 0.12f, 0.05f, m.Hole, 0, 0, -3.93f, -HalfPi);
             }
             else
             {
                 Box(pod, 1.1f, 0.8f, 2.4f, m.ArmorDark, 0, 0, -0.7f);
-                Box(pod, 1.0f, 0.6f, 0.5f, m.Armor, 0, 0.05f, -2.3f);
                 Box(pod, 1.15f, 0.12f, 1.8f, m.Accent, 0, 0.45f, -0.8f);
-                foreach (float lx in new[] { -0.22f, 0.22f })
-                    Cyl(pod, 0.16f, 0.16f, 0.1f, m.Lens, lx, 0.05f, -2.6f, -HalfPi);
             }
+            BuildWeapon(pod, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
         }
+    }
+
+    // ---------- weapons ----------
+
+    /// <summary>
+    /// The business end of a weapon, from its spec, bolted on at <paramref name="mount"/> (elbow frame, model units)
+    /// and ending at the muzzle <see cref="WeaponSpec.Length"/> ahead. Guns: a breech housing, one or more barrels of
+    /// the spec's calibre, muzzle brakes (the siege cannon gets cooling rings). Beams: an emitter block sized by
+    /// calibre with a row of lenses, cooling fins on the big ones.
+    /// </summary>
+    private void BuildWeapon(Node3D parent, WeaponSpec spec, Vector3 mount)
+    {
+        var m = _m;
+        float len = spec.Length, c = spec.Caliber;
+        if (spec.Kind == WeaponKind.Projectile)
+        {
+            Cyl(parent, c * 1.5f, c * 1.5f, 0.7f, m.Armor, mount.X, mount.Y, mount.Z - 0.35f, -HalfPi);
+            for (int b = 0; b < spec.Barrels; b++)
+            {
+                float x = mount.X + (spec.Barrels == 1 ? 0f : (b - 0.5f) * c * 2.6f);
+                Cyl(parent, c, c, len - 0.5f, m.Frame, x, mount.Y, mount.Z - 0.7f - (len - 0.9f) / 2f, -HalfPi);
+                Cyl(parent, c * 1.3f, c * 1.15f, 0.45f, m.Frame, x, mount.Y, mount.Z - len + 0.25f, -HalfPi);
+                Cyl(parent, c * 0.6f, c * 0.6f, 0.05f, m.Hole, x, mount.Y, mount.Z - len + 0.01f, -HalfPi);
+            }
+            if (spec.Caliber >= 0.5f)
+                for (int r = 0; r < 4; r++)
+                    Cyl(parent, c * 1.25f, c * 1.25f, 0.18f, m.Accent, mount.X, mount.Y, mount.Z - 1.3f - r * 0.45f, -HalfPi);
+            return;
+        }
+
+        float w = 0.85f * c, h = 0.6f * c;
+        Box(parent, w, h, len, m.Armor, mount.X, mount.Y, mount.Z - len / 2f);
+        Box(parent, w * 1.05f, 0.1f, len * 0.75f, m.Accent, mount.X, mount.Y + h / 2f + 0.04f, mount.Z - len * 0.45f);
+        for (int b = 0; b < spec.Barrels; b++)
+        {
+            float x = mount.X + (spec.Barrels == 1 ? 0f : (b - (spec.Barrels - 1) / 2f) * w * 0.32f);
+            Cyl(parent, 0.11f * c, 0.11f * c, 0.12f, m.Lens, x, mount.Y, mount.Z - len - 0.02f, -HalfPi);
+        }
+        if (spec.Caliber >= 1.3f)
+            for (int f = 0; f < 4; f++)
+                Box(parent, w * 0.9f, 0.3f, 0.06f, m.Frame, mount.X, mount.Y + h / 2f + 0.15f, mount.Z - 0.3f - f * 0.35f);
     }
 
     // ---------- helpers ----------
