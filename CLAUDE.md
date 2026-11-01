@@ -69,11 +69,12 @@ src/
                     MechPoseSolver, MechLocomotion, MechSim (whole mech), AimSolver; Weapons/, Damage/
     Battle/         ArenaMap (blocks, cover, rays), BattleSim (headless battle: units, shots, damage, collision)
     AI/             AiPilot (the prototype's utility AI), Personality
+    Audio/          SynthKit (one-shot synthesis), ServoSynth (joint-speed motor whine); pure DSP, no Godot
     Campaign/       (later) the campaign sim
   Core/             Godot-side helpers: GodotConv (System.Numerics <-> Godot), ProceduralTextures
   Mech/             MechNode (view of a BattleUnit), MechRig (builds the node hierarchy), GaitDebugDraw
   AI/               AiDebugDraw (overlay), AiPanel (inspector)
-  Audio/            (later) SfxBank, ProceduralServo, WarningVoice
+  Audio/            AudioDirector (pooled 3D one-shots, sample sets in assets/audio/<set>/ override synthesis), ServoVoice
   Game/             Main (modes/sessions), Battlefield (steps + renders BattleSim), Arena (renders ArenaMap),
                     CameraRig (chase/cockpit/orbit/overview), PlayerMechController, Hud, Effects, GameInput
 scenes/             main.tscn (thin: just the Main script)

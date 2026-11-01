@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using IronFeud.Audio;
 using IronFeud.Core;
 using IronFeud.Logic.Battle;
 using IronFeud.Logic.Mech.Damage;
@@ -30,6 +31,7 @@ public partial class Battlefield : Node3D
 
     public BattleSim Battle { get; private set; } = null!;
     public Effects? Effects;
+    public AudioDirector? Audio;
 
     private readonly List<MechNode> _mechs = new();
     private readonly Dictionary<BattleUnit, MechNode> _nodes = new();
@@ -61,6 +63,7 @@ public partial class Battlefield : Node3D
             AddChild(node);
             _nodes[u] = node;
             _mechs.Add(node);
+            Audio?.Attach(node);
         }
     }
 
@@ -74,7 +77,11 @@ public partial class Battlefield : Node3D
         foreach (var m in _mechs)
         {
             m.SyncFromSimulation();
-            foreach (var f in m.Locomotion.Footfalls) Effects?.Footfall(f, m.Sim.Chassis.Scale);
+            foreach (var f in m.Locomotion.Footfalls)
+            {
+                Effects?.Footfall(f, m.Sim.Chassis.Scale);
+                Audio?.Footfall(m, f);
+            }
         }
 
         foreach (var e in Battle.Events)
@@ -84,13 +91,16 @@ public partial class Battlefield : Node3D
             {
                 case BattleEventKind.ShellFired:
                     Effects?.MuzzleBlast(from, e.Shot.Direction.ToGodot(), Weight(e.Shot.Spec));
+                    Audio?.Shot(e.Shot.Spec, from);
                     break;
                 case BattleEventKind.Beam:
                     Effects?.BeamShot(from, at, e.Shot.Spec.BeamVisualTime, NodeOf(e.Shooter)?.Accent, Weight(e.Shot.Spec));
+                    Audio?.Shot(e.Shot.Spec, from);
                     break;
                 case BattleEventKind.Impact:
                     // Size 1 = the cannon's shell; beams leave smaller scorches.
                     Effects?.Explosion(at, Weight(e.Shot.Spec) * (e.Shot.Spec.Kind == WeaponKind.Projectile ? 1f : 0.35f));
+                    Audio?.Impact(e.Shot.Spec, at, e.Target != null);
                     break;
             }
         }
@@ -103,6 +113,7 @@ public partial class Battlefield : Node3D
         if (node == null) return;
         node.OnDamaged(report);
         Effects?.OnDamaged(node, report, at.ToGodot());
+        Audio?.OnDamaged(node, report, at.ToGodot());
         Damaged?.Invoke(node, report, at.ToGodot(), NodeOf(attacker));
     }
 

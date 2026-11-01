@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using IronFeud.AI;
+using IronFeud.Audio;
 using IronFeud.Logic.AI;
 using IronFeud.Logic.Battle;
 using IronFeud.Logic.Mech;
@@ -152,9 +153,11 @@ public partial class Main : Node3D
         Arena.Build(_session, battle.Map, ArenaSeed);
 
         var effects = new Effects { Name = "Effects" };
-        _battlefield = new Battlefield { Name = "Battlefield", Effects = effects };
+        var audio = new AudioDirector { Name = "Audio" };
+        _battlefield = new Battlefield { Name = "Battlefield", Effects = effects, Audio = audio };
         effects.Battlefield = _battlefield;
         _session.AddChild(effects);
+        _session.AddChild(audio);
         _session.AddChild(_battlefield);
         _battlefield.Begin(battle, teamColors: mode != GameMode.Range);
         _player = mode is GameMode.Range or GameMode.Play1v1 or GameMode.Play2v2 ? _battlefield.Mechs[0] : null;
