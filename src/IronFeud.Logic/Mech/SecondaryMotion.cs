@@ -33,7 +33,9 @@ public sealed class SecondaryMotion
         float cs = MathF.Cos(MathUtil.Tau * (p - 0.31f));
         float spF = MathF.Abs(body.V) / t.VMax;
 
-        TorsoYaw.Step(0.13f * t.Sway * g * c0, h);
+        // The walking torso swings with the stride; the swing fades into the run like the hip sway, because at a
+        // running cadence (1.5-2 Hz) it drove this 1.4 Hz spring at resonance: ±7° of torso yaw on a running medium.
+        TorsoYaw.Step(0.13f * t.Sway * g * c0 * (1f - 0.75f * gait.Run), h);
         TorsoRoll.Step(-0.05f * t.Sway * g * cs + 0.18f * body.Omega * spF, h);
         // Lean against acceleration, capped: at genre speeds (10 m/s² braking) the prototype's 0.06·acc pitched the
         // torso by over 30° and the spring rocked it like a pendulum on every hill.

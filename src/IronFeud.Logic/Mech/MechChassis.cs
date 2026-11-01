@@ -123,6 +123,12 @@ public sealed class MechChassis
     public float LegsHp = 70f;
     public float CockpitHp = 5f;
 
+    /// <summary>
+    /// Gyro-stabilised weapon mounts: the share of the body's motion (gait sway, torso springs, footfall and recoil
+    /// kicks) the aim ray cancels. The torso still visibly moves; the guns stay on the pilot's line.
+    /// </summary>
+    public float AimStabilization = 0.85f;
+
     // Jump jets (JumpThrust 0 = none fitted)
     /// <summary>Upward acceleration while the jets burn, m/s²; must beat <see cref="MechLocomotion.Gravity"/>. 0 = no jets.</summary>
     public float JumpThrust;

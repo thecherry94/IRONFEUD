@@ -82,10 +82,12 @@ public static class MechPoseSolver
             pose.ElbowWorldRotations[i] = shoulderRot * pose.Elbows[i];
         }
 
-        // Aim ray: torso heading (twist + sway), pitch = aim minus a little of the torso's pitch wobble.
+        // Aim ray: the pilot's commanded line (legs + twist, aim pitch) plus what the stabilised weapon mounts don't
+        // cancel of the torso's actual motion (sway, springs, kicks). Weapons converge on it.
         Vector3 torsoFwd = Vector3.Transform(-Vector3.UnitZ, torsoRot);
-        float aimYaw = MathF.Atan2(-torsoFwd.X, -torsoFwd.Z);
-        float aimPitch = body.Aim - 0.25f * sec.TorsoPitch.X;
+        float residual = 1f - t.AimStabilization;
+        float aimYaw = body.Psi + body.Twist + residual * MathUtil.WrapAngle(MathF.Atan2(-torsoFwd.X, -torsoFwd.Z) - body.Psi - body.Twist);
+        float aimPitch = body.Aim - residual * 0.25f * sec.TorsoPitch.X;
         pose.AimOrigin = torsoPos + Vector3.Transform(new Vector3(0f, t.AimOriginY, 0f), torsoRot);
         pose.AimDirection = MathUtil.Forward(aimYaw) * MathF.Cos(aimPitch) + Vector3.UnitY * MathF.Sin(aimPitch);
 

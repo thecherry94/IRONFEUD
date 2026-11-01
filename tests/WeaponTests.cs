@@ -154,4 +154,37 @@ public class AimSolverTests
         float miss = Vector3.Distance(p.AimOrigin + p.AimDirection * along, target);
         Assert.True(miss < 0.1f, $"aim ray misses by {miss} m (err {err})");
     }
+
+    /// <summary>
+    /// Stabilised weapon mounts: walking or running, the aim ray stays within ~2 m of the pilot's line at 200 m (an
+    /// enemy torso is ~5 m across). Before (no stabilisation, torso swing resonating at a running cadence) a running
+    /// medium's aim swung 7.6° rms: 27 m at 200 m.
+    /// </summary>
+    [Theory]
+    [InlineData(ChassisClass.Light)]
+    [InlineData(ChassisClass.Medium)]
+    [InlineData(ChassisClass.Heavy)]
+    [InlineData(ChassisClass.Assault)]
+    public void AimStaysSteady_WhileWalkingAndRunning(ChassisClass cls)
+    {
+        foreach (float throttle in new[] { 0.4f, 1f })
+        {
+            var sim = new MechSim(MechChassis.Create(cls));
+            double sum = 0;
+            int n = 0;
+            for (int i = 0; i < 120 * 12; i++)
+            {
+                sim.Step(new MechInput { Throttle = throttle }, 1f / 120f);
+                if (i < 120 * 4) continue;
+                var b = sim.Locomotion.Body;
+                var d = sim.Pose.AimDirection;
+                float yaw = Logic.Core.MathUtil.WrapAngle(MathF.Atan2(-d.X, -d.Z) - (b.Psi + b.Twist));
+                float pitch = MathF.Asin(d.Y) - b.Aim;
+                sum += yaw * yaw + pitch * pitch;
+                n++;
+            }
+            float rms = (float)Math.Sqrt(sum / n);
+            Assert.True(rms * 200f < 2.5f, $"{cls} at throttle {throttle}: {rms * 200f:0.0} m rms at 200 m");
+        }
+    }
 }
