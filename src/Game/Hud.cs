@@ -19,6 +19,9 @@ public partial class Hud : CanvasLayer
 
     private Label _stat = null!, _target = null!, _feed = null!, _banner = null!, _bannerSub = null!;
     private ColorRect _heatBar = null!, _heatBack = null!;
+    private ColorRect _jetBack = null!, _jetBar = null!;
+    private static readonly Color JetColor = new("5ad8ff"), JetLowColor = new("2a6a80");
+    private const float JetBarWidth = 70f;
     private Reticle _reticle = null!;
     private double _uiTimer, _time;
     // A burning beam lands a sliver of damage every tick: those merge into one line (same attacker, target and
@@ -64,6 +67,11 @@ public partial class Hud : CanvasLayer
         AddChild(_heatBack);
         _heatBar = new ColorRect { Position = new Vector2(10, 8), Size = new Vector2(0, 5), Color = HeatColor };
         AddChild(_heatBar);
+        // Jump-jet charge, right of the heat bar (dim below the quarter needed to take off).
+        _jetBack = new ColorRect { Position = new Vector2(20 + HeatBarWidth, 8), Size = new Vector2(JetBarWidth, 5), Color = new Color(1, 1, 1, 0.1f), Visible = false };
+        AddChild(_jetBack);
+        _jetBar = new ColorRect { Position = new Vector2(20 + HeatBarWidth, 8), Size = new Vector2(0, 5), Color = JetColor, Visible = false };
+        AddChild(_jetBar);
 
         _stat = NewLabel(new Vector2(10, 16));
         _feed = NewLabel(new Vector2(10, 150));
@@ -164,7 +172,9 @@ public partial class Hud : CanvasLayer
         var dmg = sim.Damage;
         string heat = weapons.HeatLocked ? "LOCKED" : $"{Mathf.RoundToInt(Mathf.Min(1f, weapons.Heat) * 100)}%";
         var sb = new StringBuilder();
-        sb.Append($"HEAT {heat} · THR {Mathf.RoundToInt(Pilot.Throttle * 100)}% · {body.V * 3.6f:0.0} km/h · TWIST {Mathf.RoundToInt(Mathf.RadToDeg(-body.Twist))}°\n");
+        sb.Append($"HEAT {heat} · THR {Mathf.RoundToInt(Pilot.Throttle * 100)}% · {body.V * 3.6f:0.0} km/h · TWIST {Mathf.RoundToInt(Mathf.RadToDeg(-body.Twist))}°");
+        if (sim.Chassis.HasJumpJets) sb.Append($" · JETS {Mathf.RoundToInt(sim.Locomotion.JumpCharge * 100)}%{(sim.Locomotion.JetsBurning ? " ▲" : "")}");
+        sb.Append('\n');
         for (int i = 0; i < weapons.Mounts.Count; i++)
         {
             var m = weapons.Mounts[i];
@@ -179,6 +189,14 @@ public partial class Hud : CanvasLayer
 
         _heatBar.Size = new Vector2(HeatBarWidth * Mathf.Clamp(weapons.Heat, 0f, 1f), 5);
         _heatBar.Color = weapons.HeatLocked ? HeatLockedColor : HeatColor;
+        bool jets = sim.Chassis.HasJumpJets;
+        _jetBack.Visible = _jetBar.Visible = jets;
+        if (jets)
+        {
+            float charge = sim.Locomotion.JumpCharge;
+            _jetBar.Size = new Vector2(JetBarWidth * charge, 5);
+            _jetBar.Color = charge >= Logic.Mech.MechLocomotion.JumpMinCharge || sim.Locomotion.Body.Airborne ? JetColor : JetLowColor;
+        }
 
         var hit = Pilot.AimHit;
         if (hit.Mech != null && IsInstanceValid(hit.Mech))

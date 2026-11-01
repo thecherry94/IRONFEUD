@@ -11,7 +11,7 @@ public static class GameInput
         ("throttle_up", Key.W), ("throttle_down", Key.S), ("full_stop", Key.X),
         ("turn_left", Key.A), ("turn_right", Key.D), ("center_torso", Key.C),
         ("twist_left", Key.Left), ("twist_right", Key.Right), ("aim_up", Key.Up), ("aim_down", Key.Down),
-        ("fire_cannon", Key.Space), ("fire_laser", Key.F), ("release_mouse", Key.Escape),
+        ("fire_cannon", Key.G), ("fire_laser", Key.F), ("jump", Key.Space), ("release_mouse", Key.Escape),
         // Cameras and inspection
         ("cam_chase", Key.Key1), ("cam_cockpit", Key.Key2), ("cam_orbit", Key.Key3), ("cam_overview", Key.Key4),
         ("select_next", Key.Tab), ("cycle_personality", Key.K),

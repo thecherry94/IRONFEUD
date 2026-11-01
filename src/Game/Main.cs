@@ -36,7 +36,7 @@ public partial class Main : Node3D
 
     private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lance 4v4 · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
     private const string PlayHelp =
-        "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · LMB/Space cannon · RMB/F laser\n" +
+        "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · Space jump jets · LMB/G cannon · RMB/F laser\n" +
         "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · T next map (no man's land / hills / flat) · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
     private const string WatchHelp =
         "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · T next map (no man's land / hills / flat) · P pause · O slow-mo\n" + ModeKeys;

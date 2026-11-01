@@ -57,7 +57,7 @@ godot --path . --headless --quit   # import/validate project in CI or before com
 dotnet test tests/                 # pure-logic unit tests (xUnit)
 # Modes: --watch=lance|1v1|2v2 (AI vs AI, default lance: one of each class per side), --play=1v1|2v2, --range (firing range),
 # --parade (all chassis classes running laps, for gait work); in game F5-F11.
-# Captures: --autopilot (range, scripted walk, fires 3-9 s), --range-demo (range, scripted shooting);
+# Captures: --autopilot (range, scripted walk, fires 3-9 s, jumps at 2 / 7 / 12 s if the chassis has jets), --range-demo (range, scripted shooting);
 # --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light|--heavy|--assault and --sicklefoot pick the player's class and model (L / M cycle in game);
 # --select=N starts on mech N (Tab order); --map=nml|hills|flat picks the battle map (T cycles; No Man's Land is the default); --seed=N varies it:
 godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --watch=2v2

@@ -72,6 +72,7 @@ public partial class PlayerMechController : Node
         _aimTarget = Mathf.Clamp(_aimTarget + Input.GetAxis("aim_down", "aim_up") * 0.5f * h, t.AimMin, t.AimMax);
 
         bool triggersLive = FlyingView && Input.MouseMode == Input.MouseModeEnum.Confined;
+        bool jump = Input.IsActionPressed("jump");
         uint fire = 0;
         if (triggersLive && Input.IsActionPressed("fire_cannon")) fire |= 1u << 0;
         if (triggersLive && Input.IsActionPressed("fire_laser")) fire |= 1u << 1;
@@ -84,6 +85,8 @@ public partial class PlayerMechController : Node
             turn = _autopilotTime is > 6f and < 11f ? Mathf.Sin((_autopilotTime - 6f) * 1.2f) : 0f;
             _twistTarget = 0.5f * Mathf.Sin(_autopilotTime * 0.4f);
             fire = _autopilotTime is > 3f and < 9f ? 0b11u : 0u;
+            // A standing hop at 2 s, a running jump at 7 s and a long burn at 12 s (if the chassis has jets).
+            jump = _autopilotTime is > 2f and < 2.4f or > 7f and < 7.7f or > 12f and < 13.2f;
         }
 
         // Converge on whatever the torso aim ray hits, mechs included (last tick's pose; one tick of lag is invisible).
@@ -103,6 +106,7 @@ public partial class PlayerMechController : Node
             AimTarget = _aimTarget,
             FireMask = fire,
             Convergence = convergence,
+            Jump = jump,
         };
     }
 

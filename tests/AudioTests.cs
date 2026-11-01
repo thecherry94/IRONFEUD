@@ -81,6 +81,21 @@ public class AudioTests
     }
 
     [Fact]
+    public void Jets_RoarOnlyWhileBurning()
+    {
+        var jet = new JetSynth(1f);
+        var buf = new float[jet.Rate / 2];
+        jet.Render(buf, false);
+        Assert.Equal(0f, Peak(buf));
+        jet.Render(buf, true);
+        Assert.True(Rms(buf.AsSpan(buf.Length / 2)) > 0.03f);
+        Assert.True(Peak(buf) < 1f);
+        jet.Render(buf, false); // 150 ms release: still audible a quarter second after the cut
+        jet.Render(buf, false);
+        Assert.True(Peak(buf.AsSpan(buf.Length / 2)) < 1e-2f, "silent a second after the burn stops");
+    }
+
+    [Fact]
     public void LighterMechs_WhineHigher()
     {
         Assert.True(new ServoSynth(0.72f).BaseHz > new ServoSynth(1.3f).BaseHz * 1.8f);

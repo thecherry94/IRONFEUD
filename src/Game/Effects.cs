@@ -116,7 +116,7 @@ public partial class Effects : Node3D
             Offsets = new[] { 0f, 0.35f, 1f },
             Colors = new[] { Color.Color8(255, 240, 200), Color.Color8(255, 150, 40, 217), Color.Color8(255, 60, 0, 0) },
         };
-        _fire = new PuffPool(this, 60, Billboard(new GradientTexture2D
+        _fire = new PuffPool(this, 160, Billboard(new GradientTexture2D
         {
             Gradient = fireGradient,
             Fill = GradientTexture2D.FillEnum.Radial,
@@ -197,6 +197,39 @@ public partial class Effects : Node3D
         var print = _prints[_nextPrint++ % _prints.Length];
         print.Transform = new Transform3D(new Basis(Vector3.Up, f.Yaw).Scaled(new Vector3(scale, 1f, scale)), pos + new Vector3(0, 0.05f, 0));
         print.Visible = true;
+    }
+
+    /// <summary>
+    /// One tick of a jump-jet burn: flame tongues from two nozzles low on the back of the pelvis, blasting down, and
+    /// dust kicked off the ground below while it is close.
+    /// </summary>
+    public void JetFlame(MechNode m)
+    {
+        var sim = m.Sim;
+        var c = sim.Chassis;
+        var pose = sim.Pose;
+        Vector3 pelvis = pose.PelvisPosition.ToGodot();
+        var rot = new Basis(pose.PelvisRotation.ToGodot());
+        float s = c.Scale;
+        // Flames leave the nozzle with the mech's own velocity, or a fast mech trails them like streamers.
+        var body = sim.Locomotion.Body;
+        Vector3 carried = Logic.Core.MathUtil.Forward(body.Psi).ToGodot() * body.V + new Vector3(0f, body.Vy, 0f);
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Vector3 nozzle = pelvis + rot * new Vector3(side * 0.7f * c.HipWidth, -0.3f * s, 0.9f * s);
+            var jitter = new Vector3(_rng.NextFloat() - 0.5f, 0f, _rng.NextFloat() - 0.5f) * 2f;
+            _fire.Emit(nozzle, carried + new Vector3(0f, -14f, 0f) + rot * new Vector3(0f, 0f, 4f) + jitter,
+                max: 0.12f + _rng.NextFloat() * 0.06f, size0: 0.8f * s, grow: 1.4f, opacity: 0.95f, drag: 1.5f);
+        }
+        float rate = Engine.PhysicsTicksPerSecond;
+        float groundY = sim.Locomotion.Ground?.Height(sim.Locomotion.Body.Position.X, sim.Locomotion.Body.Position.Z) ?? 0f;
+        float above = pelvis.Y - groundY;
+        if (above < 14f * s && _rng.NextFloat() < 30f / rate)
+        {
+            float a = _rng.NextFloat() * Mathf.Tau, sp = 4f + 4f * _rng.NextFloat();
+            _dust.Emit(new Vector3(pelvis.X, groundY + 0.4f, pelvis.Z), new Vector3(Mathf.Cos(a) * sp, 0.6f, Mathf.Sin(a) * sp),
+                max: 1.4f, size0: 1.4f * s, grow: 3f, opacity: 0.45f * (1f - above / (14f * s)), drag: 2f);
+        }
     }
 
     /// <summary>Cannon muzzle blast: fire puffs along the barrel, a dust puff and a flash.</summary>

@@ -77,6 +77,7 @@ public partial class Battlefield : Node3D
         foreach (var m in _mechs)
         {
             m.SyncFromSimulation();
+            if (m.Locomotion.JetsBurning) Effects?.JetFlame(m);
             foreach (var f in m.Locomotion.Footfalls)
             {
                 Effects?.Footfall(f, m.Sim.Chassis.Scale);

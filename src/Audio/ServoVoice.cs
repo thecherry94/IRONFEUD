@@ -6,8 +6,9 @@ using IronFeud.Mech;
 namespace IronFeud.Audio;
 
 /// <summary>
-/// A mech's joint motors: measures how fast its leg joints and torso twist turn each tick and streams a
-/// <see cref="ServoSynth"/> into a 3D audio generator at hip height. Wrecks fall silent.
+/// A mech's own machinery, streamed into one 3D audio generator at hip height: its joint motors (a
+/// <see cref="ServoSynth"/> fed with how fast its leg joints and torso twist turn each tick) and, while they burn, its
+/// jump jets (<see cref="JetSynth"/>). Wrecks fall silent.
 /// </summary>
 public partial class ServoVoice : AudioStreamPlayer3D
 {
@@ -15,6 +16,9 @@ public partial class ServoVoice : AudioStreamPlayer3D
     public MechNode Mech = null!;
 
     private ServoSynth _synth = null!;
+    private JetSynth _jets = null!;
+    private float[] _jetBuf = Array.Empty<float>();
+    private bool _burning;
     private AudioStreamGeneratorPlayback? _playback;
     private float[] _mono = Array.Empty<float>();
     private Vector2[] _frames = Array.Empty<Vector2>();
@@ -26,6 +30,7 @@ public partial class ServoVoice : AudioStreamPlayer3D
     {
         var c = Mech.Sim.Chassis;
         _synth = new ServoSynth(c.Scale, 22050, (uint)Mech.Unit.Id + 7u);
+        _jets = new JetSynth(c.Scale, 22050, (uint)Mech.Unit.Id + 11u);
         Stream = new AudioStreamGenerator { MixRate = _synth.Rate, BufferLength = 0.12f };
         Position = new Vector3(0f, c.HipHeight, 0f);
         UnitSize = 10f * c.Scale;
@@ -50,6 +55,7 @@ public partial class ServoVoice : AudioStreamPlayer3D
         now.CopyTo(_last);
         _primed = true;
         _speed = Mech.Sim.IsOut ? 0f : sum / (float)delta;
+        _burning = Mech.Locomotion.JetsBurning;
     }
 
     public override void _Process(double delta)
@@ -60,10 +66,17 @@ public partial class ServoVoice : AudioStreamPlayer3D
         if (_mono.Length < n)
         {
             _mono = new float[n];
+            _jetBuf = new float[n];
             _frames = new Vector2[n];
         }
         _synth.Render(_mono.AsSpan(0, n), _speed);
-        for (int i = 0; i < n; i++) _frames[i] = new Vector2(_mono[i], _mono[i]);
+        _jets.Render(_jetBuf.AsSpan(0, n), _burning);
+        // The generator plays 10 dB down (servos are a background layer); jets get that back and more.
+        for (int i = 0; i < n; i++)
+        {
+            float v = _mono[i] + 4f * _jetBuf[i];
+            _frames[i] = new Vector2(v, v);
+        }
         _playback.PushBuffer(n == _frames.Length ? _frames : _frames[..n]);
     }
 }
