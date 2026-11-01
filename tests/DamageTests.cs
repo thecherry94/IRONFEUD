@@ -151,6 +151,38 @@ public class DamageTests
     }
 
     [Fact]
+    public void TorsoHitsFromBehind_TakeTheRearMultiplier()
+    {
+        // The mech faces -Z: a shot travelling -Z came from behind, +Z from the front, ±X from a side.
+        float Taken(Vector3 travel, MechSection s = MechSection.Torso)
+        {
+            var sim = NewSim();
+            var r = sim.ApplyHit(s, 10f, travel);
+            return r.Amount;
+        }
+        float rear = new MechChassis().RearDamageMultiplier;
+        Assert.Equal(10f * rear, Taken(-Vector3.UnitZ), 3);
+        Assert.Equal(10f, Taken(Vector3.UnitZ), 3);
+        Assert.Equal(10f, Taken(Vector3.UnitX), 3);
+        Assert.InRange(Taken(Vector3.Normalize(new Vector3(1f, 0f, -1f))), 10f * 1.3f, 10f * rear); // 45° off astern
+        Assert.Equal(10f, Taken(-Vector3.UnitZ, MechSection.ArmLeft), 3);                        // arms have no rear plate
+        Assert.Equal(10f, NewSim().ApplyHit(MechSection.Torso, 10f).Amount, 3);                   // direction unknown
+    }
+
+    [Fact]
+    public void Facing_FollowsTheTorsoTwist()
+    {
+        var sim = NewSim();
+        float twist = sim.Chassis.TwistMax;
+        Run(sim, new MechInput { TwistTarget = twist }, 3f);
+        // Twisted left by TwistMax: a shot from straight behind the legs now arrives off the torso's side.
+        float fromBehindTheLegs = sim.ApplyHit(MechSection.Torso, 10f, -Vector3.UnitZ).Amount;
+        Assert.True(fromBehindTheLegs < 10f * sim.Chassis.RearDamageMultiplier - 1f,
+            $"twist {twist:F2} rad, took {fromBehindTheLegs:F1}");
+        Assert.Equal(Facing.Rear, sim.ApplyHit(MechSection.ArmLeft, 1f, sim.TorsoFacing).Facing);
+    }
+
+    [Fact]
     public void Hits_ShakeTheTorso()
     {
         var sim = NewSim();

@@ -123,6 +123,12 @@ public sealed class MechChassis
     public float LegsHp = 70f;
     public float CockpitHp = 5f;
 
+    /// <summary>
+    /// Torso hits from behind do this much more damage (thin rear armour; see <see cref="Damage.HitFacing"/>).
+    /// What makes a light that gets behind a slow-twisting assault dangerous rather than a nuisance.
+    /// </summary>
+    public float RearDamageMultiplier = 1.75f;
+
     // Damage effects
     public float CrippledSpeedFactor = 0.45f;
     public float CollapseDrop = 2.5f;
@@ -183,7 +189,9 @@ public sealed class MechChassis
                 c.L3 *= 1.1f;
                 c.FMin = 0.6f;
                 c.SetSpeed(36f, rev: 8f, accel: 10f, decel: 16f, omega: 1.8f, omegaAccel: 5f, twistRate: 3f, aimRate: 1.6f);
-                c.TurnSpeedPenalty = 0.55f;
+                // Agile at speed (1.26 rad/s flat out, a 29 m circle): enough to out-turn a heavy's or an assault's
+                // legs up close and get at their rear armour.
+                c.TurnSpeedPenalty = 0.3f;
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
                 c.SetWeapons(WeaponSpec.Autocannon, WeaponSpec.PulseLaser);

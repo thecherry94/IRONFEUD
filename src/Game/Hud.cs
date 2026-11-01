@@ -120,6 +120,7 @@ public partial class Hud : CanvasLayer
         var sb = new StringBuilder();
         sb.Append(IsInstanceValid(attacker) ? attacker!.Name : "?").Append(" → ").Append(mech.Name).Append(": ");
         sb.Append(SectionNames[r.Struck]);
+        if (r.Facing == Facing.Rear) sb.Append(" (rear)");
         if (r.Applied != r.Struck) sb.Append(" (→ ").Append(SectionNames[r.Applied]).Append(')');
         string key = sb.ToString();
         int merge = _feedLines.FindLastIndex(l => l.Key == key && _time - l.Time < 0.25);

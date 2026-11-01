@@ -14,6 +14,9 @@ public struct UnitStats
 {
     public int Shots, Hits;
     public float DamageDealt;
+
+    /// <summary>Part of <see cref="DamageDealt"/> that struck a target from behind.</summary>
+    public float RearDamage;
 }
 
 /// <summary>A mech in a battle: its simulation, its side and whoever is flying it (an AI, or the player via <see cref="Input"/>).</summary>
@@ -172,18 +175,20 @@ public sealed class BattleSim
         return found;
     }
 
+    /// <param name="travel">The shot's direction of travel: hits from behind do more damage to the torso.</param>
     /// <param name="countHit">False for the later ticks of a burn that already scored: a burn is one hit.</param>
     public DamageReport ApplyHit(BattleUnit target, MechSection section, float amount, Vector3 point, BattleUnit? attacker,
-        bool countHit = true)
+        Vector3? travel = null, bool countHit = true)
     {
-        var report = target.Sim.ApplyHit(section, amount);
+        var report = target.Sim.ApplyHit(section, amount, travel);
         if (report.Ignored) return report;
         if (attacker != null)
         {
             if (countHit) attacker.Stats.Hits++;
-            attacker.Stats.DamageDealt += amount;
+            attacker.Stats.DamageDealt += report.Amount;
+            if (report.Facing == Facing.Rear) attacker.Stats.RearDamage += report.Amount;
         }
-        target.Ai?.NotifyHit(attacker, amount);
+        target.Ai?.NotifyHit(attacker, report.Amount);
         Damaged?.Invoke(target, report, point, attacker);
         return report;
     }
@@ -232,7 +237,7 @@ public sealed class BattleSim
     private void Impact(BattleUnit shooter, in ShotFired shot, in BattleRayHit hit, float damage)
     {
         var e = new BattleEvent { Kind = BattleEventKind.Impact, Shooter = shooter, Shot = shot, From = shot.Origin, Point = hit.Point, Target = hit.Unit };
-        if (hit.Unit != null) e.Report = ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter);
+        if (hit.Unit != null) e.Report = ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction);
         Events.Add(e);
     }
 
@@ -242,7 +247,7 @@ public sealed class BattleSim
         int key = shooter.Id * 8 + shot.Weapon;
         if (shot.Phase == ShotPhase.Start) _burnScored.Remove(key);
         if (hit.Unit == null) return;
-        ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, countHit: _burnScored.Add(key));
+        ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction, countHit: _burnScored.Add(key));
     }
 
     /// <summary>Mechs push each other apart (wrecks don't move) and are pushed out of blocks.</summary>

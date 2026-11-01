@@ -99,6 +99,18 @@ with the damage up front. Beam lasers (on while the trigger is held) fit the sam
 Lance report after the change (20 games): light 129 dealt / 88 taken / 0.90 kills, medium 139 / 151 / 0.55,
 heavy 149 / 188 / 0.53, assault 201 / 191 / 1.00: roles unchanged within noise.
 
+**Facing armour.** Torso hits from behind take `RearDamageMultiplier` (1.75), blending from x1 at ~80° off dead
+astern to full inside ~50° (`HitFacing`). Facing is the torso's aim direction, so twisting toward a threat protects
+the back. Lights are the flankers: a skirmisher heads the short way round toward its target's rear (`Contact.Facing`,
+which a pilot can see), on a spiral rather than a radial charge, with side hysteresis when dead ahead (the short way
+flips sides there). While the target faces it, it closes to its tightest flat-out circle (1.25x its turning radius)
+if that out-turns the target's legs by 30 %; lights got more agile at speed for this (turn penalty 0.55 -> 0.3,
+1.26 rad/s flat out). That works against assaults (0.6 rad/s legs) but not heavies or mediums, which it waits on at
+range. Circling skirmishers don't arrival-brake and weave less when close. Mediums' flank moves prefer the side
+nearer the target's rear. Measured: lights alone vs an assault 6 % of damage from behind, with a medium alongside
+30 % (was ~0 %); lance games: lights 181 dealt/game (was 125), heavies take 24 % of their damage from behind.
+Known gap: a retreating light parks in cover for ~20 s instead of staying mobile.
+
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
 them at each model's arm mount point and flashes, beams, shells and impacts scale with damage.

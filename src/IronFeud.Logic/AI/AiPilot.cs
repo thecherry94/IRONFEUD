@@ -34,6 +34,12 @@ public sealed class Contact
 
     /// <summary>Torso size as last observed (radius of its hit sphere): how big the target looks.</summary>
     public float Radius = 2.4f;
+
+    /// <summary>Heading its torso faced when last seen: its thin rear armour is on the opposite side.</summary>
+    public float Facing;
+
+    /// <summary>Bearing (heading from the contact) of its rear, the way a flanker wants to get round to.</summary>
+    public float RearBearing => Facing + MathF.PI;
 }
 
 /// <summary>
@@ -319,6 +325,7 @@ public sealed class AiPilot
         k.AimHeight = e.Volume(MechSection.Torso).Center.Y - ground;
         k.EyeHeight = e.Volume(MechSection.Cockpit).Center.Y - ground;
         k.Radius = e.Volume(MechSection.Torso).Radius;
+        k.Facing = MathUtil.Heading(e.Sim.TorsoFacing);
     }
 
     private void SelectTarget(BattleSim b, BattleUnit me)
@@ -345,11 +352,20 @@ public sealed class AiPilot
         float range = Personality.Range;
         switch (Action)
         {
-            case AiAction.Engage when k != null && Role == AiRole.Skirmisher:
+            case AiAction.Engage or AiAction.Flank when k != null && Role == AiRole.Skirmisher:
             {
-                // Never park: run for a point 0.9 rad further round the target at 0.9x range, re-picked every think.
-                float a = MathUtil.Heading(me.Position - k.Position) + _orbit * 0.9f;
-                return map.ClampDestination(k.Position + MathUtil.Forward(a) * (range * 0.9f));
+                // Never park, and work round to the target's back (thin rear armour): head up to 0.9 rad further round
+                // the short way toward its rear, re-picked every think. Once behind it, keep circling. Close in on a
+                // spiral (15 m per pick, mostly sideways) rather than charging through its front arc: a radial run
+                // is the one thing a slow heavy gun can hit.
+                float here = MathUtil.Heading(me.Position - k.Position);
+                float toRear = MathUtil.WrapAngle(k.RearBearing - here);
+                // Nearly dead ahead of it the short way flips sides with every wobble: keep the current circle then.
+                if (MathF.Abs(toRear) > 2.4f) toRear = _orbit * MathF.Abs(toRear);
+                else if (MathF.Abs(toRear) > 0.5f) _orbit = MathF.Sign(toRear) > 0 ? 1 : -1;
+                float step = MathF.Abs(toRear) > 0.5f ? MathUtil.Clamp(toRear, -0.9f, 0.9f) : _orbit * 0.6f;
+                float r = FlankRadius(me, toRear, range * 0.9f), d = MathUtil.PlanarDistance(me.Position, k.Position);
+                return map.ClampDestination(k.Position + MathUtil.Forward(here + step) * MathF.Max(r, d - 15f));
             }
             case AiAction.Engage when k != null:
             {
@@ -378,7 +394,9 @@ public sealed class AiPilot
                 {
                     Vector3 pt = map.ClampDestination(k.Position + MathUtil.Forward(baseAngle + side * 1.4f) * (range * 0.85f));
                     bool clear = map.LineClear(pt + Vector3.UnitY * eyeHeight, k.Position + Vector3.UnitY * k.AimHeight);
-                    float s = (clear ? 1f : 0f) - MathUtil.PlanarDistance(me.Position, pt) / 240f + (side == _orbit ? 0.1f : 0f);
+                    // Prefer the side that gets nearer the target's back.
+                    float rear = MathF.Cos(MathUtil.WrapAngle(baseAngle + side * 1.4f - k.RearBearing));
+                    float s = (clear ? 1f : 0f) - MathUtil.PlanarDistance(me.Position, pt) / 240f + (side == _orbit ? 0.1f : 0f) + 0.3f * rear;
                     if (s > bestScore) { bestScore = s; best = pt; }
                 }
                 return best;
@@ -397,6 +415,21 @@ public sealed class AiPilot
                 return roam;
             }
         }
+    }
+
+    /// <summary>
+    /// How far out a skirmisher circles. At its preferred range a target that faces it just turns with it (a light at
+    /// 36 m/s sweeps 0.2 rad/s round an assault at 180 m; the assault's legs turn 0.6 rad/s). So while the target
+    /// faces it, a skirmisher closes to the tightest circle it can hold flat out (1.25x its own turning radius) if
+    /// that out-turns the target's legs by 30 % (the pilot knows the model's turn rate). Against nimbler mechs it
+    /// stays at range and waits for them to look away.
+    /// </summary>
+    private float FlankRadius(BattleUnit me, float toRear, float preferred)
+    {
+        if (Target == null || MathF.Abs(toRear) < 1.6f) return preferred;       // already on its flank or behind it
+        var c = me.Chassis;
+        float tight = 1.25f * c.VMax / (c.OmegaMax * (1f - c.TurnSpeedPenalty));
+        return c.VMax / tight >= 1.3f * Target.Chassis.OmegaMax ? MathF.Min(preferred, tight) : preferred;
     }
 
     /// <summary>Firing-position rings as fractions of preferred range; fine enough to find the band just behind a crest.</summary>
@@ -532,9 +565,11 @@ public sealed class AiPilot
         // Legs: follow the planned heading; back up when the goal is behind during a fight (skirmishers wheel round
         // at speed instead: their circle reverses every few seconds).
         float dist = MathUtil.PlanarDistance(me.Position, Destination);
-        // Skirmishers weave ±0.35 rad around their course while fighting.
-        float jink = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null
-            ? 0.35f * MathF.Sin(MathUtil.Tau * _now / _jinkPeriod) : 0f;
+        bool circling = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null;
+        // Skirmishers weave around their course while fighting, less while hugging a target (the weave costs the
+        // angular rate they need to stay ahead of its turn).
+        float hug = Target != null ? MathUtil.Smoothstep(40f, 120f, MathUtil.PlanarDistance(me.Position, Target.Position)) : 1f;
+        float jink = circling ? 0.35f * hug * MathF.Sin(MathUtil.Tau * _now / _jinkPeriod) : 0f;
         float err = MathUtil.WrapAngle(DesiredHeading + jink - body.Psi);
         Contact? k = Target != null && Contacts.TryGetValue(Target, out var kk) ? kk : null;
         if (dist < 5f) { }
@@ -547,7 +582,8 @@ public sealed class AiPilot
         {
             // Arrive without overshooting: no faster than the chassis can brake to a stop over the remaining
             // distance (prototype: dist / 20 m, fine at 4 m/s). Never slower than ~1.3 m/s.
-            float brake = MathF.Sqrt(2f * c.Decel * MathF.Max(0f, dist - 4f)) / c.VMax;
+            // A circling skirmisher's waypoint moves with it and is never reached: no arrival braking.
+            float brake = circling ? 1f : MathF.Sqrt(2f * c.Decel * MathF.Max(0f, dist - 4f)) / c.VMax;
             input.Turn = MathUtil.Clamp(err * 2.2f, -1f, 1f);
             // Skirmishers carve their turns at speed; everyone else slows to turn.
             float turnThrottle = Role == AiRole.Skirmisher ? MathF.Max(0.5f, MathF.Cos(err)) : MathF.Max(0.1f, MathF.Cos(err));

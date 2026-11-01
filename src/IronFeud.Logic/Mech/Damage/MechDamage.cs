@@ -15,6 +15,9 @@ public struct DamageReport
     /// <summary>Section that actually took the damage (destroyed sections pass it to the torso).</summary>
     public MechSection Applied;
     public float Amount;
+
+    /// <summary>Which side the hit came from (front when unknown). Rear torso hits already include the rear multiplier.</summary>
+    public Facing Facing;
     public float HpAfter;
     public bool SectionDestroyed;
     public MechStatus StatusAfter;

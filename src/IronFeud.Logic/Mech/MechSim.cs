@@ -44,9 +44,29 @@ public sealed class MechSim
     public bool Raycast(Vector3 origin, Vector3 dir, float maxDistance, out RayHit hit) =>
         HitTest.Raycast(Pose.HitVolumes, origin, dir, maxDistance, out hit);
 
-    public DamageReport ApplyHit(MechSection struck, float amount)
+    /// <summary>Torso forward on the ground plane: the way its front armour faces (follows the torso twist).</summary>
+    public Vector3 TorsoFacing
     {
+        get
+        {
+            var d = Pose.AimDirection;
+            d.Y = 0f;
+            return d.LengthSquared() > 1e-8f ? Vector3.Normalize(d) : -Vector3.UnitZ;
+        }
+    }
+
+    /// <param name="travel">Direction the shot was travelling, if known: torso hits from behind take the rear multiplier.</param>
+    public DamageReport ApplyHit(MechSection struck, float amount, Vector3? travel = null)
+    {
+        var facing = Facing.Front;
+        if (travel is { } dir)
+        {
+            facing = HitFacing.Classify(TorsoFacing, dir);
+            if (struck == MechSection.Torso)
+                amount *= 1f + (Chassis.RearDamageMultiplier - 1f) * HitFacing.RearWeight(TorsoFacing, dir);
+        }
         var report = Damage.Apply(struck, amount);
+        report.Facing = facing;
         if (report.Ignored) return report;
         Locomotion.Secondary.ApplyHit(amount);
         if (report.SectionDestroyed) ApplyDamageEffects();

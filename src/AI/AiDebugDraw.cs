@@ -9,8 +9,9 @@ namespace IronFeud.AI;
 
 /// <summary>
 /// Draws what the selected mech's AI is thinking, like the prototype's overlay: destination (gold line + ring),
-/// line of sight to its target (green visible / red remembered), lead point (cyan), steering heading (yellow) and
-/// every cover point (grey; green = hidden from the target; gold = chosen). The selection ring is always drawn.
+/// line of sight to its target (green visible / red remembered), lead point (cyan), the target's rear arc as this
+/// pilot last saw it (magenta wedge: where its thin rear armour is), steering heading (yellow) and every cover point
+/// (grey; green = hidden from the target; gold = chosen). The selection ring is always drawn.
 /// </summary>
 public partial class AiDebugDraw : MeshInstance3D
 {
@@ -33,6 +34,7 @@ public partial class AiDebugDraw : MeshInstance3D
     private static readonly Color Lead = new("40e0ff");
     private static readonly Color Steer = new(1f, 1f, 0.4f, 0.8f);
     private static readonly Color CoverIdle = new(0.4f, 0.42f, 0.45f);
+    private static readonly Color RearArc = new(1f, 0.35f, 0.9f, 0.85f);
 
     public override void _Ready()
     {
@@ -75,6 +77,7 @@ public partial class AiDebugDraw : MeshInstance3D
                 Vector3 eye = unit.Volume(MechSection.Cockpit).Center.ToGodot();
                 Line(eye, (k.Position + System.Numerics.Vector3.UnitY * k.AimHeight).ToGodot(), k.Visible ? Seen : Remembered);
                 Cross(ai.AimPoint.ToGodot(), 0.8f, Lead);
+                Wedge(k.Position.ToGodot() + Vector3.Up * 0.3f, k.RearBearing, 0.87f, 40f, RearArc); // ±50°: full rear hits
             }
             DrawCover(ai, unit, k, delta);
         }
@@ -105,6 +108,16 @@ public partial class AiDebugDraw : MeshInstance3D
             float a0 = Mathf.Tau * i / n, a1 = Mathf.Tau * (i + 1) / n;
             Line(c + new Vector3(Mathf.Cos(a0) * r, 0, Mathf.Sin(a0) * r), c + new Vector3(Mathf.Cos(a1) * r, 0, Mathf.Sin(a1) * r), col);
         }
+    }
+
+    /// <summary>A ground wedge of half-angle <paramref name="half"/> around <paramref name="heading"/>.</summary>
+    private void Wedge(Vector3 c, float heading, float half, float r, Color col, int n = 10)
+    {
+        Vector3 At(float h) => c + MathUtil.Forward(h).ToGodot() * r;
+        Line(c, At(heading - half), col);
+        Line(c, At(heading + half), col);
+        for (int i = 0; i < n; i++)
+            Line(At(heading - half + 2f * half * i / n), At(heading - half + 2f * half * (i + 1) / n), col);
     }
 
     private void Line(Vector3 a, Vector3 b, Color c)

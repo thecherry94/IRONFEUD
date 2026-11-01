@@ -135,6 +135,39 @@ public class BattleTests
         Assert.Equal(target.Chassis.TorsoHp - WeaponSpec.PulseLaser.Damage, target.Sim.Damage[MechSection.Torso], 2);
     }
 
+    /// <summary>
+    /// Lights are flankers: against an assault they work round to its thin rear armour. Pins the facing-armour
+    /// behaviour (before it, lights dealt ~5 % of their damage from behind in lance games; with it ~27 %).
+    /// </summary>
+    /// <summary>
+    /// Lights are flankers: they work round to an assault's thin rear armour, mostly while it is busy with someone
+    /// else (alone it keeps turning to face them). Measured when added: alone 6 %, with a medium alongside 30 % of
+    /// the light's damage from behind; before facing armour and the flanking AI, ~0 % in both.
+    /// </summary>
+    [Fact]
+    public void Lights_FlankAssaults_AndHitTheirRearArmour()
+    {
+        var share = new float[2];
+        foreach (bool withMedium in new[] { false, true })
+        {
+            float dealt = 0f, rear = 0f;
+            foreach (uint seed in new uint[] { 1, 2, 3, 4 })
+            {
+                var b = new BattleSim(ArenaMap.Arena(seed), seed) { TrackOutcome = false };
+                var light = b.AddUnit("L", 0, MechChassis.Light(), new Vector3(-20, 0, 150), 0f, Personality.Balanced);
+                if (withMedium) b.AddUnit("M", 0, MechChassis.Medium(), new Vector3(20, 0, 150), 0f, Personality.Balanced);
+                var assault = b.AddUnit("A", 1, MechChassis.Assault(), new Vector3(0, 0, -150), MathF.PI, Personality.Balanced);
+                for (int i = 0; i < 90 * 120 && !light.IsOut && !assault.IsOut; i++) b.Step(H);
+                dealt += light.Stats.DamageDealt;
+                rear += light.Stats.RearDamage;
+            }
+            _out.WriteLine($"{(withMedium ? "light + medium" : "light alone   ")} vs assault: light dealt {dealt:0}, {100 * rear / MathF.Max(1f, dealt):0} % from behind");
+            share[withMedium ? 1 : 0] = rear / MathF.Max(1f, dealt);
+        }
+        Assert.True(share[0] > 0f, "alone, it still gets round now and then");
+        Assert.True(share[1] > 0.15f, $"with a medium keeping the assault busy only {100 * share[1]:0} % hit the rear");
+    }
+
     [Fact]
     public void Blocks_StopShells()
     {
@@ -366,7 +399,8 @@ public class BattleTests
         var tough = MechDamage.Create(light);
         tough.Hp[(int)MechSection.Torso] = tough.MaxHp[(int)MechSection.Torso] = 1e6f; // keep it alive to count hits
         var target = b.AddUnit("L", 1, light, new Vector3(0, 0, -160), 0f, damage: tough);
-        target.Input = running ? new MechInput { Throttle = 1f, Turn = 1f } : default;
+        // A wide circle flat out (0.81 rad/s, ~44 m), the light's full turn before it got more agile at speed.
+        target.Input = running ? new MechInput { Throttle = 1f, Turn = 0.64f } : default;
         int shells = 0;
         for (int i = 0; i < 120 * 40; i++)
         {
