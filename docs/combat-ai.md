@@ -91,6 +91,9 @@ kept full damage at any range and beams fell to 20-25 %.
 | Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 240 / 380 | | heavy, assault (L) |
 | Heavy cannon | shell | 32 | .20 | 2.2 s | 360 / 600 | 330 | medium, heavy (R) |
 | Siege cannon | shell | 75 | .36 | 4.5 s | 450 / 700 | 240 | assault (R) |
+| Rocket pod | 6 rockets, 0.05 s | 18 | .12 | 3 s | 130 / 220 | 200 | light (shoulder) |
+| Strike rack | 10 rockets, 0.06 s | 25 | .16 | 4 s | 300 / 400 | 260 | medium (shoulder) |
+| Arc missiles | 10 guided, 0.1 s | 30 | .20 | 5 s | 650 / 800 (min 160) | 140 | heavy (shoulder) |
 
 **Lasers burn** (a deviation from the prototype's instant beams): the beam stays on for its burn time and every tick
 applies its share of the damage along wherever the arm points *then*, so holding it on target is the skill and a
@@ -159,6 +162,21 @@ from behind facing the attacker within 15 s 52 -> 85 % (3.6 -> 2.0 s); ~12 calls
 Shoot-and-scoot: a medium relocates after every pop-up and pops at most every 5 s (it popped 2.4/min from one spot).
 Lights jink (a 0.3-0.5 s hop half the time they're hit) and bound over rough ground at speed: 0.9 -> ~6.3 jumps/min.
 Lance report after: light 202 dealt / 43 % survived, medium 128 / 30 %, heavy 139 / 28 %, assault 158 / 40 %.
+
+**Missiles and point defense.** A third mount on the right shoulder (fire bit 2, in the torso frame, lost only
+with the mech). Rocket pod (light): 6 unguided rounds, wide cone, 18 per salvo, 130/220 m. Strike rack (medium):
+10 unguided fast rounds, tight pattern, 25, 300/400 m; no homing on purpose (hard to balance, would dominate).
+Arc missiles (heavy): 10 slow guided rounds launched steeply (loft 0.9 rad) that home on the launcher's lock after a
+0.5 s climb and dive over cover; 30, 650/800 m, duds inside 160 m. A lock needs the candidate spotted by any
+teammate (cockpit sight within 600 m) and kept within 20° of the torso aim for 1.5 s. The AI fires them on the lock
+whether or not it sees the target (indirect fire: a light spots, the heavy fires from cover); unguided salvos go
+through the normal fire discipline. Point defense: turrets (assault 1, Hauberk medium 1) each shoot down 1.5
+missiles a second within 110 m that are closing on the mech or a teammate within 120 m; turrets add up. One arc
+volley shot down: 1 turret 33 %, 2 turrets 73 %, 3 turrets 100 % (design: one turret thins, stopping a volley takes
+investment, on one mech or across the lance; 5/s erased 9 of 10). Lance report after: light 122 dealt / 30 %
+survived, medium 147 / 28 %, heavy 160 / 28 % (most kills earlier runs: missiles gave heavies their role), assault
+180 / 43 %. Support calls were silently broken (Perceive consumed the attacker the danger check needed); fixed and
+set to 30 % of torso armour in ~5 s: ~7 calls per lance game.
 
 **Fair matches.** Battle maps are point-symmetric through the centre like the spawns (`MirrorThroughCentre`: the
 south half is the north half rotated 180°, crossfaded over ±30 m so there is no seam; mid-field features are

@@ -102,7 +102,9 @@ Then: more weapons, mech classes, missions.
 **Status (2026-10-31):** steps 1-5 done, plus the pulled-forward "mech classes" item: four weight classes at genre
 speeds (light 130 / medium 80 / heavy 60 / assault 40 km/h) with a running gait, two body models (Hauberk biped,
 Sicklefoot digitigrade), a weapon roster with class loadouts, class roles in the AI, and a No Man's Land arena.
-Next: step 6 (audio). Open items: chassis `.tres` for editor tuning, spring frequencies don't scale with size,
+Since then (2026-11-01): audio (synthesised placeholders), burning/pulse lasers, facing armour, jump jets + jump AI,
+stabilised weapons, weapon ranges (optimal -> zero at max), missiles (rocket pod / strike rack / guided arc missiles)
+and point defense, support calls, symmetric maps. Open items: chassis `.tres` for editor tuning, spring frequencies don't scale with size,
 heavy/assault are scaled copies of the medium body, distinct loadouts per model, light counterplay (lights are close
 to unhittable when circling at range), heavies survive least in lances (intended?), squad tactics (2v2+ pick cover
 independently).

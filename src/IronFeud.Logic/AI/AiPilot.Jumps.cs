@@ -114,9 +114,11 @@ public sealed partial class AiPilot
         }
         if (Jump == JumpPlan.Vault && loco.Body.Airborne && Target != null)
         {
-            // Over and past it: swing round in the air to land facing its back.
+            // Swing round in the air to land facing its back, starting just before passing over it (straight over
+            // it, the fall alone is too short to come round).
             float err = MathUtil.WrapAngle(MathUtil.Heading(Target.Position - me.Position) - loco.Body.Psi);
-            input.Turn = MathUtil.Clamp(err * 2f, -1f, 1f);
+            bool overhead = MathUtil.PlanarDistance(me.Position, Target.Position) < 25f;
+            input.Turn = MathF.Abs(err) < 1f && overhead ? _orbit : MathUtil.Clamp(err * 2f, -1f, 1f);
             input.Throttle = 0f;
         }
         if (Jump == JumpPlan.PopUp)

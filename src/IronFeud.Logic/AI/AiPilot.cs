@@ -149,6 +149,7 @@ public sealed partial class AiPilot
         _dmgRecent += damage;
         _danger += damage;
         _lastHurt = _now;
+        if (attacker != null) _hurtBy = attacker;
         if (Role == AiRole.Flex) _relocate = true; // spotted: shoot and move
         if (attacker == null) return;
         _lastAttacker = attacker;
@@ -166,7 +167,8 @@ public sealed partial class AiPilot
     /// <summary>The teammate whose call for help this pilot is answering (see <see cref="Answer"/>).</summary>
     public BattleUnit? Answering { get; private set; }
 
-    private BattleUnit? _rearAttacker, _pest;
+    // _hurtBy: who hit us last, kept for support calls (Perceive consumes _lastAttacker every think).
+    private BattleUnit? _rearAttacker, _pest, _hurtBy;
     private float _rearHitAt = -99f, _rearDamage, _answerUntil, _danger, _calledAt;
 
     /// <summary>Answer a teammate's call: escort it and hunt the pest for 20 s.</summary>
@@ -182,7 +184,7 @@ public sealed partial class AiPilot
 
     /// <summary>
     /// Every think: call for support when in great danger, against whoever is causing it. Danger is damage taken
-    /// recently (decaying over ~5 s) against torso armour: a quarter of it is a call. A heavy or assault also calls
+    /// recently (decaying over ~5 s) against torso armour: 30 % of it is a call (20 % had pilots calling all the time). A heavy or assault also calls
     /// once a light has put 15+ damage into its back within 4 s (the annoying flanker it can't shake). The call stops
     /// after 8 s of calm. An answer lapses after 20 s or when either side is out.
     /// </summary>
@@ -198,7 +200,7 @@ public sealed partial class AiPilot
             pest = r;
             why = $"{r.Name} on my back";
         }
-        else if (danger > 0.25f && _lastAttacker is { IsOut: false } a && a.Team != me.Team)
+        else if (danger > 0.3f && _hurtBy is { IsOut: false } a && a.Team != me.Team)
         {
             pest = a;
             why = $"{a.Name} hurting me ({100f * danger:0}% torso in seconds)";
@@ -837,6 +839,8 @@ public sealed partial class AiPilot
         input.AimTarget = MathF.Atan2(aimBase.Y + drop - sim.Pose.AimOrigin.Y, MathF.Max(1f, d)) + _errPitch;
         input.Convergence = MathUtil.Clamp(d, 20f, 700f);
 
+        me.LockCandidate = Target;
+        input.FireMask |= GuidedFire(me, d);
         if (!k.Visible || _now - k.FirstSeen < p.Reaction || TwistingAway) return input;
 
         // Fire discipline: alignment, range, heat budget, clear line of fire.
@@ -850,6 +854,7 @@ public sealed partial class AiPilot
         {
             if (!weapons.CanFire(i)) continue;
             var spec = weapons.Mounts[i].Spec;
+            if (spec.Guided) continue; // fired on a lock (GuidedFire), sight or not
             bool projectile = spec.Kind == WeaponKind.Projectile;
             if (d >= spec.EffectiveRange) continue; // under 40 % damage out there
             if (heatAfter + spec.Heat + (spec.Damage >= HeavyShot ? 0f : reserve) >= heatCap) continue;
@@ -889,6 +894,28 @@ public sealed partial class AiPilot
         }
         if (HoldingFire && !wasHolding) Note("holding fire: ally in line");
         return input;
+    }
+
+    /// <summary>
+    /// Guided missiles fly on the lock, not on sight: fire them whenever the target is locked (any teammate spotting
+    /// it), outside their minimum range, within 40 % damage range and the heat budget. The indirect fire that makes a
+    /// heavy behind cover useful while a light spots for it.
+    /// </summary>
+    private uint GuidedFire(BattleUnit me, float d)
+    {
+        var weapons = me.Sim.Weapons;
+        if (me.Locked == null || me.Locked != Target) return 0u;
+        uint mask = 0u;
+        for (int i = 0; i < weapons.Mounts.Count; i++)
+        {
+            var spec = weapons.Mounts[i].Spec;
+            if (!spec.Guided || !weapons.CanFire(i)) continue;
+            if (d < spec.MinRange + 20f || d > spec.EffectiveRange) continue;
+            if (weapons.Heat + spec.Heat >= Personality.HeatLimit) continue;
+            mask |= 1u << i;
+        }
+        if (mask != 0u) Note($"arc missiles on {Target!.Name} at {d:0} m");
+        return mask;
     }
 
     private static WeaponSpec? PrimaryProjectile(MechWeapons w)
