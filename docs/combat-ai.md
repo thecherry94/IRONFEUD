@@ -144,6 +144,20 @@ All together, lone light vs assault: lights lost 9 -> 6, kills 3 -> 5; light + m
 after: light 171 dealt / 38 % survived, medium 140 / 28 %, heavy 132 / 25 %, assault 142 / 35 %. Escorts are about
 neutral now (`Escorts_WhatTheyAreWorth`); revisit with the heavies' role.
 
+**Reactions and support** (player feedback: the AI "doesn't react well to lights flanking from behind").
+A hit from behind gives the pilot its bearing (damage display): the attacker becomes a contact, gets top target
+priority for 6 s, and enemies inside the rear arc within 200 m rank higher too. Non-skirmishers pivot to face a rear
+attacker or anything within 120 m past ~70 % of their twist, guns ready or not, easing to 30 % throttle so the legs
+turn faster. Lights prefer heavies and assaults as targets unless an enemy light or medium is within 110 m of them
+(then that pursuer first). Any pilot in great danger (a quarter of its torso armour lost within ~5 s), or a heavy or
+assault with a light putting 15+ damage into its back, calls for support; the squad coordinator sends the free
+teammate with the shortest ETA (distance / top speed, at most 20 s; never an assault), which escorts the caller and
+hunts the pest for 20 s, sharing the caller's sightings. `Behaviour_ReactionsJumpsAndMovement` reports it: mechs hit
+from behind facing the attacker within 15 s 52 -> 85 % (3.6 -> 2.0 s); ~12 calls per 12 lance games.
+Shoot-and-scoot: a medium relocates after every pop-up and pops at most every 5 s (it popped 2.4/min from one spot).
+Lights jink (a 0.3-0.5 s hop half the time they're hit) and bound over rough ground at speed: 0.9 -> ~6.3 jumps/min.
+Lance report after: light 202 dealt / 43 % survived, medium 128 / 30 %, heavy 139 / 28 %, assault 158 / 40 %.
+
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
 them at each model's arm mount point and flashes, beams, shells and impacts scale with damage.

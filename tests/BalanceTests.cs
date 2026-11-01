@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using System.Numerics;
 using IronFeud.Logic.AI;
 using IronFeud.Logic.Battle;
+using IronFeud.Logic.Core;
 using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
 using Xunit.Abstractions;
@@ -232,5 +234,99 @@ public class BalanceTests
             }
             _out.WriteLine($"{(escorts ? "escort   " : "no escort")}: assault took {taken:0} ({rear:0} in the rear), lights took {lightsTaken:0}, lost {lost}/24");
         }
+    }
+
+    private static BattleSim Lance(uint seed, string map)
+    {
+        var personas = new[] { Personality.Balanced, Personality.Balanced, Personality.Balanced, Personality.Sniper };
+        var b = new BattleSim(map == "nml" ? ArenaMap.NoMansLand(seed) : ArenaMap.Arena(seed), seed * 13);
+        for (int team = 0; team < 2; team++)
+        {
+            float sign = team == 0 ? 1f : -1f;
+            for (int i = 0; i < 4; i++)
+            {
+                var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk;
+                b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, model),
+                    new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
+            }
+        }
+        return b;
+    }
+
+    /// <summary>
+    /// How the AI behaves in lance games (6 seeds each on No Man's Land and the arena): does a mech hit from behind
+    /// turn on its attacker, how often do jump-capable mechs use their jets, how much do they stand still, and how
+    /// often do pilots call for support. Player feedback behind it: "the AI doesn't react well to lights flanking from
+    /// behind", "they don't use the jump jets tactically enough", "popping makes them stay in place". Measured before
+    /// the fixes: 52 % turned within 15 s (3.6 s), lights 0.9 jumps/min, mediums still 26 %, pop-ups 2.4/min;
+    /// after: 87 % (2.0 s), lights ~6.5/min, mediums 21 %, pop-ups 1.8/min with a relocation after each.
+    /// </summary>
+    [BalanceFact]
+    public void Behaviour_ReactionsJumpsAndMovement()
+    {
+        var jumps = new Dictionary<(ChassisClass, JumpPlan), int>();
+        var alive = new Dictionary<ChassisClass, float>(); var still = new Dictionary<ChassisClass, float>();
+        var longStops = new Dictionary<ChassisClass, int>();
+        int rearEvents = 0, faced = 0; float faceTime = 0; int retargeted = 0, helpCalls = 0, helpAnswered = 0;
+        foreach (string map in new[] { "nml", "hills" })
+        for (uint seed = 1; seed <= 6; seed++)
+        {
+            var b = Lance(seed, map);
+            var lastJump = b.Units.ToDictionary(u => u, _ => JumpPlan.None);
+            var called = b.Units.ToDictionary(u => u, _ => false);
+            var stillFor = b.Units.ToDictionary(u => u, _ => 0f);
+            // rear hit bookkeeping: victim -> (attacker, time)
+            var pending = new Dictionary<BattleUnit, (BattleUnit Att, float T)>();
+            b.Damaged += (t, r, _, att) =>
+            {
+                if (r.Facing != Facing.Rear || att == null || t.IsOut || pending.ContainsKey(t)) return;
+                pending[t] = (att, b.Time); rearEvents++;
+            };
+            for (int i = 0; i < 300 * 120 && !b.Over; i++)
+            {
+                b.Step(1f / 120f);
+                foreach (var u in b.Units)
+                {
+                    if (u.IsOut || u.Ai == null) continue;
+                    var c = u.Chassis.Class;
+                    alive[c] = alive.GetValueOrDefault(c) + 1f / 120f;
+                    if (MathF.Abs(u.Sim.Locomotion.Body.V) < 1f && !u.Sim.Locomotion.Body.Airborne)
+                    {
+                        still[c] = still.GetValueOrDefault(c) + 1f / 120f;
+                        stillFor[u] += 1f / 120f;
+                        if (MathF.Abs(stillFor[u] - 10f) < 0.5f / 120f) longStops[c] = longStops.GetValueOrDefault(c) + 1;
+                    }
+                    else stillFor[u] = 0f;
+                    var j = u.Ai.Jump;
+                    if (j != JumpPlan.None && lastJump[u] == JumpPlan.None) jumps[(c, j)] = jumps.GetValueOrDefault((c, j)) + 1;
+                    lastJump[u] = j;
+                    bool calling = u.Ai.HelpWanted != null;
+                    if (calling && !called[u]) { helpCalls++; }
+                    called[u] = calling;
+                    if (calling && b.Units.Any(x => x.Ai?.Answering == u)) helpAnswered++;
+                }
+                foreach (var (v, (att, t0)) in pending.ToList())
+                {
+                    if (v.IsOut || att.IsOut) { pending.Remove(v); continue; }
+                    float off = MathF.Abs(MathUtil.WrapAngle(MathUtil.Heading(att.Position - v.Position) - MathUtil.Heading(v.Sim.TorsoFacing)));
+                    if (v.Ai?.Target == att && b.Time - t0 < 30) { }
+                    if (off < 0.5f) { faced++; faceTime += b.Time - t0; if (v.Ai?.Target == att) retargeted++; pending.Remove(v); }
+                    else if (b.Time - t0 > 15f) pending.Remove(v);
+                }
+            }
+        }
+                _out.WriteLine($"support calls {helpCalls}, ticks answered {helpAnswered / 120f:0} s");
+        _out.WriteLine($"rear-hit events {rearEvents}: victim turned to face the attacker within 15 s in {faced} ({100f * faced / Math.Max(1, rearEvents):0}%), mean {faceTime / Math.Max(1, faced):0.0} s; targeting it then: {retargeted}");
+        foreach (var c in Enum.GetValues<ChassisClass>())
+        {
+            float mins = alive.GetValueOrDefault(c) / 60f;
+            string js = string.Join(", ", Enum.GetValues<JumpPlan>().Where(p => p != JumpPlan.None).Select(p => $"{p} {jumps.GetValueOrDefault((c, p)) / Math.Max(0.01f, mins):0.00}"));
+            _out.WriteLine($"{c,-7}: {mins:0} min alive, standing still {100 * still.GetValueOrDefault(c) / Math.Max(1e-3f, alive.GetValueOrDefault(c)):0}%, stops >10 s {longStops.GetValueOrDefault(c)}; jumps/min: {js}");
+        }
+        Assert.True(faced >= 0.75f * rearEvents, "mechs hit from behind should turn on the attacker");
+        float lightMins = alive.GetValueOrDefault(ChassisClass.Light) / 60f;
+        int lightJumps = jumps.Where(kv => kv.Key.Item1 == ChassisClass.Light).Sum(kv => kv.Value);
+        Assert.True(lightJumps >= 3f * lightMins, $"lights jump {lightJumps / lightMins:0.0}/min");
+        Assert.True(still.GetValueOrDefault(ChassisClass.Medium) < 0.25f * alive.GetValueOrDefault(ChassisClass.Medium), "mediums shouldn't camp");
     }
 }

@@ -8,11 +8,15 @@ using IronFeud.Logic.Mech.Damage;
 namespace IronFeud.Logic.AI;
 
 /// <summary>What an AI jump is for.</summary>
-public enum JumpPlan { None, PopUp, Vault, Traverse, Dodge }
+public enum JumpPlan { None, PopUp, Vault, Traverse, Dodge, Jink, Bound }
 
 /// <summary>Jump tactics a battle allows its AI pilots (see <see cref="BattleSim.JumpTactics"/>).</summary>
 [Flags]
-public enum JumpTactics { None = 0, PopUp = 1, Vault = 2, Traverse = 4, Dodge = 8, All = PopUp | Vault | Traverse | Dodge }
+public enum JumpTactics
+{
+    None = 0, PopUp = 1, Vault = 2, Traverse = 4, Dodge = 8, Jink = 16, Bound = 32,
+    All = PopUp | Vault | Traverse | Dodge | Jink | Bound,
+}
 
 /// <summary>
 /// Jump-jet tactics, all through <see cref="MechInput.Jump"/> like a player's Space bar:
@@ -24,7 +28,10 @@ public enum JumpTactics { None = 0, PopUp = 1, Vault = 2, Traverse = 4, Dodge = 
 /// land facing its back.</item>
 /// <item>Traverse: a climb too steep to walk, within reach of the jets, is jumped instead of walked round.</item>
 /// <item>Dodge: a heavy shell about to hit (visible tracer, 0.5-1.5 s out) is hopped over.</item>
+/// <item>Jink (lights): under fire, a short hop now and then: it breaks the enemy's lead and a laser's burn.</item>
+/// <item>Bound (lights): running flat out into rough ground (trenches, crater rims), hop it instead of slowing.</item>
 /// </list>
+/// Pop-ups are shoot-and-scoot: after landing the medium relocates, and pops at most every 5 s.
 /// </summary>
 public sealed partial class AiPilot
 {
@@ -34,7 +41,7 @@ public sealed partial class AiPilot
     /// <summary>A light lined up to vault its target (running straight at it, waiting for the take-off distance).</summary>
     public bool VaultArmed { get; private set; }
 
-    private float _burnLeft;
+    private float _burnLeft, _lastPop = -99f;
     private bool _launched;
 
     private const float PopMinCharge = 0.6f, VaultMinCharge = 0.85f, TraverseMinCharge = 0.6f, DodgeMinCharge = 0.3f;
@@ -119,7 +126,16 @@ public sealed partial class AiPilot
             input.Turn = 0f;
         }
         if (loco.Body.Airborne) _launched = true;
-        else if (Jump != JumpPlan.None && _burnLeft <= 0f) Jump = JumpPlan.None; // landed (or never got off the ground)
+        else if (Jump != JumpPlan.None && _burnLeft <= 0f)
+        {
+            // Landed (or never got off the ground). After a pop-up: move to a new spot, don't pop from here again.
+            if (Jump == JumpPlan.PopUp && _launched)
+            {
+                _relocate = true;
+                _lastPop = _now;
+            }
+            Jump = JumpPlan.None;
+        }
     }
 
     /// <summary>
@@ -145,13 +161,18 @@ public sealed partial class AiPilot
         if (!me.Chassis.HasJumpJets || _tactics == JumpTactics.None) { VaultArmed = false; return; }
         if (Action is not (AiAction.Engage or AiAction.Flank) || !_tactics.HasFlag(JumpTactics.Vault)) VaultArmed = false;
         if (_tactics.HasFlag(JumpTactics.Dodge)) TryDodge(b, me);
+        if (Role == AiRole.Skirmisher)
+        {
+            if (_tactics.HasFlag(JumpTactics.Jink)) TryJink(me);
+            if (_tactics.HasFlag(JumpTactics.Bound)) TryBound(me);
+        }
         if (_tactics.HasFlag(JumpTactics.PopUp) && Role == AiRole.Flex && k != null && !k.Visible && age < 8f && Action is AiAction.Engage or AiAction.Flank)
             TryPopUp(b, me, k, dist);
     }
 
     private void TryPopUp(BattleSim b, BattleUnit me, Contact k, float dist)
     {
-        if (!CanJump(me, PopMinCharge) || !AnyReady(me.Sim.Weapons)) return;
+        if (!CanJump(me, PopMinCharge) || !AnyReady(me.Sim.Weapons) || _now - _lastPop < 5f) return;
         var weapons = me.Sim.Weapons;
         float range = 0f;
         foreach (var m in weapons.Mounts) if (!m.Offline) range = MathF.Max(range, m.Spec.Range);
@@ -223,7 +244,9 @@ public sealed partial class AiPilot
     {
         var vel = Contacts.TryGetValue(Target!, out var k) ? k.Velocity : Vector3.Zero;
         float t = MathUtil.PlanarDistance(me.Position, Target!.Position) / MathF.Max(8f, me.Sim.Locomotion.Body.V);
-        return Target.Position + new Vector3(vel.X, 0f, vel.Z) * MathF.Min(t, 4f);
+        // At most 1 s ahead: a big mech that sees a light coming slows and pivots, and a longer straight-line guess
+        // overshoots (30 m misses).
+        return Target.Position + new Vector3(vel.X, 0f, vel.Z) * MathF.Min(t, 1f);
     }
 
     /// <summary>
@@ -270,6 +293,23 @@ public sealed partial class AiPilot
         if (rise > ApexGain(me.Chassis, 0.9f * me.Sim.Locomotion.JumpFuel)) return false;
         StartJump(me, JumpPlan.Traverse, BurnFor(me.Chassis, rise), $"{rise - 3f:0} m climb ahead");
         return true;
+    }
+
+    /// <summary>Under fire (hit in the last second): a short hop half the time, keeping speed and course.</summary>
+    private void TryJink(BattleUnit me)
+    {
+        if (_now - _lastHurt > 1f || !CanJump(me, 0.5f) || _rng.NextFloat() > 0.5f) return;
+        if (me.Sim.Weapons.Heat > Personality.HeatLimit - 0.1f) return;
+        StartJump(me, JumpPlan.Jink, 0.3f + 0.2f * _rng.NextFloat(), "under fire");
+    }
+
+    /// <summary>Running fast into ground rough enough to slow the legs (trench walls, crater rims): bound over it.</summary>
+    private void TryBound(BattleUnit me)
+    {
+        var loco = me.Sim.Locomotion;
+        if (loco.TerrainSpeedFactor > 0.7f || MathF.Abs(loco.Body.V) < 0.6f * me.Chassis.VMax || !CanJump(me, 0.5f)) return;
+        if (me.Sim.Weapons.Heat > Personality.HeatLimit - 0.1f) return;
+        StartJump(me, JumpPlan.Bound, 0.45f, $"rough ground ahead ({100f * loco.TerrainSpeedFactor:0}% speed)");
     }
 
     /// <summary>A heavy enemy shell on course for our torso, 0.5-1.5 s out: a short hop takes the torso out of its path.</summary>
