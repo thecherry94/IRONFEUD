@@ -85,9 +85,9 @@ kept full damage at any range and beams fell to 20-25 %.
 | weapon | kind | dmg | heat | cooldown | optimal / max range | shell m/s | used by |
 |---|---|---|---|---|---|---|---|
 | Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 180 / 280 | | Hauberk light (L) |
-| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 300 / 520 | 560 | (tests) |
+| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 300 / 520 | 560 | Sicklefoot medium (L) |
 | Incendiary cannon | 2 barrels, +0.06 target heat a round | 2.6 | .03 | 0.25 s | 260 / 460 | 520 | Hauberk light (R) |
-| Machine gun | 2 barrels, x0.15 vs armour, x1.6 vs structure | 1.5 | .004 | 0.08 s | 160 / 260 | 900 | Sicklefoot light (R), Sicklefoot medium (L) |
+| Machine gun | 2 barrels, x0.15 vs armour, x1.6 vs structure | 1.5 | .004 | 0.08 s | 160 / 260 | 900 | Sicklefoot light (R) |
 | Flamethrower | 1.2 s stream, +0.5 target heat a burn | 4 | .08 | 2 s | 50 / 80 | | Sicklefoot light (L) |
 | Laser | 1.25 s burn | 20 | .24 | 2.25 s | 200 / 320 | | Hauberk medium (L) |
 | Cannon | shell | 14 | .08 | 0.75 s | 400 / 640 | 450 | (prototype) |
@@ -346,7 +346,8 @@ Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
   silhouette: misses 20 -> 16 % head-on). Twisting a shoulder into the fire now spends an arm to spare the core.
   Medium duels Hauberk vs Sicklefoot (Models_AreBalanced): hills 28-12 before the plates (already lopsided since
   per-model loadouts: the Sicklefoot medium's particle cannon + machine gun does ~11/s on armour vs ~23/s), 34-6 after.
-  Swapping its machine gun for a laser made it worse (34-5, overheats). Open. Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the
+  Swapping its machine gun for a laser made it worse (34-5, overheats), a pulse laser too (31-9); an autocannon
+  balanced it: nml 20-20, hills 26-14, brawlers 21-19, watch 1v1 27-13 (all under the 70 % limit). Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the
   frame intact (salvage). One cannon hit, or one laser hit inside ~127 m, kills the pilot. Cannon shells drop
   ~0.3 m over 60 m, so a cockpit shot needs holdover.
 - Mechs that are out keep their hit spheres (shots stop on wrecks) but take no further damage.

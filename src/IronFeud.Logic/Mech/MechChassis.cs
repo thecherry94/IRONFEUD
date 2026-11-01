@@ -274,7 +274,7 @@ public sealed class MechChassis
             case ChassisClass.Medium:
                 // Quick to reposition, and one hard-hitting gun.
                 c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
-                if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.MachineGun);
+                if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.Autocannon);
                 else c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
                 c.RoughGroundCaution = 0.8f;
                 c.TurnSpeedPenalty = 0.5f;
