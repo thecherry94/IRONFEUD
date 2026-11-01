@@ -11,6 +11,11 @@ Treat him as a senior engineer: be direct, skip the basics, and push back when a
 2. **AI pilots use exactly the same `MechInput` the player uses.** They get no shortcuts in physics, heat or turn rates,
    and they only perceive what a pilot could see. Read `docs/combat-ai.md` before touching AI.
 3. **Readable, fallible enemies, not perfect ones.** Aim error, reaction time, visible intent.
+4. **Every weight class stays viable to the end of the campaign.** Bigger must never simply be better (the genre's
+   endgame "lance of assaults" is the anti-goal). Lights and mediums keep jobs assaults can't do, through mission
+   design, campaign constraints (tonnage/budget caps, upkeep, transport), in-battle mechanics (facing armour, twist
+   and turn rates, sensors and spotting, terrain access) and per-model quirks. Verify with headless runs over a
+   mission-type × lance-composition matrix: no composition may win every mission type.
 
 ## Long-term vision (shapes architecture now, built later)
 A sandbox mech game in space, structured like an overworld-plus-battles RPG: a galaxy strategy layer
