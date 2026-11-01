@@ -106,10 +106,13 @@ speeds (light 130 / medium 80 / heavy 60 / assault 40 km/h) with a running gait,
 Sicklefoot digitigrade), a weapon roster with class loadouts, class roles in the AI, and a No Man's Land arena.
 Since then (2026-11-01): audio (synthesised placeholders), burning/pulse lasers, facing armour, jump jets + jump AI,
 stabilised weapons, weapon ranges (optimal -> zero at max), missiles (rocket pod / strike rack / guided arc missiles)
-and point defense, support calls, symmetric maps. Open items: chassis `.tres` for editor tuning, spring frequencies don't scale with size,
-heavy/assault are scaled copies of the medium body, distinct loadouts per model, light counterplay (lights are close
-to unhittable when circling at range), heavies survive least in lances (intended?), squad tactics (2v2+ pick cover
-independently).
+and point defense, support calls, symmetric maps, armour over fragile internal structure (critical effects),
+sensor-lock scans shared per lance (the AI decides on enemy state only from scans), machine guns / flamethrower /
+incendiary cannon / particle cannon with per-model loadouts, heat shutdowns, signature by size, designator marks
+(lights) and ECM (Sicklefoot light). Open items: chassis `.tres` for editor tuning, spring frequencies don't scale with
+size, heavy/assault are scaled copies of the medium body, heavies have the most kills in lances (1.35/game vs ~0.4),
+light counterplay at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover
+independently), real sounds for the new weapons.
 
 ## Working agreements for Claude Code
 - Small, reviewable commits; one concern per commit. Run `dotnet build IRONFEUD.sln` and the tests before saying done.
