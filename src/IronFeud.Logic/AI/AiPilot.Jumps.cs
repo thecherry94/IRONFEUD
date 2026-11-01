@@ -175,8 +175,8 @@ public sealed partial class AiPilot
         if (!CanJump(me, PopMinCharge) || !AnyReady(me.Sim.Weapons) || _now - _lastPop < 5f) return;
         var weapons = me.Sim.Weapons;
         float range = 0f;
-        foreach (var m in weapons.Mounts) if (!m.Offline) range = MathF.Max(range, m.Spec.Range);
-        if (dist > 0.95f * range) return;
+        foreach (var m in weapons.Mounts) if (!m.Offline) range = MathF.Max(range, m.Spec.EffectiveRange);
+        if (dist > range) return;
         float rise = PopHeight(b.Map, me, k);
         if (rise <= 0f) return;
         float burn = BurnFor(me.Chassis, rise + 1.5f);

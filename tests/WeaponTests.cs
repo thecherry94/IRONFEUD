@@ -124,15 +124,20 @@ public class WeaponTests
     }
 
     [Fact]
-    public void Laser_FallsOffLinearlyBeyond200m()
+    public void Damage_IsFullToOptimalRange_ThenFallsToZeroAtMaxRange()
     {
+        // Full damage to the optimal range, then linear to nothing at maximum range, for every weapon.
         var l = WeaponSpec.Laser;
         float full = l.Damage;
         Assert.Equal(full, l.DamageAt(100f));
         Assert.Equal(full, l.DamageAt(200f));
         Assert.Equal(full * 0.5f, l.DamageAt(260f), 3);
-        Assert.Equal(full * 0.2f, l.DamageAt(320f), 3);
-        Assert.Equal(14f, WeaponSpec.Cannon.DamageAt(600f));
+        Assert.Equal(0f, l.DamageAt(320f), 3);
+        Assert.Equal(0f, l.DamageAt(400f), 3);
+        var c = WeaponSpec.Cannon;
+        Assert.Equal(c.Damage, c.DamageAt(400f));
+        Assert.Equal(c.Damage * 0.5f, c.DamageAt(520f), 3);
+        Assert.Equal(0f, c.DamageAt(640f), 3);
     }
 }
 

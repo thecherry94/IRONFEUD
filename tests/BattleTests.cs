@@ -169,6 +169,27 @@ public class BattleTests
         Assert.True(share[1] > 0.02f, $"with a medium keeping the assault busy only {100 * share[1]:0} % hit the rear");
     }
 
+    /// <summary>Shells lose damage with the distance they fly: half a cannon round's at 520 m, and none past 640 m.</summary>
+    [Theory]
+    [InlineData(300f, 1f)]
+    [InlineData(520f, 0.5f)]
+    [InlineData(660f, 0f)]
+    public void Shells_FallOffWithDistanceFlown(float distance, float fraction)
+    {
+        var b = new BattleSim(new ArenaMap { Radius = 900f }) { TrackOutcome = false };
+        var gunner = b.AddUnit("G", 0, MechChassis.Medium(), new Vector3(distance + 40f, 0, 0), MathF.PI / 2f);
+        var target = b.AddUnit("T", 1, MechChassis.Medium(), Vector3.Zero, 0f);
+        b.Step(H);
+        var spec = WeaponSpec.Cannon;
+        Vector3 aim = target.Volume(MechSection.Torso).Center, from = aim + new Vector3(distance, 0f, 0f);
+        float t = distance / spec.MuzzleVelocity;
+        Vector3 dir = Vector3.Normalize(aim + Vector3.UnitY * (0.5f * spec.Gravity * t * t) - from);
+        b.Shells.Add(new Shell { Id = 1, State = Projectile.From(new ShotFired { Spec = spec, Origin = from, Direction = dir }), Owner = gunner });
+        for (int i = 0; i < 120 * 3; i++) b.Step(H);
+        float taken = target.Chassis.TorsoHp - target.Sim.Damage[MechSection.Torso];
+        Assert.Equal(spec.Damage * fraction, taken, 0);
+    }
+
     [Fact]
     public void Blocks_StopShells()
     {

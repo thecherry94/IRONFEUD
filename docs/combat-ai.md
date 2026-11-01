@@ -78,17 +78,19 @@ autocannon), medium one (heavy cannon + laser), heavy two (heavy cannon + heavy 
 | Assault | 192 | 209 | 0.88 | 36 | 38 % | 14 % | 37 % | 81 % |
 
 ## Weapon roster and class loadouts (Godot port)
-Right arm = fire bit 0, left arm = bit 1. Projectiles do full damage at any range; beams fall off past the start.
+Right arm = fire bit 0, left arm = bit 1. Every weapon: full damage out to its optimal range, then linear to zero at
+max range (shells measure the distance they flew and expire there; the AI fires within 40 % damage). Before, shells
+kept full damage at any range and beams fell to 20-25 %.
 
-| weapon | kind | dmg | heat | cooldown | range | shell m/s | used by |
+| weapon | kind | dmg | heat | cooldown | optimal / max range | shell m/s | used by |
 |---|---|---|---|---|---|---|---|
-| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 280 (falloff 180) | | light (L) |
-| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 520 | 560 | light (R) |
-| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 320 (falloff 200) | | medium (L) |
-| Cannon | shell | 14 | .08 | 0.75 s | 640 | 450 | (prototype) |
-| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 380 (falloff 240) | | heavy, assault (L) |
-| Heavy cannon | shell | 32 | .20 | 2.2 s | 600 | 330 | medium, heavy (R) |
-| Siege cannon | shell | 75 | .36 | 4.5 s | 700 | 240 | assault (R) |
+| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 180 / 280 | | light (L) |
+| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 300 / 520 | 560 | light (R) |
+| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 200 / 320 | | medium (L) |
+| Cannon | shell | 14 | .08 | 0.75 s | 400 / 640 | 450 | (prototype) |
+| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 240 / 380 | | heavy, assault (L) |
+| Heavy cannon | shell | 32 | .20 | 2.2 s | 360 / 600 | 330 | medium, heavy (R) |
+| Siege cannon | shell | 75 | .36 | 4.5 s | 450 / 700 | 240 | assault (R) |
 
 **Lasers burn** (a deviation from the prototype's instant beams): the beam stays on for its burn time and every tick
 applies its share of the damage along wherever the arm points *then*, so holding it on target is the skill and a

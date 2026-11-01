@@ -12,16 +12,19 @@ public sealed record WeaponSpec
     public required float Damage { get; init; }
     public required float Heat { get; init; }
     public required float Cooldown { get; init; }
+
+    /// <summary>
+    /// Ranges, the same rule for every weapon: full damage out to <see cref="OptimalRange"/>, then a straight line
+    /// down to nothing at <see cref="Range"/> (beams stop there, shells expire there).
+    /// </summary>
     public required float Range { get; init; }
+    public required float OptimalRange { get; init; }
 
     // Projectile
     public float MuzzleVelocity { get; init; }
     public float Gravity { get; init; }
     public float MaxLifetime { get; init; } = 3f;
 
-    // Beam: full damage up to FalloffStart, then linear down to MinDamageFraction at Range.
-    public float FalloffStart { get; init; } = float.PositiveInfinity;
-    public float MinDamageFraction { get; init; } = 1f;
     public float BeamVisualTime { get; init; } = 0.22f;
 
     /// <summary>
@@ -51,12 +54,14 @@ public sealed record WeaponSpec
 
     public float DamageAt(float distance)
     {
-        if (distance <= FalloffStart) return Damage;
-        float t = (distance - FalloffStart) / MathF.Max(1e-3f, Range - FalloffStart);
-        return Damage * MathF.Max(MinDamageFraction, 1f - t);
+        if (distance <= OptimalRange) return Damage;
+        return Damage * MathF.Max(0f, 1f - (distance - OptimalRange) / MathF.Max(1e-3f, Range - OptimalRange));
     }
 
-    // The roster, light to heavy. Projectile damage is the same at any range; beams fall off past FalloffStart.
+    /// <summary>Distance out to which the weapon still does 40 % damage: the AI doesn't bother firing beyond it.</summary>
+    public float EffectiveRange => OptimalRange + 0.6f * (Range - OptimalRange);
+
+    // The roster, light to heavy.
     // Heavier guns hit far harder but cycle slowly, run hot and fire slower shells: a running light can dodge them.
 
     /// <summary>Light beam: a quick burst of three pulses, the damage up front instead of held on target.</summary>
@@ -64,7 +69,7 @@ public sealed record WeaponSpec
     {
         Name = "Pulse laser", Kind = WeaponKind.Beam, Damage = 9f, Heat = 0.09f, Cooldown = 0.9f,
         Pulses = 3, PulseInterval = 0.09f,
-        Range = 280f, FalloffStart = 180f, MinDamageFraction = 0.2f, BeamVisualTime = 0.06f,
+        Range = 280f, OptimalRange = 180f, BeamVisualTime = 0.06f,
         Length = 1.1f, Caliber = 0.6f, Barrels = 1,
         ArmKick = 0.3f, TorsoYawKick = 0.05f, Trauma = 0.03f,
     };
@@ -73,7 +78,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec Autocannon = new()
     {
         Name = "Autocannon", Kind = WeaponKind.Projectile, Damage = 4f, Heat = 0.03f, Cooldown = 0.25f,
-        Range = 520f, MuzzleVelocity = 560f, Gravity = 4f, MaxLifetime = 1.5f,
+        Range = 520f, OptimalRange = 300f, MuzzleVelocity = 560f, Gravity = 4f, MaxLifetime = 1.5f,
         Length = 2.6f, Caliber = 0.12f, Barrels = 2,
         ArmKick = 0.8f, ElbowKick = 1f, TorsoYawKick = 0.06f, TorsoPitchKick = 0.05f, Trauma = 0.05f,
     };
@@ -82,7 +87,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec Laser = new()
     {
         Name = "Laser", Kind = WeaponKind.Beam, Damage = 20f, Heat = 0.24f, Cooldown = 2.25f, BurnTime = 1.25f,
-        Range = 320f, FalloffStart = 200f, MinDamageFraction = 0.2f,
+        Range = 320f, OptimalRange = 200f,
         Length = 1.5f, Caliber = 1f, Barrels = 3,
         ArmKick = 0.8f, TorsoYawKick = 0.12f, Trauma = 0.08f,
     };
@@ -91,7 +96,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec Cannon = new()
     {
         Name = "Cannon", Kind = WeaponKind.Projectile, Damage = 14f, Heat = 0.08f, Cooldown = 0.75f,
-        Range = 640f, MuzzleVelocity = 450f, Gravity = 4f, MaxLifetime = 2f,
+        Range = 640f, OptimalRange = 400f, MuzzleVelocity = 450f, Gravity = 4f, MaxLifetime = 2f,
         Length = 3.4f, Caliber = 0.26f, Barrels = 1,
         ArmKick = 3.4f, ElbowKick = 4f, TorsoYawKick = 0.35f, TorsoPitchKick = 0.25f, Trauma = 0.3f,
     };
@@ -100,7 +105,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec HeavyLaser = new()
     {
         Name = "Heavy laser", Kind = WeaponKind.Beam, Damage = 32f, Heat = 0.35f, Cooldown = 3.5f, BurnTime = 2f,
-        Range = 380f, FalloffStart = 240f, MinDamageFraction = 0.25f, BeamVisualTime = 0.35f,
+        Range = 380f, OptimalRange = 240f, BeamVisualTime = 0.35f,
         Length = 2f, Caliber = 1.4f, Barrels = 3,
         ArmKick = 1.5f, TorsoYawKick = 0.2f, Trauma = 0.15f,
     };
@@ -108,7 +113,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec HeavyCannon = new()
     {
         Name = "Heavy cannon", Kind = WeaponKind.Projectile, Damage = 32f, Heat = 0.2f, Cooldown = 2.2f,
-        Range = 600f, MuzzleVelocity = 330f, Gravity = 4f, MaxLifetime = 2.5f,
+        Range = 600f, OptimalRange = 360f, MuzzleVelocity = 330f, Gravity = 4f, MaxLifetime = 2.5f,
         Length = 3.9f, Caliber = 0.38f, Barrels = 1,
         ArmKick = 5f, ElbowKick = 6f, TorsoYawKick = 0.6f, TorsoPitchKick = 0.45f, Trauma = 0.5f,
     };
@@ -120,7 +125,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec SiegeCannon = new()
     {
         Name = "Siege cannon", Kind = WeaponKind.Projectile, Damage = 75f, Heat = 0.36f, Cooldown = 4.5f,
-        Range = 700f, MuzzleVelocity = 240f, Gravity = 5f, MaxLifetime = 3.5f,
+        Range = 700f, OptimalRange = 450f, MuzzleVelocity = 240f, Gravity = 5f, MaxLifetime = 3.5f,
         Length = 4.6f, Caliber = 0.55f, Barrels = 1,
         ArmKick = 8f, ElbowKick = 9f, TorsoYawKick = 1f, TorsoPitchKick = 0.8f, Trauma = 0.8f,
     };

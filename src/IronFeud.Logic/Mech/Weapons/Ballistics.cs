@@ -7,17 +7,24 @@ public struct Projectile
 {
     public Vector3 Position;
     public Vector3 Velocity;
+
+    /// <summary>Where it left the muzzle: damage falls off with the distance flown (<see cref="WeaponSpec.DamageAt"/>).</summary>
+    public Vector3 Origin;
     public float Life;
     public WeaponSpec Spec;
 
     public static Projectile From(in ShotFired shot) => new()
     {
         Position = shot.Origin,
+        Origin = shot.Origin,
         Velocity = shot.Direction * shot.Spec.MuzzleVelocity,
         Spec = shot.Spec,
     };
 
-    public bool Expired => Life > Spec.MaxLifetime;
+    public float Flown => Vector3.Distance(Origin, Position);
+
+    /// <summary>Past its lifetime or its maximum range (where it would do no damage any more).</summary>
+    public bool Expired => Life > Spec.MaxLifetime || Flown > Spec.Range;
 
     /// <summary>Advances one step (semi-implicit Euler, as in the prototype). Returns the segment start.</summary>
     public Vector3 Step(float h)

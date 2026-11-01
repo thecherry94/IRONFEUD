@@ -851,7 +851,7 @@ public sealed partial class AiPilot
             if (!weapons.CanFire(i)) continue;
             var spec = weapons.Mounts[i].Spec;
             bool projectile = spec.Kind == WeaponKind.Projectile;
-            if (d >= (projectile ? spec.Range : spec.Range * 0.9f)) continue;
+            if (d >= spec.EffectiveRange) continue; // under 40 % damage out there
             if (heatAfter + spec.Heat + (spec.Damage >= HeavyShot ? 0f : reserve) >= heatCap) continue;
             Vector3 point = aimBase;
             if (projectile)

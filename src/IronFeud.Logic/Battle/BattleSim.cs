@@ -237,7 +237,8 @@ public sealed class BattleSim
             if (!hit && !s.State.Expired) continue;
             Shells.RemoveAt(i);
             if (hit)
-                Impact(s.Owner, new ShotFired { Spec = s.State.Spec, Origin = start, Direction = (end - start) / len }, bh, s.State.Spec.Damage);
+                Impact(s.Owner, new ShotFired { Spec = s.State.Spec, Origin = start, Direction = (end - start) / len }, bh,
+                    s.State.Spec.DamageAt(Vector3.Distance(s.State.Origin, bh.Point)));
         }
     }
 
