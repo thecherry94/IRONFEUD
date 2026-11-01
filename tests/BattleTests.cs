@@ -173,7 +173,7 @@ public class BattleTests
     {
         float rear = 0f, taken = 0f, lightsTaken = 0f;
         int lost = 0;
-        foreach (uint seed in new uint[] { 1, 2, 3, 4, 5, 6 })
+        for (uint seed = 1; seed <= 12; seed++)
         {
             var b = new BattleSim(ArenaMap.Arena(seed), seed) { TrackOutcome = false, Escorts = escorts };
             var assault = b.AddUnit("A", 0, MechChassis.Assault(), new Vector3(-15, 0, 150), 0f, Personality.Balanced);
@@ -203,9 +203,11 @@ public class BattleTests
         var on = EscortDuel(true);
         _out.WriteLine($"no escort: assault took {off.AssaultTaken:0} ({off.AssaultRearTaken:0} in the rear), lights took {off.LightsTaken:0}, lost {off.LightsLost}");
         _out.WriteLine($"escort:    assault took {on.AssaultTaken:0} ({on.AssaultRearTaken:0} in the rear), lights took {on.LightsTaken:0}, lost {on.LightsLost}");
-        // Measured when added: lights lost 2 -> 8 of 12, damage taken 809 -> 1361.
-        Assert.True(on.LightsLost >= off.LightsLost + 3, "an escort should cost flanking lights dearly");
-        Assert.True(on.LightsTaken > 1.3f * off.LightsTaken);
+        // Measured (12 seeds, 24 lights) once guns were stabilised and escorts went on call: lights lost 7 -> 9,
+        // damage on them 1152 -> 1550. Before stabilisation a leashed escort did 2 -> 8 of 12, because the assault
+        // could barely hit a light itself.
+        Assert.True(on.LightsLost >= off.LightsLost, "an escort should not make flanking lights safer");
+        Assert.True(on.LightsTaken > 1.15f * off.LightsTaken, "an escort should hurt the lights flanking its ward");
     }
 
     [Fact]

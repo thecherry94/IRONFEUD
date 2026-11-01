@@ -99,6 +99,12 @@ with the damage up front. Beam lasers (on while the trigger is held) fit the sam
 Lance report after the change (20 games): light 129 dealt / 88 taken / 0.90 kills, medium 139 / 151 / 0.55,
 heavy 149 / 188 / 0.53, assault 201 / 191 / 1.00: roles unchanged within noise.
 
+**Stabilised weapons.** The aim ray is the pilot's commanded line plus 15 % (`AimStabilization` 0.85) of the torso's
+actual motion; the torso's walking yaw swing also fades into the run (at a running cadence it drove its 1.4 Hz
+spring at resonance). Aim wobble at 200 m: 8-27 m rms before (a running medium swung 7.6°), 0.7-1.8 m after.
+Player feedback: aiming was "hard as fuck and punishing". It made every gun more accurate on the move (siege cannon
+vs a standing light 32/38 -> 62/77 hits, running light still evasive: medium 7/46).
+
 **Facing armour.** Torso hits from behind take `RearDamageMultiplier` (1.75), blending from x1 at ~80° off dead
 astern to full inside ~50° (`HitFacing`). Facing is the torso's aim direction, so twisting toward a threat protects
 the back. Lights are the flankers: a skirmisher heads the short way round toward its target's rear (`Contact.Facing`,
@@ -112,12 +118,11 @@ nearer the target's rear. Measured: lights alone vs an assault 6 % of damage fro
 Known gap: a retreating light parks in cover for ~20 s instead of staying mobile.
 
 **Escorts.** The squad coordinator gives each medium a ward (an assault first, else a heavy; one escort each).
-An escort weighs every enemy by its threat to the ward (near it, in its rear arc, a light) and when one threatens,
-stands between the ward and it, 30 m out from the ward: a flanker circling the ward then passes the escort's guns
-at short range and low crossing. Otherwise it fights from its usual firing positions pulled within an 80 m leash,
-and with no target it covers the ward's rear quarter. Assault + medium vs two lights over 6 seeds: lights lost
-2 -> 8 of 12, damage to lights 809 -> 1361. Lance report after: light 109 dealt / 20 % survived, medium 218 / 43 %,
-heavy 157 / 13 % (unescorted; takes 18 % of its damage from behind), assault 246 / 33 % (7 % from behind).
+Escorts are on call: they fight freely (sweeping forward, focus-firing) until an enemy threatens the ward (within
+100 m, weighted up in its rear arc and for lights), then intercept 30 m out from the ward, ~45° off the line to the
+threat so the ward keeps its own line of fire. History: a leashed escort that stood between ward and threat did well
+while guns wobbled (lights lost 2 -> 8 of 12), but once weapons were stabilised it blocked the ward's shots and kept
+the medium from finding lights early, and turned harmful (7 -> 2 of 24). On call: 7 -> 9 of 24, damage on lights +35 %.
 
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds

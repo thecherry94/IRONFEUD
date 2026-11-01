@@ -63,9 +63,8 @@ public sealed class AiPilot
     public AiRole Role { get; private set; } = AiRole.Flex;
 
     /// <summary>
-    /// The heavy or assault this medium escorts (set by the squad coordinator). An escort hunts whatever threatens
-    /// its ward, flankers in its rear arc and lights first, by getting between them, and otherwise stays within
-    /// <see cref="Leash"/> of it.
+    /// The heavy or assault this medium escorts (set by the squad coordinator). An escort fights freely until
+    /// something threatens its ward (close in, or at its back; lights first), then hunts it from beside the ward.
     /// </summary>
     public BattleUnit? Ward
     {
@@ -81,7 +80,7 @@ public sealed class AiPilot
     /// <summary>The enemy currently judged the biggest threat to <see cref="Ward"/> (debug).</summary>
     public BattleUnit? Threat { get; private set; }
 
-    public const float Leash = 80f, ThreatRange = 180f;
+    public const float ThreatRange = 100f;
     private BattleUnit? _ward;
 
     public static AiRole RoleFor(ChassisClass c) => c switch
@@ -356,7 +355,7 @@ public sealed class AiPilot
         BattleUnit? best = null;
         float bestScore = float.NegativeInfinity;
         BattleUnit? threat = null;
-        float worst = 0.25f;
+        float worst = 0.35f;
         foreach (var (e, k) in Contacts)
         {
             float age = _now - k.LastSeen;
@@ -385,13 +384,17 @@ public sealed class AiPilot
         float d = MathUtil.PlanarDistance(k.Position, w.Position);
         if (d > ThreatRange) return 0f;
         float rear = HitFacing.RearWeight(w.Sim.TorsoFacing, w.Position - k.Position);
-        return (1f - d / ThreatRange) * 0.6f + 0.4f * rear + (e.Chassis.Class == ChassisClass.Light ? 0.2f : 0f);
+        // Only a real threat diverts the escort from the team's focus fire: close in, or at the ward's back.
+        return (1f - d / ThreatRange) * 0.5f + 0.5f * rear + (e.Chassis.Class == ChassisClass.Light ? 0.15f : 0f);
     }
 
     private Vector3 PlanDestination(BattleSim b, BattleUnit me, Contact? k)
     {
-        if (_ward is { IsOut: false } ward && Action is AiAction.Engage or AiAction.Search or AiAction.Flank)
-            return EscortDestination(b.Map, me, ward, k);
+        // On call: an escort fights freely (sweeping forward, focus-firing) until something threatens its ward, then
+        // breaks off to intercept. A permanent leash cost more than it saved once the guns were stabilised: the ward
+        // can defend itself, and a medium tied to it found and killed fewer lights (24-light runs: 7 vs 2).
+        if (_ward is { IsOut: false } ward && Threat is { IsOut: false } && Action is AiAction.Engage or AiAction.Search or AiAction.Flank)
+            return EscortDestination(b.Map, me, ward);
         var map = b.Map;
         float range = Personality.Range;
         switch (Action)
@@ -477,31 +480,21 @@ public sealed class AiPilot
     }
 
     /// <summary>
-    /// Where an escort goes. Ward threatened: between the ward and the threat, 30 m out from the ward, so a flanker
-    /// circling the ward has to pass the escort's guns at short range and low crossing. Fighting otherwise: the usual
-    /// firing position, pulled in to within <see cref="Leash"/> of the ward. No target: the ward's rear quarter.
+    /// Where an escort goes once its ward is threatened: 30 m out from the ward toward the threat, ~45° off the line
+    /// between them (keeping the side it is on), so a flanker circling the ward passes the escort's guns at short
+    /// range while the ward can still shoot it (standing on the line blocked the ward: "ally in line").
     /// </summary>
-    private Vector3 EscortDestination(ArenaMap map, BattleUnit me, BattleUnit ward, Contact? k)
+    private Vector3 EscortDestination(ArenaMap map, BattleUnit me, BattleUnit ward)
     {
         Vector3 w = ward.Position;
-        if (Threat != null && Contacts.TryGetValue(Threat, out var t))
-        {
-            Vector3 dir = t.Position - w;
-            dir.Y = 0f;
-            float d = dir.Length();
-            if (d > 1f) return map.ClampDestination(w + dir / d * MathF.Min(30f, d * 0.5f));
-        }
-        if (Action == AiAction.Engage && k != null)
-        {
-            float a = MathUtil.Heading(me.Position - k.Position) + _orbit * 0.35f;
-            Vector3 dest = map.Terrain != null ? FiringPosition(map, me, k, a) : k.Position + MathUtil.Forward(a) * Personality.Range;
-            Vector3 off = dest - w;
-            off.Y = 0f;
-            float len = off.Length();
-            return map.ClampDestination(len > Leash ? w + off / len * Leash : dest);
-        }
-        float rearSide = MathUtil.Heading(ward.Sim.TorsoFacing) + MathF.PI + _orbit * 0.7f;
-        return map.ClampDestination(w + MathUtil.Forward(rearSide) * 30f);
+        if (Threat == null || !Contacts.TryGetValue(Threat, out var t)) return map.ClampDestination(w);
+        Vector3 dir = t.Position - w;
+        dir.Y = 0f;
+        float d = dir.Length();
+        if (d < 1f) return map.ClampDestination(w);
+        float line = MathUtil.Heading(dir), mine = MathUtil.Heading(me.Position - w);
+        float side = MathUtil.WrapAngle(mine - line) >= 0f ? 1f : -1f;
+        return map.ClampDestination(w + MathUtil.Forward(line + side * 0.8f) * MathF.Min(30f, d * 0.5f));
     }
 
     /// <summary>Firing-position rings as fractions of preferred range; fine enough to find the band just behind a crest.</summary>
