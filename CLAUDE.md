@@ -109,10 +109,12 @@ stabilised weapons, weapon ranges (optimal -> zero at max), missiles (rocket pod
 and point defense, support calls, symmetric maps, armour over fragile internal structure (critical effects),
 sensor-lock scans shared per lance (the AI decides on enemy state only from scans), machine guns / flamethrower /
 incendiary cannon / particle cannon with per-model loadouts, heat shutdowns, signature by size, designator marks
-(lights) and ECM (Sicklefoot light). Open items: chassis `.tres` for editor tuning, spring frequencies don't scale with
-size, heavy/assault are scaled copies of the medium body, heavies have the most kills in lances (1.35/game vs ~0.4),
-light counterplay at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover
-independently), real sounds for the new weapons.
+(lights) and ECM (Sicklefoot light), a tiny recessed cockpit, Hauberk shoulder cover plates, arc missiles steering on
+a 1 s lock track (a weaving light shakes them) with missile evasion. Open items: chassis `.tres` for editor tuning,
+spring frequencies don't scale with size, heavy/assault are scaled copies of the medium body, heavies still lead
+kills in lances (0.7-1.1/game vs 0.35-0.55), the siege cannon is the top killer of flamer lights, light counterplay
+at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover independently),
+real sounds for the new weapons.
 
 ## Working agreements for Claude Code
 - Small, reviewable commits; one concern per commit. Run `dotnet build IRONFEUD.sln` and the tests before saying done.
