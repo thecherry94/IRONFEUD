@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using IronFeud.Logic.AI;
 using IronFeud.Logic.Core;
@@ -194,7 +195,7 @@ public sealed class BattleSim
             attacker.Stats.DamageDealt += report.Amount;
             if (report.Facing == Facing.Rear) attacker.Stats.RearDamage += report.Amount;
         }
-        target.Ai?.NotifyHit(attacker, report.Amount);
+        target.Ai?.NotifyHit(attacker, report.Amount, report.Facing == Facing.Rear);
         Damaged?.Invoke(target, report, point, attacker);
         return report;
     }
@@ -301,6 +302,31 @@ public sealed class BattleSim
             TeamFocus[team] = best;
         }
         if (Escorts) AssignEscorts();
+        AnswerHelpCalls();
+    }
+
+    /// <summary>
+    /// A pilot in great danger calls for support (<see cref="AiPilot.HelpWanted"/>): the free teammate that can get
+    /// there soonest (distance over top speed, at most 20 s away; assaults are too slow to answer) hunts the pest from
+    /// beside the caller.
+    /// </summary>
+    private void AnswerHelpCalls()
+    {
+        foreach (var caller in Units)
+        {
+            if (caller.IsOut || caller.Ai?.HelpWanted is not { IsOut: false } pest) continue;
+            if (Units.Any(u => u.Ai?.Answering == caller && !u.IsOut)) continue;
+            BattleUnit? best = null;
+            float soonest = 20f;
+            foreach (var u in Units)
+            {
+                if (u == caller || u.Team != caller.Team || u.IsOut || u.Ai == null || u.Ai.Answering != null || u.Ai.HelpWanted != null) continue;
+                if (u.Chassis.Class == ChassisClass.Assault) continue;
+                float eta = PlanarDistance(u.Position, caller.Position) / u.Chassis.VMax;
+                if (eta < soonest) { soonest = eta; best = u; }
+            }
+            best?.Ai!.Answer(caller, pest, Time);
+        }
     }
 
     /// <summary>

@@ -143,12 +143,87 @@ public sealed partial class AiPilot
     public static string Name(AiAction a) => a.ToString().ToUpperInvariant();
 
     /// <summary>Being shot: remember who did it (their position is revealed at the next think) and how much it hurt.</summary>
-    public void NotifyHit(BattleUnit? attacker, float damage)
+    /// <param name="rear">The hit came from behind: the pilot knows its bearing (the damage display) and turns on it.</param>
+    public void NotifyHit(BattleUnit? attacker, float damage, bool rear = false)
     {
         _dmgRecent += damage;
+        _danger += damage;
         _lastHurt = _now;
         if (Role == AiRole.Flex) _relocate = true; // spotted: shoot and move
-        if (attacker != null) _lastAttacker = attacker;
+        if (attacker == null) return;
+        _lastAttacker = attacker;
+        if (!rear) return;
+        _rearAttacker = attacker;
+        _rearHitAt = _now;
+        _rearDamage = (_now - _rearHitAt < 4f ? _rearDamage : 0f) + damage;
+        if (!Contacts.ContainsKey(attacker))
+            Contacts[attacker] = new Contact { Position = attacker.Position, LastSeen = _now, FirstSeen = _now };
+    }
+
+    /// <summary>The enemy this pilot is calling for support against (the coordinator sends the nearest help).</summary>
+    public BattleUnit? HelpWanted { get; private set; }
+
+    /// <summary>The teammate whose call for help this pilot is answering (see <see cref="Answer"/>).</summary>
+    public BattleUnit? Answering { get; private set; }
+
+    private BattleUnit? _rearAttacker, _pest;
+    private float _rearHitAt = -99f, _rearDamage, _answerUntil, _danger, _calledAt;
+
+    /// <summary>Answer a teammate's call: escort it and hunt the pest for 20 s.</summary>
+    public void Answer(BattleUnit caller, BattleUnit pest, float now)
+    {
+        Answering = caller;
+        Ward = caller;
+        _pest = pest;
+        _answerUntil = now + 20f;
+        if (!Contacts.ContainsKey(pest)) Contacts[pest] = new Contact { Position = pest.Position, LastSeen = now, FirstSeen = now };
+        Note($"answering {caller.Name}'s call: {pest.Name} on its back");
+    }
+
+    /// <summary>
+    /// Every think: call for support when in great danger, against whoever is causing it. Danger is damage taken
+    /// recently (decaying over ~5 s) against torso armour: a quarter of it is a call. A heavy or assault also calls
+    /// once a light has put 15+ damage into its back within 4 s (the annoying flanker it can't shake). The call stops
+    /// after 8 s of calm. An answer lapses after 20 s or when either side is out.
+    /// </summary>
+    private void UpdateHelp(BattleUnit me, float dt)
+    {
+        _danger *= MathF.Exp(-dt / 5f);
+        float danger = _danger / me.Chassis.TorsoHp;
+        BattleUnit? pest = null;
+        string why = "";
+        if (Role is AiRole.Line or AiRole.Anchor && _rearAttacker is { IsOut: false } r && r.Chassis.Class == ChassisClass.Light
+            && _now - _rearHitAt < 4f && _rearDamage >= 15f)
+        {
+            pest = r;
+            why = $"{r.Name} on my back";
+        }
+        else if (danger > 0.25f && _lastAttacker is { IsOut: false } a && a.Team != me.Team)
+        {
+            pest = a;
+            why = $"{a.Name} hurting me ({100f * danger:0}% torso in seconds)";
+        }
+        if (pest != null)
+        {
+            if (HelpWanted != pest) Note($"calling for support: {why}");
+            HelpWanted = pest;
+            _calledAt = _now;
+        }
+        else if (HelpWanted != null && (HelpWanted.IsOut || _now - _calledAt > 8f)) HelpWanted = null;
+
+        // Comms: while answering, the caller's sighting of the pest is ours too.
+        if (Answering?.Ai is { } caller && _pest != null && caller.Contacts.TryGetValue(_pest, out var theirs) && theirs.Visible
+            && Contacts.TryGetValue(_pest, out var ours) && !ours.Visible)
+        {
+            ours.Position = theirs.Position;
+            ours.LastSeen = _now;
+        }
+        if (Answering != null && (_now > _answerUntil || Answering.IsOut || _pest is not { IsOut: false }))
+        {
+            Answering = null;
+            _pest = null;
+            if (me.Chassis.Class != ChassisClass.Medium) Ward = null;
+        }
     }
 
     public void Tick(BattleSim battle, BattleUnit me, float h)
@@ -185,6 +260,7 @@ public sealed partial class AiPilot
         _lastThink = _now;
 
         Perceive(b, me);
+        UpdateHelp(me, dtThink);
         SelectTarget(b, me);
 
         Contact? k = Target != null ? Contacts[Target] : null;
@@ -360,15 +436,21 @@ public sealed partial class AiPilot
         float bestScore = float.NegativeInfinity;
         BattleUnit? threat = null;
         float worst = 0.35f;
+        bool pursued = Pursued(me);
         foreach (var (e, k) in Contacts)
         {
             float age = _now - k.LastSeen;
             if (age > ContactMemory) continue;
-            float danger = ThreatToWard(e, k);
+            float danger = e == _pest ? 1f : ThreatToWard(e, k);
             if (danger > worst) { worst = danger; threat = e; }
-            float s = (k.Visible ? 0.6f : 0f) - MathUtil.PlanarDistance(me.Position, k.Position) / 500f + (focus == e ? 0.5f : 0f)
+            float d = MathUtil.PlanarDistance(me.Position, k.Position);
+            float s = (k.Visible ? 0.6f : 0f) - d / 500f + (focus == e ? 0.5f : 0f)
                       + (1f - e.Sim.Damage.Fraction(MechSection.Torso)) * 0.4f - age * 0.03f + (e == Target ? 0.15f : 0f)
-                      + 1.2f * danger;
+                      + 1.2f * danger
+                      // Whatever is at my back, or just shot me there, comes first.
+                      + (d < 200f ? 0.6f * HitFacing.RearWeight(me.Sim.TorsoFacing, me.Position - k.Position) : 0f)
+                      + (e == _rearAttacker && _now - _rearHitAt < 6f ? 1f : 0f)
+                      + SkirmisherPreference(e, d, pursued);
             if (s > bestScore) { bestScore = s; best = e; }
         }
         if (threat != Threat && threat != null) Note($"{threat.Name} threatens {Ward?.Name}");
@@ -376,6 +458,27 @@ public sealed partial class AiPilot
         if (best == Target) return;
         Target = best;
         if (best != null) Note($"target → {best.Name}{(focus == best ? " (team focus)" : "")}");
+    }
+
+    /// <summary>
+    /// Lights hunt the big ones (heavies and assaults, whose backs they can get at), unless an enemy light or medium
+    /// is within 110 m of them: then that pursuer is the problem to deal with first.
+    /// </summary>
+    private float SkirmisherPreference(BattleUnit e, float d, bool pursued)
+    {
+        if (Role != AiRole.Skirmisher) return 0f;
+        bool big = e.Chassis.Class is ChassisClass.Heavy or ChassisClass.Assault;
+        if (pursued) return !big && d < 110f ? 0.8f : 0f;
+        return big ? 0.5f : 0f;
+    }
+
+    private bool Pursued(BattleUnit me)
+    {
+        if (Role != AiRole.Skirmisher) return false;
+        foreach (var (e, k) in Contacts)
+            if (!e.IsOut && _now - k.LastSeen < 3f && e.Chassis.Class is ChassisClass.Light or ChassisClass.Medium
+                && MathUtil.PlanarDistance(me.Position, k.Position) < 110f) return true;
+        return false;
     }
 
     /// <summary>
@@ -704,6 +807,14 @@ public sealed partial class AiPilot
         // Not for skirmishers: circling the target is their job, the legs stay on course.
         else if (k.Visible && Role != AiRole.Skirmisher && MathF.Abs(needTwist) > c.TwistMax * 0.85f && AnyReady(weapons))
             input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
+        // Something close at my back (or that just hit me there): pivot to face it now, guns ready or not, easing off
+        // the throttle (legs turn faster slow).
+        else if (Role != AiRole.Skirmisher && MathF.Abs(needTwist) > c.TwistMax * 0.7f && d < 200f
+                 && (Target == _rearAttacker && _now - _rearHitAt < 6f || k.Visible && d < 120f))
+        {
+            input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);
+            input.Throttle = MathF.Min(input.Throttle, 0.3f);
+        }
 
         // Spread damage: twist the weaker arm away while every weapon recycles.
         float extraTwist = 0f;
