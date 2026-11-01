@@ -151,35 +151,67 @@ public class DamageTests
     }
 
     [Fact]
-    public void TorsoHitsFromBehind_TakeTheRearMultiplier()
+    public void TorsoHitsFromBehind_StrikeTheThinRearPlate()
     {
         // The mech faces -Z: a shot travelling -Z came from behind, +Z from the front, ±X from a side.
-        float Taken(Vector3 travel, MechSection s = MechSection.Torso)
+        var d0 = MechDamage.Create(new MechChassis());
+        Assert.True(d0.MaxRearArmor < 0.35f * d0.MaxArmor[(int)MechSection.Torso], "the rear plate is thin");
+        DamageReport Hit(Vector3 travel, MechSection s = MechSection.Torso) => NewSim().ApplyHit(s, 20f, travel);
+        var rear = Hit(-Vector3.UnitZ);
+        Assert.Equal(Facing.Rear, rear.Facing);
+        Assert.True(rear.Breached, "20 goes through the rear plate");
+        Assert.True(rear.ToStructure > 0f);
+        foreach (var travel in new[] { Vector3.UnitZ, Vector3.UnitX })
         {
-            var sim = NewSim();
-            var r = sim.ApplyHit(s, 10f, travel);
-            return r.Amount;
+            var front = Hit(travel);
+            Assert.Equal(0f, front.ToStructure); // the front plate holds
         }
-        float rear = new MechChassis().RearDamageMultiplier;
-        Assert.Equal(10f * rear, Taken(-Vector3.UnitZ), 3);
-        Assert.Equal(10f, Taken(Vector3.UnitZ), 3);
-        Assert.Equal(10f, Taken(Vector3.UnitX), 3);
-        Assert.InRange(Taken(Vector3.Normalize(new Vector3(1f, 0f, -1f))), 10f * 1.3f, 10f * rear); // 45° off astern
-        Assert.Equal(10f, Taken(-Vector3.UnitZ, MechSection.ArmLeft), 3);                        // arms have no rear plate
-        Assert.Equal(10f, NewSim().ApplyHit(MechSection.Torso, 10f).Amount, 3);                   // direction unknown
+        Assert.Equal(0f, Hit(-Vector3.UnitZ, MechSection.ArmLeft).ToStructure);  // arms have one plate all round
+        Assert.Equal(0f, NewSim().ApplyHit(MechSection.Torso, 20f).ToStructure);  // direction unknown: front
     }
 
     [Fact]
     public void Facing_FollowsTheTorsoTwist()
     {
         var sim = NewSim();
-        float twist = sim.Chassis.TwistMax;
-        Run(sim, new MechInput { TwistTarget = twist }, 3f);
+        Run(sim, new MechInput { TwistTarget = sim.Chassis.TwistMax }, 3f);
         // Twisted left by TwistMax: a shot from straight behind the legs now arrives off the torso's side.
-        float fromBehindTheLegs = sim.ApplyHit(MechSection.Torso, 10f, -Vector3.UnitZ).Amount;
-        Assert.True(fromBehindTheLegs < 10f * sim.Chassis.RearDamageMultiplier - 1f,
-            $"twist {twist:F2} rad, took {fromBehindTheLegs:F1}");
+        Assert.NotEqual(Facing.Rear, sim.ApplyHit(MechSection.Torso, 1f, -Vector3.UnitZ).Facing);
         Assert.Equal(Facing.Rear, sim.ApplyHit(MechSection.ArmLeft, 1f, sim.TorsoFacing).Facing);
+    }
+
+    [Fact]
+    public void Armor_SoaksFirst_ThenTheFragileStructureDegradesTheSection()
+    {
+        var sim = NewSim();
+        var d = sim.Damage;
+        float legArmor = d.Armor[(int)MechSection.Legs];
+        var r = sim.ApplyHit(MechSection.Legs, legArmor - 1f);
+        Assert.Equal(0f, r.ToStructure);
+        Assert.Equal(1f, sim.Locomotion.SpeedFactor); // armour gone almost entirely, legs still fine
+        sim.ApplyHit(MechSection.Legs, 1f + 0.5f * d.MaxStructure[(int)MechSection.Legs]);
+        Assert.True(d.Exposed(MechSection.Legs));
+        Assert.InRange(sim.Locomotion.SpeedFactor, sim.Chassis.CrippledSpeedFactor + 0.01f, 0.99f); // limping
+
+        sim.ApplyHit(MechSection.ArmRight, d.Armor[(int)MechSection.ArmRight] + 0.5f * d.MaxStructure[(int)MechSection.ArmRight]);
+        Assert.InRange(sim.Weapons.Mounts[0].CycleFactor, 1.3f, 1.7f); // its gun cycles slower
+
+        sim.ApplyHit(MechSection.Torso, d.Armor[(int)MechSection.Torso] + 0.5f * d.MaxStructure[(int)MechSection.Torso]);
+        Assert.InRange(sim.Weapons.DissipationFactor, 0.5f, 0.9f); // heat sinks damaged
+
+        sim.ApplyHit(MechSection.Cockpit, d.Armor[(int)MechSection.Cockpit] + 0.5f * d.MaxStructure[(int)MechSection.Cockpit]);
+        Assert.InRange(sim.SensorQuality, 0.5f, 0.9f); // sensors blurred
+    }
+
+    [Fact]
+    public void AWeapon_CanBeWeakAgainstArmour_AndDeadlyAgainstStructure()
+    {
+        var d = MechDamage.Create(new MechChassis());
+        var r = d.Apply(MechSection.ArmLeft, 10f, Facing.Front, vsArmor: 0.1f, vsStructure: 2.5f);
+        Assert.Equal(1f, r.Amount, 3);                 // barely scratches the plate
+        d.Armor[(int)MechSection.ArmLeft] = 0f;
+        r = d.Apply(MechSection.ArmLeft, 4f, Facing.Front, vsArmor: 0.1f, vsStructure: 2.5f);
+        Assert.Equal(10f, r.ToStructure, 3);           // shreds what is underneath
     }
 
     [Fact]

@@ -246,12 +246,13 @@ public sealed class BattleSim
         return found;
     }
 
-    /// <param name="travel">The shot's direction of travel: hits from behind do more damage to the torso.</param>
+    /// <param name="travel">The shot's direction of travel: torso hits from behind strike the thin rear plate.</param>
     /// <param name="countHit">False for the later ticks of a burn that already scored: a burn is one hit.</param>
+    /// <param name="spec">The weapon (its effectiveness against armour and structure).</param>
     public DamageReport ApplyHit(BattleUnit target, MechSection section, float amount, Vector3 point, BattleUnit? attacker,
-        Vector3? travel = null, bool countHit = true)
+        Vector3? travel = null, bool countHit = true, WeaponSpec? spec = null)
     {
-        var report = target.Sim.ApplyHit(section, amount, travel);
+        var report = target.Sim.ApplyHit(section, amount, travel, spec);
         if (report.Ignored) return report;
         if (attacker != null)
         {
@@ -330,7 +331,7 @@ public sealed class BattleSim
     private void Impact(BattleUnit shooter, in ShotFired shot, in BattleRayHit hit, float damage)
     {
         var e = new BattleEvent { Kind = BattleEventKind.Impact, Shooter = shooter, Shot = shot, From = shot.Origin, Point = hit.Point, Target = hit.Unit };
-        if (hit.Unit != null) e.Report = ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction);
+        if (hit.Unit != null) e.Report = ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction, spec: shot.Spec);
         Events.Add(e);
     }
 
@@ -380,7 +381,7 @@ public sealed class BattleSim
                 float damage = flown < m.Spec.MinRange ? 0f : m.Spec.DamageAt(flown) * m.Share;
                 var shot = new ShotFired { Spec = m.Spec, Origin = start, Direction = dir, Share = m.Share };
                 var e = new BattleEvent { Kind = BattleEventKind.Impact, Shooter = m.Owner, Shot = shot, From = start, Point = bh.Point, Target = bh.Unit };
-                if (bh.Unit != null && damage > 0f) e.Report = ApplyHit(bh.Unit, bh.Section, damage, bh.Point, m.Owner, dir);
+                if (bh.Unit != null && damage > 0f) e.Report = ApplyHit(bh.Unit, bh.Section, damage, bh.Point, m.Owner, dir, spec: m.Spec);
                 Events.Add(e);
             }
             if (hit || m.Life > m.Spec.MaxLifetime) Missiles.RemoveAt(i);
@@ -494,7 +495,7 @@ public sealed class BattleSim
         int key = shooter.Id * 8 + shot.Weapon;
         if (shot.Phase == ShotPhase.Start) _burnScored.Remove(key);
         if (hit.Unit == null) return;
-        ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction, countHit: _burnScored.Add(key));
+        ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction, countHit: _burnScored.Add(key), spec: shot.Spec);
     }
 
     /// <summary>Mechs push each other apart (wrecks don't move) and are pushed out of blocks.</summary>

@@ -163,6 +163,16 @@ Shoot-and-scoot: a medium relocates after every pop-up and pops at most every 5 
 Lights jink (a 0.3-0.5 s hop half the time they're hit) and bound over rough ground at speed: 0.9 -> ~6.3 jumps/min.
 Lance report after: light 202 dealt / 43 % survived, medium 128 / 30 %, heavy 139 / 28 %, assault 158 / 40 %.
 
+**Armour and internal structure** (player request: "sturdy armour plates and below that their core internals that
+are extremely fragile ... once exposed they should act accordingly"). Each section is a plate over structure (limbs and
+head 65/35 of the chassis' HP figure; the torso 55 % front plate, 15 % thin rear plate, 30 % structure; rear hits
+strike the rear plate, replacing the old x1.75 rear multiplier). Hits strip the plate first, the rest goes into
+structure; a section is destroyed when its structure is gone. Weapons carry VsArmor / VsStructure factors (a machine
+gun barely scratches plates and shreds exposed structure). Exposed structure degrades its section in proportion to
+what is left: legs limp (top speed down toward the crippled cap), an arm's weapon cycles slower (up to 2x), torso heat
+sinks lose capacity (dissipation down to 40 %), the head's sensors blur (AI aim error up to 2.5x, sight range down).
+The HUD shows armour/structure per section ("!" = exposed); the AI panel draws both bars.
+
 **Lance tactics** (`BattleSim.Tactics` per team, `TeamTactics_HeadToHead` reports them). Radar: lancemates share
 sightings (position, not sight: firing still needs one's own eyes; a missile lock can use a teammate's). Spotters: the
 coordinator pairs each guided-missile mech with the nearest free light; while its heavy has a salvo nearly ready and

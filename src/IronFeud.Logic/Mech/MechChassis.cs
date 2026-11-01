@@ -155,11 +155,6 @@ public sealed class MechChassis
 
     public bool HasJumpJets => JumpThrust > 0f;
 
-    /// <summary>
-    /// Torso hits from behind do this much more damage (thin rear armour; see <see cref="Damage.HitFacing"/>).
-    /// What makes a light that gets behind a slow-twisting assault dangerous rather than a nuisance.
-    /// </summary>
-    public float RearDamageMultiplier = 1.75f;
 
     // Damage effects
     public float CrippledSpeedFactor = 0.45f;

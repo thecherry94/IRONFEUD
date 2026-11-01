@@ -224,5 +224,15 @@ public partial class Hud : CanvasLayer
         $"TOR {Hp(d, MechSection.Torso)}  ARM L {Hp(d, MechSection.ArmLeft)}  ARM R {Hp(d, MechSection.ArmRight)}  " +
         $"LEGS {Hp(d, MechSection.Legs)}  CKPT {Hp(d, MechSection.Cockpit)}";
 
-    private static string Hp(MechDamage d, MechSection s) => d.IsDestroyed(s) ? "XX" : $"{Mathf.CeilToInt(d[s])}";
+    /// <summary>
+    /// "armour/structure" per section; the torso shows front+rear plates; "!" marks exposed internals (the section
+    /// is degrading: limp, slow gun, weak heat sinks, blurred sensors).
+    /// </summary>
+    private static string Hp(MechDamage d, MechSection s)
+    {
+        if (d.IsDestroyed(s)) return "XX";
+        int i = (int)s;
+        string plate = s == MechSection.Torso ? $"{Mathf.CeilToInt(d.Armor[i])}+{Mathf.CeilToInt(d.RearArmor)}" : $"{Mathf.CeilToInt(d.Armor[i])}";
+        return $"{plate}/{Mathf.CeilToInt(d.Structure[i])}{(d.Exposed(s) ? "!" : "")}";
+    }
 }

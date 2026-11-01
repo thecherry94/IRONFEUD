@@ -20,14 +20,14 @@ public class MissileTests
     private static MechDamage Tough(MechChassis c)
     {
         var d = MechDamage.Create(c);
-        foreach (var s in Enum.GetValues<MechSection>()) d.Hp[(int)s] = d.MaxHp[(int)s] = 1e6f;
+        foreach (var s in Enum.GetValues<MechSection>()) d.Set(s, d.MaxArmor[(int)s], 1e6f);
         return d;
     }
 
     private static float Taken(BattleUnit u)
     {
         float sum = 0f;
-        foreach (var s in Enum.GetValues<MechSection>()) sum += u.Sim.Damage.MaxHp[(int)s] - u.Sim.Damage.Hp[(int)s];
+        foreach (var s in Enum.GetValues<MechSection>()) sum += u.Sim.Damage.Max(s) - u.Sim.Damage[s];
         return sum;
     }
 

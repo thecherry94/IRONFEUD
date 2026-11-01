@@ -102,9 +102,11 @@ public partial class AiPanel : CanvasLayer
         sb.Append($"[code]HEAT    [color={(heat > limit ? "#ff3a2a" : "#ff8a2a")}]{Bar(heat, 14)}[/color] {heat * 100f:0}%[/code]{(ai != null ? $"  limit {limit * 100f:0}%" : "")}\n");
         foreach (var (name, s) in new[] { ("TORSO", MechSection.Torso), ("ARM L", MechSection.ArmLeft), ("ARM R", MechSection.ArmRight), ("LEGS", MechSection.Legs), ("CKPT", MechSection.Cockpit) })
         {
-            float f = dmg.Fraction(s);
-            string col = f > 0.5f ? "#7dffb0" : f > 0.25f ? "#ffd24a" : "#ff4a3a";
-            sb.Append($"[code]{name,-8}[color={col}]{Bar(f, 14)}[/color] {Mathf.CeilToInt(dmg[s])}[/code]\n");
+            // Two bars: armour (grey-blue) and the fragile structure under it (green / amber / red once exposed).
+            int i = (int)s;
+            float armor = dmg.MaxArmor[i] > 0f ? dmg.Armor[i] / dmg.MaxArmor[i] : 0f, f = dmg.StructureFraction(s);
+            string col = !dmg.Exposed(s) ? "#7dffb0" : f > 0.5f ? "#ffd24a" : "#ff4a3a";
+            sb.Append($"[code]{name,-8}[color=#8fb4d8]{Bar(armor, 7)}[/color][color={col}]{Bar(f, 7)}[/color] {Mathf.CeilToInt(dmg.Armor[i])}/{Mathf.CeilToInt(dmg.Structure[i])}[/code]\n");
         }
         if (ai != null)
         {

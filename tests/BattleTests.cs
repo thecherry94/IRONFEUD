@@ -239,7 +239,8 @@ public class BattleTests
             if (withAlly) b.AddUnit("A2", 0, MechChassis.Medium(), new Vector3(-60, 0, 90), 0f, Personality.Balanced);
             var dying = MechChassis.Medium(MechModel.Sicklefoot);
             var dyingDamage = MechDamage.Create(dying);
-            dyingDamage.Hp[(int)MechSection.Torso] = 0.1f * dying.TorsoHp;
+            dyingDamage.Set(MechSection.Torso, 0f, 0.1f * dying.TorsoHp); // plates gone, a sliver of structure left
+            dyingDamage.RearArmor = 0f;
             b.AddUnit("M", 1, dying, new Vector3(0, 0, -230), MathF.PI, Personality.Sniper, dyingDamage);
             var light = b.AddUnit("L", 1, MechChassis.Light(), new Vector3(30, 0, 330), MathF.PI, Personality.Brawler);
             for (int i = 0; i < 120 * 20 && !heavy.IsOut && !light.IsOut; i++)
@@ -426,7 +427,7 @@ public class BattleTests
         var b = new BattleSim(new ArenaMap { Terrain = f }) { TrackOutcome = false };
         var ai = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f, Personality.Balanced);
         var tough = MechDamage.Create(MechChassis.Medium());
-        tough.Hp[(int)MechSection.Torso] = tough.MaxHp[(int)MechSection.Torso] = 1e6f; // a target that lasts the whole test
+        tough.Set(MechSection.Torso, tough.MaxArmor[(int)MechSection.Torso], 1e6f); // a target that lasts the whole test
         var target = b.AddUnit("T", 1, MechChassis.Medium(), new Vector3(0, 0, -260), MathF.PI, damage: tough);
         return (b, ai, target);
     }
@@ -488,7 +489,7 @@ public class BattleTests
         var ai = b.AddUnit("A", 0, chassis, Vector3.Zero, 0f, Personality.Balanced);
         var light = MechChassis.Light();
         var tough = MechDamage.Create(light);
-        tough.Hp[(int)MechSection.Torso] = tough.MaxHp[(int)MechSection.Torso] = 1e6f; // keep it alive to count hits
+        tough.Set(MechSection.Torso, tough.MaxArmor[(int)MechSection.Torso], 1e6f); // keep it alive to count hits
         var target = b.AddUnit("L", 1, light, new Vector3(0, 0, -160), 0f, damage: tough);
         // A wide circle flat out (0.81 rad/s, ~44 m), the light's full turn before it got more agile at speed.
         target.Input = running ? new MechInput { Throttle = 1f, Turn = 0.64f } : default;

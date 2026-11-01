@@ -28,6 +28,10 @@ public sealed record WeaponSpec
 
     public float BeamVisualTime { get; init; } = 0.22f;
 
+    /// <summary>Effectiveness against armour plates and against exposed internal structure (1 = full damage).</summary>
+    public float VsArmor { get; init; } = 1f;
+    public float VsStructure { get; init; } = 1f;
+
     /// <summary>
     /// Burn lasers: the beam stays on this long after the trigger and deals <see cref="Damage"/> spread evenly over
     /// it, every tick along wherever the arm points then. Holding it on target is the skill; a dodging target takes

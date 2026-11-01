@@ -28,6 +28,9 @@ public sealed class WeaponMount
 
     public bool Burning => BurnLeft > 0f;
 
+    /// <summary>Cooldown multiplier from damage to the arm's internals (1 = intact, up to 2).</summary>
+    public float CycleFactor = 1f;
+
     public WeaponMount(WeaponSpec spec, int arm, Vector3 offset)
     {
         Spec = spec;
@@ -69,6 +72,9 @@ public sealed class MechWeapons
 
     public bool HeatLocked => Heat >= 1f;
 
+    /// <summary>Heat sink capacity left after damage to the torso's internals (1 = intact, down to 0.4).</summary>
+    public float DissipationFactor = 1f;
+
     /// <summary>
     /// The chassis' loadout: right arm weapon is bit 0 of the fire mask, left arm bit 1. Muzzles sit the weapon's
     /// length ahead of the arm's mount point.
@@ -96,7 +102,7 @@ public sealed class MechWeapons
     {
         var t = loco.Chassis;
         float speedFrac = MathF.Abs(loco.Body.V) / t.VMax;
-        Heat = MathF.Max(t.HeatFloor, Heat - h * (t.HeatDissipation - t.HeatDissipationMovePenalty * speedFrac));
+        Heat = MathF.Max(t.HeatFloor, Heat - h * (t.HeatDissipation * DissipationFactor - t.HeatDissipationMovePenalty * speedFrac));
 
         var pose = loco.Pose;
         float convergence = input.Convergence > 0f ? input.Convergence : DefaultConvergence;
@@ -125,7 +131,7 @@ public sealed class MechWeapons
 
             if ((input.FireMask & (1u << i)) == 0 || !CanFire(i)) continue;
 
-            m.Cooldown = m.Spec.Cooldown;
+            m.Cooldown = m.Spec.Cooldown * m.CycleFactor;
             Heat += m.Spec.Heat;
             if (m.Spec.BurnTime > 0f)
             {

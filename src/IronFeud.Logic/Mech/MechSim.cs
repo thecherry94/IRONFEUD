@@ -56,30 +56,43 @@ public sealed class MechSim
         }
     }
 
-    /// <param name="travel">Direction the shot was travelling, if known: torso hits from behind take the rear multiplier.</param>
-    public DamageReport ApplyHit(MechSection struck, float amount, Vector3? travel = null)
+    /// <param name="travel">Direction the shot was travelling, if known: torso hits from behind strike the rear plate.</param>
+    /// <param name="spec">The weapon, for its effectiveness against armour and structure (null = 1 and 1).</param>
+    public DamageReport ApplyHit(MechSection struck, float amount, Vector3? travel = null, Weapons.WeaponSpec? spec = null)
     {
-        var facing = Facing.Front;
-        if (travel is { } dir)
-        {
-            facing = HitFacing.Classify(TorsoFacing, dir);
-            if (struck == MechSection.Torso)
-                amount *= 1f + (Chassis.RearDamageMultiplier - 1f) * HitFacing.RearWeight(TorsoFacing, dir);
-        }
-        var report = Damage.Apply(struck, amount);
-        report.Facing = facing;
+        var facing = travel is { } dir ? HitFacing.Classify(TorsoFacing, dir) : Facing.Front;
+        var report = Damage.Apply(struck, amount, facing, spec?.VsArmor ?? 1f, spec?.VsStructure ?? 1f);
         if (report.Ignored) return report;
-        Locomotion.Secondary.ApplyHit(amount);
-        if (report.SectionDestroyed) ApplyDamageEffects();
+        Locomotion.Secondary.ApplyHit(report.Amount);
+        if (report.ToStructure > 0f || report.SectionDestroyed) ApplyDamageEffects();
         return report;
     }
 
-    /// <summary>Maps section state onto the simulation: dead arms drop their weapons, dead legs cap speed, out = collapse.</summary>
+    /// <summary>
+    /// How well the head's sensors work, 0..1: its structure once the plate is gone (aim and detection degrade with
+    /// it; the AI reads this).
+    /// </summary>
+    public float SensorQuality => Damage.Exposed(MechSection.Cockpit) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Cockpit) : 1f;
+
+    /// <summary>
+    /// Maps section state onto the simulation. Destroyed: arms drop their weapons, legs cap speed, torso or cockpit =
+    /// out (collapse). Exposed structure degrades a section in proportion to what is left of it: legs limp (top speed
+    /// down toward the crippled cap), an arm's weapon cycles slower (up to twice as long), torso heat sinks lose
+    /// capacity (dissipation down to 40 %), the head's sensors blur (<see cref="SensorQuality"/>).
+    /// </summary>
     private void ApplyDamageEffects()
     {
         foreach (var m in Weapons.Mounts)
-            m.Offline = !m.OnTorso && Damage.IsDestroyed(m.Arm == 0 ? MechSection.ArmLeft : MechSection.ArmRight);
-        Locomotion.SpeedFactor = Damage.IsDestroyed(MechSection.Legs) ? Chassis.CrippledSpeedFactor : 1f;
+        {
+            if (m.OnTorso) continue;
+            var arm = m.Arm == 0 ? MechSection.ArmLeft : MechSection.ArmRight;
+            m.Offline = Damage.IsDestroyed(arm);
+            m.CycleFactor = Damage.Exposed(arm) ? 2f - Damage.StructureFraction(arm) : 1f;
+        }
+        Locomotion.SpeedFactor = Damage.IsDestroyed(MechSection.Legs) ? Chassis.CrippledSpeedFactor
+            : Damage.Exposed(MechSection.Legs) ? Core.MathUtil.Lerp(Chassis.CrippledSpeedFactor, 1f, Damage.StructureFraction(MechSection.Legs))
+            : 1f;
+        Weapons.DissipationFactor = Damage.Exposed(MechSection.Torso) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Torso) : 1f;
         if (IsOut) Locomotion.Collapse(Locomotion.Secondary.RandomSigned() * 0.6f);
     }
 }

@@ -369,7 +369,7 @@ public sealed partial class AiPilot
         // lag): a light running across your nose at close range is genuinely hard to hit.
         Sigma = 0.006f + 0.014f * MathF.Abs(me.Sim.Locomotion.Body.V) / me.Chassis.VMax
                        + 0.03f * MathF.Max(0f, heat - 0.45f) + 0.12f * (k != null ? Crossing(me, k) : 0f);
-        Sigma *= Personality.AimError;
+        Sigma *= Personality.AimError * (1f + 1.5f * (1f - me.Sim.SensorQuality)); // damaged sensors blur the aim
         _errYaw = _rng.NextGaussian() * Sigma;
         _errPitch = _rng.NextGaussian() * Sigma * 0.6f;
         _dmgRecent *= 0.6f;
@@ -389,7 +389,7 @@ public sealed partial class AiPilot
             }
             float d = MathUtil.PlanarDistance(me.Position, e.Position);
             float seenHeight = 0f;
-            bool vis = d < SensorRange && Sees(b.Map, eye, e, out seenHeight);
+            bool vis = d < SensorRange * me.Sim.SensorQuality && Sees(b.Map, eye, e, out seenHeight);
             Contacts.TryGetValue(e, out var k);
             if (vis)
             {

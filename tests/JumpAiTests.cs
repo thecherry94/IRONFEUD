@@ -26,7 +26,7 @@ public class JumpAiTests
     {
         var d = MechDamage.Create(c);
         foreach (var s in new[] { MechSection.Torso, MechSection.Legs, MechSection.ArmLeft, MechSection.ArmRight, MechSection.Cockpit })
-            d.Hp[(int)s] = d.MaxHp[(int)s] = 1e6f;
+            d.Set(s, d.MaxArmor[(int)s], 1e6f);
         return d;
     }
 
