@@ -3,6 +3,7 @@ using System.Linq;
 using System.Numerics;
 using IronFeud.Logic.AI;
 using IronFeud.Logic.Battle;
+using IronFeud.Logic.Core;
 using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
 using IronFeud.Logic.Mech.Weapons;
@@ -216,6 +217,46 @@ public class BattleTests
         }
         _out.WriteLine($"targeting the harassing light {onTheLight}/{checks} of the checks");
         Assert.True(onTheLight > 0.8f * checks, $"only {onTheLight}/{checks}");
+    }
+
+    /// <summary>
+    /// Player report: a heavy fixated on a nearly dead enemy far off behind cover while a light sneaked up and killed
+    /// it. A heavy with a medium at 10 % torso 350 m away and a light closing from behind must turn on the light once
+    /// it is inside 150 m, shooting yet or not (a light sneaking up silently opens up at point blank into the rear).
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void AHeavy_TurnsOnTheLightAtItsBack_NotTheNearlyDeadFarTarget(bool assault, bool withAlly)
+    {
+        int onTheLight = 0, checks = 0, heaviesLost = 0;
+        for (uint seed = 1; seed <= 6; seed++)
+        {
+            var b = new BattleSim(ArenaMap.Arena(seed), seed) { TrackOutcome = false };
+            var heavy = b.AddUnit("H", 0, assault ? MechChassis.Assault() : MechChassis.Heavy(), new Vector3(0, 0, 120), 0f,
+                assault ? Personality.Sniper : Personality.Balanced);
+            if (withAlly) b.AddUnit("A2", 0, MechChassis.Medium(), new Vector3(-60, 0, 90), 0f, Personality.Balanced);
+            var dying = MechChassis.Medium(MechModel.Sicklefoot);
+            var dyingDamage = MechDamage.Create(dying);
+            dyingDamage.Hp[(int)MechSection.Torso] = 0.1f * dying.TorsoHp;
+            b.AddUnit("M", 1, dying, new Vector3(0, 0, -230), MathF.PI, Personality.Sniper, dyingDamage);
+            var light = b.AddUnit("L", 1, MechChassis.Light(), new Vector3(30, 0, 330), MathF.PI, Personality.Brawler);
+            for (int i = 0; i < 120 * 20 && !heavy.IsOut && !light.IsOut; i++)
+            {
+                b.Step(H);
+                // Close (inside 150 m), whether or not it has opened fire yet: a pilot watches a light closing on it.
+                bool close = MathUtil.PlanarDistance(heavy.Position, light.Position) < 150f;
+                if (close && i % 30 == 0)
+                {
+                    checks++;
+                    if (heavy.Ai!.Target == light) onTheLight++;
+                }
+            }
+            if (heavy.IsOut) heaviesLost++;
+        }
+        _out.WriteLine($"{(assault ? "assault" : "heavy")}{(withAlly ? " + ally" : "")}: light inside 150 m: targeting it {onTheLight}/{checks} of the checks; lost {heaviesLost}/6");
+        Assert.True(onTheLight > 0.7f * checks, $"only {onTheLight}/{checks}");
     }
 
     [Fact]

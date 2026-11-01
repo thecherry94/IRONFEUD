@@ -156,6 +156,9 @@ public sealed partial class AiPilot
         {
             _hurtBy = attacker;
             _damageBy[attacker] = _damageBy.GetValueOrDefault(attacker) + damage;
+            // Hit by something close that isn't the target: re-think now, not at the next 0.35 s tick (in lance games a
+            // light's point-blank burst killed 4 of 13 heavies busy with a far target before they turned on it).
+            if (attacker != Target && _me != null && MathUtil.PlanarDistance(attacker.Position, _me.Position) < 150f) _thinkTimer = 0f;
         }
         if (Role == AiRole.Flex) _relocate = true; // spotted: shoot and move
         if (attacker == null) return;
@@ -201,7 +204,7 @@ public sealed partial class AiPilot
     public BattleUnit? Answering { get; private set; }
 
     // _hurtBy: who hit us last, kept for support calls (Perceive consumes _lastAttacker every think).
-    private BattleUnit? _rearAttacker, _pest, _hurtBy;
+    private BattleUnit? _rearAttacker, _pest, _hurtBy, _me;
 
     /// <summary>Damage each enemy has done to us lately (decays over ~5 s): whoever is hurting us now.</summary>
     private readonly Dictionary<BattleUnit, float> _damageBy = new();
@@ -267,6 +270,7 @@ public sealed partial class AiPilot
     public void Tick(BattleSim battle, BattleUnit me, float h)
     {
         _now = battle.Time;
+        _me = me;
         if (!_started)
         {
             _started = true;
@@ -512,14 +516,20 @@ public sealed partial class AiPilot
             float danger = e == _pest ? 1f : ThreatToWard(e, k);
             if (danger > worst) { worst = danger; threat = e; }
             float d = MathUtil.PlanarDistance(me.Position, k.Position);
-            float s = (k.Visible ? 0.6f : 0f) - d / 500f + (focus == e ? 0.5f : 0f)
-                      + (1f - e.Sim.Damage.Fraction(MechSection.Torso)) * 0.4f - age * 0.03f + (e == Target ? 0.15f : 0f)
+            // The kill on offer (its damage, the team focus) counts in full only for a target in sight and in reach:
+            // an assault pressed a 1 % enemy out of sight 288 m off while a light took it apart from 139 m.
+            float opportunity = k.Visible && (reach <= 0f || d <= reach) ? 1f : 0.3f;
+            float s = (k.Visible ? 0.6f : 0f) - d / 500f + (focus == e ? 0.5f * opportunity : 0f)
+                      + (1f - e.Sim.Damage.Fraction(MechSection.Torso)) * 0.4f * opportunity - age * 0.03f + (e == Target ? 0.15f : 0f)
                       + 1.2f * danger
                       // Whatever is at my back, or just shot me there, comes first.
                       + (d < 200f ? 0.6f * HitFacing.RearWeight(me.Sim.TorsoFacing, me.Position - k.Position) : 0f)
                       + (e == _rearAttacker && _now - _rearHitAt < 6f ? 1f : 0f)
-                      // Whoever is hurting us now, from any side (15 damage in the last few seconds is worth +0.6).
-                      + MathF.Min(1.2f, 0.04f * _damageBy.GetValueOrDefault(e))
+                      // Whoever is hurting us now, from any side (8 damage in the last few seconds is worth +0.6).
+                      + MathF.Min(1.2f, 0.075f * _damageBy.GetValueOrDefault(e))
+                      // Anything within 150 m is a threat by being there (up to +0.8 point blank): the kill on offer far
+                      // away waits. Hit by a light at 100-250 m, heavies took 1.7-2.4 s to turn on it and 5 of 23 died.
+                      + (d < 150f ? 0.8f * (1f - d / 150f) : 0f)
                       // Something out of reach of every gun we have can wait (and we can take cover from it).
                       - (reach > 0f && d > reach ? 0.6f : 0f)
                       + SkirmisherPreference(e, d, pursued)
@@ -644,9 +654,12 @@ public sealed partial class AiPilot
         foreach (var u in b.Units)
             if (!u.IsOut) { if (u.Team == me.Team) allies++; else enemies++; }
         Advantage = hp - HealthFactor(t) + 0.3f * (allies - enemies);
-        // Hysteresis: start well ahead (0.5) with the target under 60 % and ourselves over 60 %, stop below 0.25.
+        // Hysteresis: start well ahead (0.5) with the target under 60 % and ourselves over 60 %, stop below 0.25, and
+        // never while someone else is hurting us.
         float theirs = HealthFactor(t);
-        bool press = Pressing ? Advantage > 0.25f : Advantage > 0.5f && theirs < 0.6f && hp > 0.6f;
+        bool hurtByOther = false;
+        foreach (var (e, dmg) in _damageBy) if (e != t && dmg > 5f) hurtByOther = true;
+        bool press = !hurtByOther && (Pressing ? Advantage > 0.25f : Advantage > 0.5f && theirs < 0.6f && hp > 0.6f);
         if (press && !Pressing) Note($"pressing the advantage on {t.Name} (me {100f * hp:0}%, it {100f * theirs:0}%)");
         else if (!press && Pressing) Note("no longer pressing");
         Pressing = press;

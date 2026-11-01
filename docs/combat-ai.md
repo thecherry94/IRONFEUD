@@ -174,6 +174,11 @@ alone 29-19, radar + spotters 27-21, umbrella alone 24-24. Target choice also we
 (damage in the last few seconds, any direction: 15 is worth +0.6), drops targets beyond every weapon's effective range
 (-0.6), and a light counts as chased with an enemy light or medium within 160 m (player report: a light chased the
 far assault while an enemy light harassed it from 150 m; pinned by `ALight_DealsWithTheLightOnItsTail`).
+Tunnel vision (player report: a heavy fixated on a nearly dead enemy far off behind cover while a light sneaked up
+and killed it): in 40 lance games, heavies/assaults hit by a light while busy with a far target died before turning
+on it 5 of 23 times. Now anything within 150 m scores as a threat by being there (up to +0.8), recent damage weighs
+0.075/pt (cap 1.2), the kill on offer (focus, its damage) counts fully only for a target in sight and reach, pressing
+stops while another enemy is hurting the pilot, and a close hit triggers an immediate re-think: 1 of 19.
 
 **Pressing and falling back** (player feedback: "is the AI aware it has an advantage?", "in retreat they sit in their
 hidey hole ~20 s doing nothing"). Advantage = own health - the target's (its damage shows) + 0.3 per fighter the

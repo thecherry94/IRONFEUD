@@ -254,7 +254,7 @@ public class BalanceTests
     }
 
     /// <summary>
-    /// How the AI behaves in lance games (6 seeds each on No Man's Land and the arena): does a mech hit from behind
+    /// How the AI behaves in lance games (10 seeds each on No Man's Land and the arena): does a mech hit from behind
     /// turn on its attacker, how often do jump-capable mechs use their jets, how much do they stand still, and how
     /// often do pilots call for support. Player feedback behind it: "the AI doesn't react well to lights flanking from
     /// behind", "they don't use the jump jets tactically enough", "popping makes them stay in place". Measured before
@@ -270,7 +270,7 @@ public class BalanceTests
         int rearEvents = 0, faced = 0; float faceTime = 0; int retargeted = 0, helpCalls = 0, helpAnswered = 0;
         float retreatT = 0, retreatMovingT = 0, pressT = 0, aiT = 0;
         foreach (string map in new[] { "nml", "hills" })
-        for (uint seed = 1; seed <= 6; seed++)
+        for (uint seed = 1; seed <= 10; seed++)
         {
             var b = Lance(seed, map);
             var lastJump = b.Units.ToDictionary(u => u, _ => JumpPlan.None);
