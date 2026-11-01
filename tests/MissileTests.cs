@@ -197,6 +197,50 @@ public class MissileTests
         Assert.NotNull(heavy.Locked);
     }
 
+    /// <summary>
+    /// Arc missiles steer on a lock track refreshed once a second: a light weaving flat out shakes most of a salvo
+    /// (lance games: hits on lights 74 -> 33 %), while an assault running a straight line is still hit. Over 4
+    /// seeds, damage taken relative to the same mech standing still.
+    /// </summary>
+    [Fact]
+    public void ArcMissiles_MissAWeavingLight_ButNotAnAssault()
+    {
+        float Taken(ChassisClass cls, bool moving)
+        {
+            float sum = 0f;
+            for (uint seed = 1; seed <= 4; seed++)
+            {
+                var b = new BattleSim(new ArenaMap { Radius = 900f }, seed) { TrackOutcome = false };
+                var heavy = b.AddUnit("H", 0, MechChassis.Heavy(), new Vector3(0, 0, 500), 0f);
+                b.AddUnit("L", 0, MechChassis.Light(MechModel.Hauberk), new Vector3(250, 0, 0), 0f); // spotter
+                var c = MechChassis.Create(cls, MechModel.Hauberk);
+                var target = b.AddUnit("T", 1, c, Vector3.Zero, MathF.PI / 2f, damage: Tough(c));
+                float twist = 0f, aim = 0f;
+                bool launched = false;
+                for (int i = 0; i < 120 * 12; i++)
+                {
+                    AimSolver.Track(heavy.Sim.Pose, heavy.Sim.Locomotion.Body, heavy.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
+                    heavy.LockCandidate = target;
+                    heavy.Input = new MechInput { TwistTarget = twist, AimTarget = aim, FireMask = heavy.Locked != null && !launched ? Rack : 0u };
+                    float t = b.Time + seed;
+                    target.Input = !moving ? default
+                        : cls == ChassisClass.Light ? new MechInput { Throttle = 1f, Turn = MathF.Sign(MathF.Sin(MathF.Tau * t / 2f)) }
+                        : new MechInput { Throttle = 1f };
+                    b.Step(H);
+                    launched |= heavy.Stats.Shots > 0;
+                }
+                Assert.True(launched);
+                sum += MissileTests.Taken(target);
+            }
+            return sum;
+        }
+        float lightStill = Taken(ChassisClass.Light, false), lightWeaving = Taken(ChassisClass.Light, true);
+        float assaultStill = Taken(ChassisClass.Assault, false), assaultRunning = Taken(ChassisClass.Assault, true);
+        _out.WriteLine($"4 arc salvos: light {lightStill:0} standing, {lightWeaving:0} weaving; assault {assaultStill:0} standing, {assaultRunning:0} running straight");
+        Assert.True(lightWeaving < 0.5f * lightStill, "a weaving light shakes most of the salvo");
+        Assert.True(assaultRunning > 0.6f * assaultStill, "an assault can't outrun it");
+    }
+
     [Fact]
     public void ArcMissiles_AreDudsInsideTheirMinimumRange()
     {

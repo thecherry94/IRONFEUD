@@ -134,6 +134,10 @@ public sealed class Missile
 
     /// <summary>Share of the salvo's damage this round carries.</summary>
     public float Share;
+
+    /// <summary>The target track it steers on (refreshed every <see cref="BattleSim.MissileTrackInterval"/>) and its age.</summary>
+    internal Vector3 TrackPosition, TrackVelocity;
+    internal float TrackAge = float.MaxValue;
 }
 
 /// <summary>
@@ -426,8 +430,18 @@ public sealed class BattleSim
                 // Top attack: stay high over the target's area (aim above it by half the remaining ground distance,
                 // 20-120 m) and dive steeply only at the end. A direct line came in at ~13° and buried itself in the
                 // crest in front of hull-down targets. The dive (last 90 m) turns at twice the cruise rate.
-                Vector3 aim = t.Volume(MechSection.Torso).Center;
-                aim += t.Velocity * (Vector3.Distance(aim, m.Position) / speed);
+                // It steers on the lock's track, refreshed every half second, extrapolated in a straight line: a
+                // target holding its course (or too slow to leave it) is hit; one that keeps turning makes the
+                // salvo dive on where it would have been. With a perfect track every tick they hit lights 74 %.
+                if (m.TrackAge >= MissileTrackInterval)
+                {
+                    m.TrackPosition = t.Volume(MechSection.Torso).Center;
+                    m.TrackVelocity = t.Velocity;
+                    m.TrackAge = 0f;
+                }
+                m.TrackAge += h;
+                Vector3 aim = m.TrackPosition + m.TrackVelocity * m.TrackAge;
+                aim += m.TrackVelocity * (Vector3.Distance(aim, m.Position) / speed);
                 float ground = MathUtil.PlanarDistance(aim, m.Position);
                 bool diving = ground < 90f;
                 if (!diving) aim.Y += MathUtil.Clamp(0.5f * ground, 20f, 120f);
@@ -582,6 +596,9 @@ public sealed class BattleSim
     /// </summary>
     public bool Marked(int team, BattleUnit e) =>
         e.MarkedBy is { } m && m.Team == team && Time < e.MarkedUntil && !e.IsOut && TacticsOf(team).HasFlag(TeamTactics.Marks);
+
+    /// <summary>Seconds between updates of a guided missile's target track (see <see cref="Missile"/>).</summary>
+    public const float MissileTrackInterval = 1f;
 
     /// <summary>ECM bubble radius.</summary>
     public const float EcmRadius = 120f;

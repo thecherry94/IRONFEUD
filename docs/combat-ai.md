@@ -272,6 +272,20 @@ through the normal fire discipline. Guidance is top attack: cruise high over the
 crests in front of hull-down targets. Lance games: rounds hitting 37 -> 56 % (86 % of those not shot down), 22 damage
 per salvo, ~half of heavies' damage (was 11.5 per salvo and 30 %). Damage 30 -> 40 per salvo, minimum range 160 ->
 120 m. A proximity fuse was tried and dropped (the player prefers rounds that hit by flying well).
+**Arc missiles vs lights** (player report: lights "obliterated" and "dominated by arc missiles"). Measured in 20
+lance games: arc rounds hit lights 74 % of the time, more than any other class (assaults 58 %); 57 % of the hits
+landed while the light was in the air (jink and bound hops) and with hops off it was still 78 %: the guidance led the
+target with perfect information every tick and turned at up to 3.2 rad/s (~450 m/s² at 140 m/s against a light's
+~45). Now the missiles steer on the lock's track, refreshed once a second (`BattleSim.MissileTrackInterval`) and
+extrapolated in a straight line: a target holding its course, or too slow to leave it, is hit; one that keeps
+turning makes the salvo dive on where it would have been. Lights and mediums with a guided salvo inbound evade
+(`AiPilot.Evading`): flat out, weaving ±0.7 rad on a 2 s cycle, no hops; the HUD warns "INCOMING MISSILES" (and
+"MISSILE LOCK"). Hit rates: lights 74 -> 60 % (0.5 s track) -> 53 % (+ evasion) -> 33 % (1 s track, 2 s weave);
+mediums 63 %, heavies 67 %, assaults 59 %. Pinned by `ArcMissiles_MissAWeavingLight_ButNotAnAssault` (4 salvos:
+light 160 standing, 13 weaving; assault 108 either way). Lance report: light 90 dealt / 0.40 kills / 43 % survived
+(was 58 / 0.40 / 33 %), medium 110 / 0.53 / 38 %, heavy 167 / 0.73 / 38 % (kills were 1.35), assault 148 / 0.73 /
+45 %; light deaths 30 -> 23 of 40, median 34 -> 42 s, only 1 before 20 s (was 7); arc kills on lights 13 -> 5.
+The siege cannon is now the top light killer (the flamer light brawling beside an assault).
 Point defense: turrets (assault 1; a second on the Hauberk medium made every lance a two-turret screen) each shoot down 1.5
 missiles a second within 110 m that are closing on the mech or a teammate within 120 m; turrets add up. One arc
 volley shot down: 1 turret 33 %, 2 turrets 73 %, 3 turrets 100 % (design: one turret thins, stopping a volley takes
