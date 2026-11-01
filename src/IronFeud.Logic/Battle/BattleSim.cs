@@ -57,8 +57,15 @@ public sealed class BattleUnit
     /// <summary>The enemy this unit's pilot wants a missile lock on; set by the pilot every tick (null = none).</summary>
     public BattleUnit? LockCandidate;
 
-    /// <summary>Seconds the candidate has stayed spotted and in the aim cone; locked at the guided weapon's lock time.</summary>
+    /// <summary>Seconds the candidate has stayed spotted and in the aim cone; locked at <see cref="LockTime"/>.</summary>
     public float LockProgress { get; internal set; }
+
+    /// <summary>What the current lock takes: the guided weapon's lock time (else a sensor lock's), a third on a marked target.</summary>
+    public float LockTime { get; internal set; } = BattleSim.SensorLockTime;
+
+    /// <summary>The designator that last marked this unit, and until when the mark holds (see <see cref="BattleSim.Marked"/>).</summary>
+    public BattleUnit? MarkedBy { get; internal set; }
+    public float MarkedUntil { get; internal set; } = -99f;
 
     /// <summary>The enemy guided missiles fired now will home on.</summary>
     public BattleUnit? Locked { get; internal set; }
@@ -95,10 +102,11 @@ public sealed class Shell
 
 /// <summary>
 /// Lance tactics: Radar (lancemates share sightings), Spotters (lights take observation posts for guided-missile
-/// teammates), Umbrella (pilots under missile threat close on a teammate's point defense).
+/// teammates), Umbrella (pilots under missile threat close on a teammate's point defense), Marks (designator marks
+/// count for the lance, see <see cref="BattleSim.Marked"/>).
 /// </summary>
 [Flags]
-public enum TeamTactics { None = 0, Radar = 1, Spotters = 2, Umbrella = 4, All = Radar | Spotters | Umbrella }
+public enum TeamTactics { None = 0, Radar = 1, Spotters = 2, Umbrella = 4, Marks = 8, All = Radar | Spotters | Umbrella | Marks }
 
 /// <summary>
 /// What a lance knows about an enemy's state: a sensor lock scans its internals (armour, structure, exposed
@@ -524,12 +532,17 @@ public sealed class BattleSim
             var pose = u.Sim.Pose;
             Vector3 to = c.Volume(MechSection.Torso).Center - pose.AimOrigin;
             float d = to.Length(), lockTime = guided?.LockTime ?? SensorLockTime, range = guided?.Range ?? SensorLockRange;
+            if (Marked(u.Team, c) && c.MarkedBy != u) lockTime *= MarkedLockFactor;
+            u.LockTime = lockTime;
             bool inCone = d < range && Vector3.Dot(pose.AimDirection, to / MathF.Max(1e-3f, d)) > MathF.Cos(0.35f);
             u.LockProgress = inCone && Spotted(u.Team, c)
                 ? MathF.Min(lockTime, u.LockProgress + h)
                 : MathF.Max(0f, u.LockProgress - 2f * h);
             u.Locked = u.LockProgress >= lockTime ? c : null;
             if (u.Locked == null) continue;
+            // A designator's lock marks the target, renewed only while it sees the target itself (the mark alone
+            // counts as spotted, so a lock held through the mark mustn't keep renewing it).
+            if (u.Chassis.Designator && Sees(u, c, countMark: false)) { c.MarkedBy = u; c.MarkedUntil = Time + MarkTime; }
             var intel = Intel[Math.Clamp(u.Team, 0, Intel.Length - 1)];
             if (!intel.TryGetValue(c, out var scan)) intel[c] = scan = new ScanReport();
             scan.Time = Time;
@@ -545,23 +558,46 @@ public sealed class BattleSim
     public const float RevealTime = 2f;
 
     /// <summary>
-    /// How far off <paramref name="e"/> can be seen, as a share of sight and radar range: its chassis' size, but at
-    /// least full size within <see cref="RevealTime"/> of firing or while its jets burn.
+    /// How far off <paramref name="e"/> can be seen by <paramref name="team"/>, as a share of sight and radar range: its
+    /// chassis' size, but at least full size within <see cref="RevealTime"/> of firing, while its jets burn, or while
+    /// the team has it marked (the designator paints it for everyone).
     /// </summary>
-    public float SignatureOf(BattleUnit e) =>
-        Time - e.LastFiredAt < RevealTime || e.Sim.Locomotion.JetsBurning ? MathF.Max(1f, e.Chassis.Signature) : e.Chassis.Signature;
+    public float SignatureOf(BattleUnit e, int team, bool countMark = true) =>
+        Time - e.LastFiredAt < RevealTime || e.Sim.Locomotion.JetsBurning || (countMark && Marked(team, e))
+            ? MathF.Max(1f, e.Chassis.Signature) : e.Chassis.Signature;
 
-    /// <summary>Can any mech of <paramref name="team"/> see <paramref name="e"/> (cockpit to torso, within 600 m scaled by its signature)?</summary>
+    /// <summary>
+    /// A mark holds this long after the designator's last sight of the target; teammates lock a marked target in
+    /// this share of the usual time and aim at it more precisely.
+    /// </summary>
+    public const float MarkTime = 6f, MarkedLockFactor = 1f / 3f;
+
+    /// <summary>
+    /// Is <paramref name="e"/> marked for <paramref name="team"/>? A mark is a designator's lock (lights carry one):
+    /// it holds <see cref="MarkTime"/> after the designator last saw the target, so a light marks and moves on. For
+    /// the marking team the target counts as spotted (locks from cover), locks in a third of the time, is aimed at
+    /// more precisely and its position is known; the target knows the designator's bearing.
+    /// </summary>
+    public bool Marked(int team, BattleUnit e) =>
+        e.MarkedBy is { } m && m.Team == team && Time < e.MarkedUntil && !e.IsOut && TacticsOf(team).HasFlag(TeamTactics.Marks);
+
+    /// <summary>
+    /// Does <paramref name="u"/>'s cockpit see <paramref name="e"/>'s torso, within sight range scaled by its signature
+    /// and our sensors? <paramref name="countMark"/> false: without the lance's mark painting it (a designator
+    /// renewing its own mark mustn't see further for it).
+    /// </summary>
+    public bool Sees(BattleUnit u, BattleUnit e, bool countMark = true)
+    {
+        Vector3 target = e.Volume(MechSection.Torso).Center, eye = u.Volume(MechSection.Cockpit).Center;
+        return Vector3.Distance(eye, target) < AiPilot.SensorRange * SignatureOf(e, u.Team, countMark) * u.Sim.SensorQuality && Map.LineClear(eye, target);
+    }
+
+    /// <summary>Can any mech of <paramref name="team"/> see <paramref name="e"/>, or has a designator marked it?</summary>
     public bool Spotted(int team, BattleUnit e)
     {
-        Vector3 target = e.Volume(MechSection.Torso).Center;
-        float range = AiPilot.SensorRange * SignatureOf(e);
+        if (Marked(team, e)) return true;
         foreach (var u in Units)
-        {
-            if (u.Team != team || u.IsOut) continue;
-            Vector3 eye = u.Volume(MechSection.Cockpit).Center;
-            if (Vector3.Distance(eye, target) < range * u.Sim.SensorQuality && Map.LineClear(eye, target)) return true;
-        }
+            if (u.Team == team && !u.IsOut && Sees(u, e)) return true;
         return false;
     }
 
@@ -611,7 +647,7 @@ public sealed class BattleSim
             {
                 if (e.Team == team || e.IsOut) continue;
                 // What the team knows (a scan), not the truth: unscanned enemies count as healthy.
-                float s = (1f - (Scan(team, e)?.Health ?? 1f)) * 1.5f;
+                float s = (1f - (Scan(team, e)?.Health ?? 1f)) * 1.5f + (Marked(team, e) ? 0.8f : 0f);
                 foreach (var a in Units)
                     if (a.Team == team && !a.IsOut && a.Ai?.Contacts.GetValueOrDefault(e) is { } k)
                         s += k.Visible ? 1f : 0.3f;

@@ -362,7 +362,12 @@ public class BalanceTests
     [BalanceFact]
     public void TeamTactics_HeadToHead()
     {
-        foreach (var t in new[] { TeamTactics.Radar, TeamTactics.Spotters | TeamTactics.Radar, TeamTactics.Umbrella, TeamTactics.All })
+        foreach (var (t, rival) in new[]
+                 {
+                     (TeamTactics.Radar, TeamTactics.None), (TeamTactics.Spotters | TeamTactics.Radar, TeamTactics.None),
+                     (TeamTactics.Umbrella, TeamTactics.None), (TeamTactics.All, TeamTactics.None),
+                     (TeamTactics.All, TeamTactics.All & ~TeamTactics.Marks),
+                 })
         {
             int wins = 0, losses = 0, games = 0; float lockT = 0, heavyT = 0, spotT = 0, lightT = 0, arcDmg = 0; int salvos = 0, umbrellas = 0;
             foreach (string map in new[] { "nml", "hills" })
@@ -371,7 +376,7 @@ public class BalanceTests
             {
                 var b = TacticsLance(seed, map);
                 b.Tactics[smart] = t;
-                b.Tactics[1 - smart] = TeamTactics.None;
+                b.Tactics[1 - smart] = rival;
                 b.Damaged += (tg, r, _, att) => { };
                 var umbrellaWas = b.Units.ToDictionary(u => u, _ => false);
                 for (int i = 0; i < 300 * 120 && !b.Over; i++)
@@ -396,7 +401,52 @@ public class BalanceTests
                 games++;
                 if (b.Over && b.Winner == smart) wins++; else if (b.Over && b.Winner == 1 - smart) losses++;
             }
-            _out.WriteLine($"{t,-24} vs none: won {wins}, lost {losses} of {games}; smart heavies locked {100 * lockT / Math.Max(1, heavyT):0}%, {salvos} salvos, arc dmg {arcDmg:0}; lights spotting {100 * spotT / Math.Max(1, lightT):0}%; umbrella moves {umbrellas}");
+            _out.WriteLine($"{t,-24} vs {rival}: won {wins}, lost {losses} of {games}; smart heavies locked {100 * lockT / Math.Max(1, heavyT):0}%, {salvos} salvos, arc dmg {arcDmg:0}; lights spotting {100 * spotT / Math.Max(1, lightT):0}%; umbrella moves {umbrellas}");
+        }
+    }
+
+    /// <summary>
+    /// A lance with designator marks against the same lance without, for each light model (24 seeds x 2 sides, both
+    /// maps). Measured when added: Hauberk (ranged) light 31-17, light survived 46 %; Sicklefoot (flamer) 24-24;
+    /// enemies marked ~13 % of the time, a third of the damage landing on marked targets.
+    /// </summary>
+    [BalanceFact]
+    public void Marks_WhatTheyAreWorth()
+    {
+        foreach (var lightModel in new[] { MechModel.Hauberk, MechModel.Sicklefoot })
+        {
+            int wins = 0, losses = 0; float markedT = 0, enemyT = 0, lightDealt = 0, lightSurv = 0, arc = 0, lightOn = 0, games = 0, markedHits = 0, hits = 0;
+            foreach (string map in new[] { "nml", "hills" })
+            for (uint seed = 1; seed <= 12; seed++)
+            foreach (int smart in new[] { 0, 1 })
+            {
+                var personas = new[] { Personality.Balanced, Personality.Balanced, Personality.Balanced, Personality.Sniper };
+                var b = new BattleSim(map == "nml" ? ArenaMap.NoMansLand(seed) : ArenaMap.Arena(seed), seed * 13);
+                for (int team = 0; team < 2; team++)
+                {
+                    float sign = team == 0 ? 1f : -1f;
+                    for (int i = 0; i < 4; i++)
+                        b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i == 0 ? lightModel : i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk),
+                            new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
+                }
+                b.Tactics[smart] = TeamTactics.All;
+                b.Tactics[1 - smart] = TeamTactics.All & ~TeamTactics.Marks;
+                for (int i = 0; i < 300 * 120 && !b.Over; i++)
+                {
+                    b.Step(1f / 120f);
+                    foreach (var e in b.Events)
+                        if (e.Kind == BattleEventKind.Impact && e.Shooter?.Team == smart && e.Target != null && e.Report.Amount > 0f)
+                        { hits += e.Report.Amount; if (b.Marked(smart, e.Target)) markedHits += e.Report.Amount; }
+                    if (i % 12 == 0)
+                        foreach (var u in b.Units)
+                            if (u.Team != smart && !u.IsOut) { enemyT++; if (b.Marked(smart, u)) markedT++; }
+                }
+                games++;
+                if (b.Over && b.Winner == smart) wins++; else if (b.Over && b.Winner == 1 - smart) losses++;
+                var l = b.Units.First(u => u.Team == smart && u.Chassis.Class == ChassisClass.Light);
+                lightDealt += l.Stats.DamageDealt; if (!l.IsOut) lightSurv++;
+            }
+            _out.WriteLine($"{lightModel} light, marks vs none: won {wins} lost {losses} of {games}; enemies marked {100 * markedT / enemyT:0}% of the time; {100 * markedHits / Math.Max(1, hits):0}% of damage on marked; light dealt {lightDealt / games:0}, survived {100 * lightSurv / games:0}%");
         }
     }
 }

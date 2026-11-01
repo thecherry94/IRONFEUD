@@ -12,7 +12,8 @@ namespace IronFeud.AI;
 /// line of sight to its target (green visible / red remembered), lead point (cyan), the target's rear arc as this
 /// pilot last saw it (magenta wedge: where its thin rear armour is), an escort's ward (light blue line and threat-range ring,
 /// red line to the enemy threatening it), a cyan column while a jump is planned, steering heading (yellow) and every cover point
-/// (grey; green = hidden from the target; gold = chosen). The selection ring is always drawn.
+/// (grey; green = hidden from the target; gold = chosen), and an orange ring over every enemy this mech's lance has
+/// marked (a faint line to it from the designator). The selection ring is always drawn.
 /// </summary>
 public partial class AiDebugDraw : MeshInstance3D
 {
@@ -37,6 +38,7 @@ public partial class AiDebugDraw : MeshInstance3D
     private static readonly Color CoverIdle = new(0.4f, 0.42f, 0.45f);
     private static readonly Color RearArc = new(1f, 0.35f, 0.9f, 0.85f);
     private static readonly Color Escort = new("9fd8ff");
+    private static readonly Color Mark = new("ff9a2a");
 
     public override void _Ready()
     {
@@ -93,6 +95,13 @@ public partial class AiDebugDraw : MeshInstance3D
             if (ai.Jump != Logic.AI.JumpPlan.None || ai.VaultArmed)
                 Line(ground + Vector3.Up * 2f, ground + Vector3.Up * 30f * unit.Chassis.Scale, Lead);
             DrawCover(ai, unit, k, delta);
+            foreach (var e in Battle.Units)
+            {
+                if (e.Team == unit.Team || !Battle.Marked(unit.Team, e)) continue;
+                Vector3 top = e.Position.ToGodot() + Vector3.Up * 14f * e.Chassis.Scale;
+                Ring(top, 3f * e.Chassis.Scale, Mark);
+                if (e.MarkedBy is { IsOut: false } by) Line(by.Volume(MechSection.Cockpit).Center.ToGodot(), top, new Color(Mark, 0.5f));
+            }
         }
         _mesh.SurfaceEnd();
     }

@@ -99,6 +99,59 @@ public class MissileTests
         else Assert.Equal(0f, taken);
     }
 
+    /// <summary>
+    /// A light marks the target, then ducks out of sight behind the berm. The mark holds 6 s: the heavy behind the
+    /// berm still locks (in a third of the usual time), then it lapses. Without a designator, the target is unspotted
+    /// the moment the light is gone.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AMark_OutlastsTheLightsSight_AndSpeedsUpLocks(bool designator)
+    {
+        var f = new HeightField(301, 4f).AddRidge(new Vector2(-400f, 180f), new Vector2(400f, 180f), 20f, 20f, 1.2f);
+        f.UpdateBounds();
+        var b = new BattleSim(new ArenaMap { Terrain = f, Radius = 580f }) { TrackOutcome = false };
+        var heavy = b.AddUnit("H", 0, MechChassis.Heavy(), new Vector3(0, 0, 220), 0f);
+        var lightChassis = MechChassis.Light();
+        lightChassis.Designator = designator;
+        var light = b.AddUnit("L", 0, lightChassis, new Vector3(150, 0, 20), 0f);
+        var target = b.AddUnit("T", 1, MechChassis.Medium(MechModel.Sicklefoot), new Vector3(0, 0, -150), MathF.PI);
+        float twist = 0f, aim = 0f;
+        for (int i = 0; i < 120 * 2.5f; i++)
+        {
+            AimSolver.Track(light.Sim.Pose, light.Sim.Locomotion.Body, light.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
+            light.Input = new MechInput { TwistTarget = twist, AimTarget = aim };
+            light.LockCandidate = target;
+            b.Step(H);
+        }
+        Assert.NotNull(light.Locked);
+        Assert.Equal(designator, b.Marked(0, target));
+
+        // The light ducks behind the berm next to the heavy: nobody on its side sees the target now.
+        light.LockCandidate = null;
+        light.Sim.Locomotion.Reset(new Vector3(40, 0, 230), 0f);
+        b.Step(H);
+        Assert.False(b.Sees(light, target));
+        Assert.Equal(designator, b.Spotted(0, target));
+
+        float lockedAt = -1f, start = b.Time;
+        twist = aim = 0f;
+        for (int i = 0; i < 120 * 7; i++)
+        {
+            AimSolver.Track(heavy.Sim.Pose, heavy.Sim.Locomotion.Body, heavy.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
+            heavy.Input = new MechInput { TwistTarget = twist, AimTarget = aim };
+            heavy.LockCandidate = target;
+            b.Step(H);
+            if (lockedAt < 0f && heavy.Locked != null) lockedAt = b.Time - start;
+        }
+        _out.WriteLine($"designator {designator}: heavy locked through the berm after {lockedAt:0.00} s; marked 7 s later: {b.Marked(0, target)}");
+        if (designator) Assert.InRange(lockedAt, 0.3f, 1.2f); // a third of the arc missiles' 1.5 s, plus slewing on
+        else Assert.Equal(-1f, lockedAt);
+        Assert.False(b.Marked(0, target), "the mark lapses 6 s after the light last saw the target");
+        Assert.False(b.Spotted(0, target));
+    }
+
     [Fact]
     public void ArcMissiles_AreDudsInsideTheirMinimumRange()
     {

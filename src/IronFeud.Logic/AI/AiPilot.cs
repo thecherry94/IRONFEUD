@@ -56,6 +56,9 @@ public sealed partial class AiPilot
     // Distances are the prototype's ×2 (its mechs walked at 4 m/s; ours run at 11-36 m/s).
     public const float SensorRange = 600f, RadarRange = 260f, ContactMemory = 15f;
 
+    /// <summary>Aim error against a target our lance has marked.</summary>
+    public const float MarkedAimFactor = 0.75f;
+
     public const int LogLength = 9;
     public static readonly int ActionCount = Enum.GetValues<AiAction>().Length;
     private static readonly float[] SteerOffsets = { 0f, 0.3f, -0.3f, 0.6f, -0.6f, 0.9f, -0.9f, 1.3f, -1.3f, 1.8f, -1.8f, 2.4f, -2.4f };
@@ -370,6 +373,7 @@ public sealed partial class AiPilot
         Sigma = 0.006f + 0.014f * MathF.Abs(me.Sim.Locomotion.Body.V) / me.Chassis.VMax
                        + 0.03f * MathF.Max(0f, heat - 0.45f) + 0.12f * (k != null ? Crossing(me, k) : 0f);
         Sigma *= Personality.AimError * (1f + 1.5f * (1f - me.Sim.SensorQuality)); // damaged sensors blur the aim
+        if (Target != null && b.Marked(me.Team, Target)) Sigma *= MarkedAimFactor; // the designator's ranging helps
         _errYaw = _rng.NextGaussian() * Sigma;
         _errPitch = _rng.NextGaussian() * Sigma * 0.6f;
         _dmgRecent *= 0.6f;
@@ -391,7 +395,7 @@ public sealed partial class AiPilot
                 continue;
             }
             float d = MathUtil.PlanarDistance(me.Position, e.Position);
-            float seenHeight = 0f, signature = b.SignatureOf(e);
+            float seenHeight = 0f, signature = b.SignatureOf(e, me.Team);
             bool vis = d < SensorRange * me.Sim.SensorQuality * signature && Sees(b.Map, eye, e, out seenHeight);
             Contacts.TryGetValue(e, out var k);
             if (vis)
@@ -470,6 +474,34 @@ public sealed partial class AiPilot
             }
         }
         foreach (var k in Contacts.Values) if (k.Visible) k.Shared = false;
+
+        // Marks: a target our designator marked is known to the whole lance, wherever it goes while the mark holds...
+        foreach (var e in b.Units)
+        {
+            if (e.Team == me.Team || !b.Marked(me.Team, e) || (Contacts.TryGetValue(e, out var k) && k.Visible)) continue;
+            if (k == null)
+            {
+                k = new Contact { FirstSeen = _now };
+                Contacts[e] = k;
+                Observe(k, e);
+            }
+            k.Position = e.Position;
+            k.LastSeen = _now;
+            k.Shared = true;
+        }
+        // ...and a marked pilot gets a warning with the designator's bearing (its own threat to deal with).
+        if (me.MarkedBy is { IsOut: false } marker && b.Marked(marker.Team, me) && !(Contacts.TryGetValue(marker, out var km) && km.Visible))
+        {
+            if (km == null)
+            {
+                km = new Contact { FirstSeen = _now };
+                Contacts[marker] = km;
+                Observe(km, marker);
+                Note($"marked by {marker.Name}");
+            }
+            km.Position = marker.Position;
+            km.LastSeen = _now;
+        }
     }
 
     /// <summary>
@@ -536,6 +568,8 @@ public sealed partial class AiPilot
                       // Something out of reach of every gun we have can wait (and we can take cover from it).
                       - (reach > 0f && d > reach ? 0.6f : 0f)
                       + SkirmisherPreference(e, d, pursued)
+                      // A target our designator has marked is the lance's call: easier to lock, see and hit.
+                      + (b.Marked(me.Team, e) ? 0.3f : 0f)
                       // Machine guns shred exposed internals: a mech with a stripped section is the better target for them.
                       + (HasWeapon(me, w => w.VsStructure > 1.2f) && b.Scan(me.Team, e) is { AnyExposed: true } ? 0.4f : 0f)
                       // A spotter looks at what its heavy is shooting at, unless something closer is on it.
@@ -594,7 +628,8 @@ public sealed partial class AiPilot
     /// be up, nearly ready to fire (rack under 3 s), engaging this target within its guided range, and nobody else
     /// must already see the target. The post: 300-460 m from the target round the current bearing, scored for the
     /// cockpit seeing its torso while our own torso stays hidden from its cockpit, then distance to travel; held
-    /// ~5 s at a time.
+    /// ~5 s at a time. Once the light's mark on the target is fresh (over 3 s left) it doesn't hold the post: the
+    /// heavy locks through the mark, and the light moves on instead of standing there to be found.
     /// </summary>
     private Vector3? SpotPost(BattleSim b, BattleUnit me, Contact k)
     {
@@ -610,6 +645,7 @@ public sealed partial class AiPilot
         foreach (var u in b.Units)
             if (u != me && u.Team == me.Team && !u.IsOut && u.Ai != null && u.Ai.Contacts.TryGetValue(Target, out var c) && c.Visible && !c.Shared) othersSee = true;
         if (othersSee) return null;
+        if (Target.MarkedBy == me && b.Marked(me.Team, Target) && Target.MarkedUntil - b.Time > 3f) return null;
 
         if (_post is { } held && _now < _postUntil) return held;
         var map = b.Map;

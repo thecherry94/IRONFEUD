@@ -123,6 +123,12 @@ public sealed class MechChassis
     /// </summary>
     public float Signature = 1f;
 
+    /// <summary>
+    /// A target designator: a completed lock also marks the target for the lance (see <see cref="Battle.BattleSim.Marked"/>).
+    /// Lights carry one.
+    /// </summary>
+    public bool Designator;
+
     // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
     public Vector3 TorsoHitOffset = new(0f, 1.2f, 0f);         // torso-local
     public float TorsoHitRadius = 2.4f;
@@ -285,6 +291,7 @@ public sealed class MechChassis
             _ => null,
         };
         c.PointDefense = cls == ChassisClass.Assault ? 1 : 0;
+        c.Designator = cls == ChassisClass.Light;
         c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
         c.FitGaitToLegs();
         c.ApplyModelArmour(model);

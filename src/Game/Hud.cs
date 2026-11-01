@@ -174,9 +174,9 @@ public partial class Hud : CanvasLayer
         var sb = new StringBuilder();
         sb.Append($"HEAT {heat} · THR {Mathf.RoundToInt(Pilot.Throttle * 100)}% · {body.V * 3.6f:0.0} km/h · TWIST {Mathf.RoundToInt(Mathf.RadToDeg(-body.Twist))}°");
         if (sim.Chassis.HasJumpJets) sb.Append($" · JETS {Mathf.RoundToInt(sim.Locomotion.JumpCharge * 100)}%{(sim.Locomotion.JetsBurning ? " ▲" : "")}");
-        if (sim.Chassis.TorsoWeapon is { Guided: true } guided && Mech!.Unit is var unit)
+        if (sim.Chassis.TorsoWeapon is { Guided: true } && Mech!.Unit is var unit)
             sb.Append(unit.Locked != null ? $" · LOCKED {unit.Locked.Name}"
-                : unit.LockCandidate != null ? $" · LOCK {Mathf.RoundToInt(100f * unit.LockProgress / guided.LockTime)}%" : " · NO LOCK");
+                : unit.LockCandidate != null ? $" · LOCK {Mathf.RoundToInt(100f * unit.LockProgress / unit.LockTime)}%" : " · NO LOCK");
         sb.Append('\n');
         for (int i = 0; i < weapons.Mounts.Count; i++)
         {
@@ -188,6 +188,7 @@ public partial class Hud : CanvasLayer
         if (sim.IsOut) sb.Append(dmg.Status == MechStatus.PilotKilled ? "\nPILOT KILLED" : "\nMECH DESTROYED");
         else if (sim.Shutdown) sb.Append($"\nHEAT SHUTDOWN · restart in {sim.ShutdownLeft:0.0} s");
         else if (sim.DisruptLeft > 0f) sb.Append("\nSENSORS SCRAMBLED");
+        if (Mech!.Unit is { MarkedBy: { } marker } me && Battlefield?.Battle.Marked(marker.Team, me) == true) sb.Append("\nMARKED BY DESIGNATOR");
         if (GetTree().Paused) sb.Append("\nPAUSED");
         else if (Engine.TimeScale < 1.0) sb.Append("\nSLOW-MO");
         _stat.Text = sb.ToString();
@@ -211,9 +212,10 @@ public partial class Hud : CanvasLayer
             // Its internals show only once the lance has scanned it (a sensor lock, shared across the team).
             var self = Mech!.Unit;
             string internals = Battlefield?.Battle.Scan(self.Team, hit.Mech.Unit) != null ? SectionLine(td)
-                : self.LockCandidate == hit.Mech.Unit ? $"SCANNING {Mathf.RoundToInt(100f * self.LockProgress / IronFeud.Logic.Battle.BattleSim.SensorLockTime)}%"
+                : self.LockCandidate == hit.Mech.Unit ? $"SCANNING {Mathf.RoundToInt(100f * self.LockProgress / self.LockTime)}%"
                 : "NOT SCANNED";
-            _target.Text = $"{hit.Mech.Name} · {hit.Distance:0} m · on {SectionNames[hit.Section].ToUpperInvariant()}{status}\n{internals}";
+            string marked = Battlefield?.Battle.Marked(self.Team, hit.Mech.Unit) == true ? " · MARKED" : "";
+            _target.Text = $"{hit.Mech.Name} · {hit.Distance:0} m · on {SectionNames[hit.Section].ToUpperInvariant()}{status}{marked}\n{internals}";
         }
         else _target.Text = "";
     }
