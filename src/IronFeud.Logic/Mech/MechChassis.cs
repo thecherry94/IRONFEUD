@@ -142,8 +142,8 @@ public sealed class MechChassis
     public float ArmHitRadius = 1.4f;
     public float LegsHitDrop = 2.4f;                           // below the pelvis
     public float LegsHitRadius = 2.0f;
-    public Vector3 CockpitHitOffset = new(0f, 0.05f, -0.85f);  // head-local, just in front of the torso sphere
-    public float CockpitHitRadius = 0.3f;
+    public Vector3 CockpitHitOffset = new(0f, 0.05f, -0.7f);  // head-local, just in front of the torso sphere
+    public float CockpitHitRadius = 0.12f;
 
     // Armour (section hit points)
     public float TorsoHp = 100f;
@@ -340,6 +340,7 @@ public sealed class MechChassis
         ArmHitRadius = 1.15f,
         LegsHitDrop = 2.6f,
         CockpitHitOffset = new Vector3(0f, 0.1f, -0.8f),
+        CockpitHitRadius = 0.08f, // its head juts out of the torso sphere: no shield round the canopy, so a smaller window
         CollapseDrop = 2.8f,
     };
 

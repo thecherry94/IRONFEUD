@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using IronFeud.Logic.Core;
 using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
 using IronFeud.Logic.Mech.Weapons;
@@ -33,7 +34,7 @@ public class DamageTests
     {
         var sim = NewSim();
         var cockpit = Volume(sim, MechSection.Cockpit);
-        Assert.True(cockpit.Radius <= 0.3f);
+        Assert.True(cockpit.Radius <= 0.16f);
 
         // From the front (the mech faces -Z): aimed at the canopy, the cockpit is struck.
         Vector3 front = cockpit.Center + new Vector3(0, 0, -100);
@@ -48,6 +49,39 @@ public class DamageTests
         // Half a metre off the canopy centre is no longer a cockpit hit.
         Assert.True(sim.Raycast(front + new Vector3(0.5f, 0, 0), Vector3.UnitZ, 200f, out hit));
         Assert.NotEqual(MechSection.Cockpit, hit.Section);
+    }
+
+    /// <summary>
+    /// Player call: the cockpit kills the pilot in one solid hit, so it must be extremely hard to hit. Aiming at the
+    /// torso with 1.5 m scatter (an AI at ~250 m), the share of hits striking it, head-on, from a diving missile and
+    /// from the side, must stay under 0.4 % for every class and model. Before (r 0.3 m, canopy proud of the torso)
+    /// it was 1.3-3.2 % head-on and up to 3 % from above: one 10-round arc salvo had a ~15 % chance of killing the
+    /// pilot, and lights died that way in the first 10 s.
+    /// </summary>
+    [Fact]
+    public void Cockpit_IsExtremelyHardToHit_FromAnyDirection()
+    {
+        foreach (var cls in Enum.GetValues<ChassisClass>())
+        foreach (var model in new[] { MechModel.Hauberk, MechModel.Sicklefoot })
+        {
+            var sim = new MechSim(MechChassis.Create(cls, model));
+            for (int i = 0; i < 240; i++) sim.Step(default, 1f / 120f);
+            var rng = new DeterministicRng(7);
+            Vector3 aim = Volume(sim, MechSection.Torso).Center;
+            foreach (var dir in new[] { Vector3.UnitZ, Vector3.Normalize(new Vector3(0, -1.2f, 1f)), -Vector3.UnitX })
+            {
+                Vector3 side = Vector3.Normalize(Vector3.Cross(dir, Vector3.UnitY)), up = Vector3.Cross(side, dir);
+                int hits = 0, cockpit = 0;
+                for (int i = 0; i < 20000; i++)
+                {
+                    Vector3 p = aim + side * rng.NextGaussian() * 1.5f + up * rng.NextGaussian() * 1.5f - dir * 300f;
+                    if (!sim.Raycast(p, dir, 600f, out var h)) continue;
+                    hits++;
+                    if (h.Section == MechSection.Cockpit) cockpit++;
+                }
+                Assert.True(cockpit < 0.004f * hits, $"{cls} {model} from {dir}: {cockpit} of {hits} hits on the cockpit");
+            }
+        }
     }
 
     [Fact]

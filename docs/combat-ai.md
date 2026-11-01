@@ -315,7 +315,12 @@ Arm destroyed → arm hidden, its weapon offline. Legs destroyed → speed ×0.4
 Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
 
 **Godot additions (not in the prototype):**
-- **Cockpit** section: 5 HP, a 0.3 m sphere on the canopy glass, just outside the torso sphere so it can only be
+- **Cockpit** section: 5 HP, a small sphere on the canopy glass (player call: it kills the pilot in one solid
+  hit, so it must be extremely hard to hit). Hauberk: r 0.12 m (scaled by size) recessed into the torso sphere so
+  ~5 cm of it shows, only head-on; Sicklefoot (head juts out of the torso): r 0.08 m. Share of torso-aimed hits
+  (1.5 m scatter) striking it: 0.1-0.3 % head-on, from a diving missile or the side (was 1.3-3.2 %, r 0.3 m, proud
+  of the torso: one 10-round arc salvo had a ~15 % chance to kill the pilot and lights died that way at 6-8 s).
+  Pilot kills in 20 lance games 18 -> 6, light median death 28 -> 34 s. Originally it could only be
   struck from the front. Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the
   frame intact (salvage). One cannon hit, or one laser hit inside ~127 m, kills the pilot. Cannon shells drop
   ~0.3 m over 60 m, so a cockpit shot needs holdover.
