@@ -273,14 +273,16 @@ public sealed partial class AiPilot
         float dist = k != null ? MathUtil.PlanarDistance(me.Position, k.Position) : 999f;
         float age = k != null ? _now - k.LastSeen : 99f;
 
-        Scores[(int)AiAction.Engage] = k != null ? (vis ? 0.55f : 0.25f) * p.Aggression + 0.25f * hp - 0.6f * MathF.Max(0f, heat - 0.55f) : 0f;
+        UpdateAdvantage(b, me, hp);
+        Scores[(int)AiAction.Engage] = k != null ? (vis ? 0.55f : 0.25f) * p.Aggression + 0.25f * hp - 0.6f * MathF.Max(0f, heat - 0.55f)
+                                                   + (Pressing ? 0.35f : 0f) : 0f;
         Scores[(int)AiAction.Cool] = heat > 0.5f ? (heat - 0.5f) * 2.4f + (_dmgRecent > 12f ? 0.15f : 0f) : 0f;
         Scores[(int)AiAction.Flank] = k != null && !vis && age < 4f
             ? MathF.Max(0.1f, 0.3f + 0.07f * MathF.Min(_noLos, 6f) - 0.06f * MathF.Max(0f, _noLos - 9f)) : 0f;
         // Not in the prototype: the urge to retreat fades after 10 s without damage, otherwise two hurt pilots
         // hide from each other forever.
         float nerve = MathF.Exp(-MathF.Max(0f, _now - _lastHurt - 10f) / 12f);
-        Scores[(int)AiAction.Retreat] = hp < 0.45f ? ((0.45f - hp) * 2.6f + 0.15f + (vis && dist < p.Range * 0.8f ? 0.15f : 0f)) * nerve : 0f;
+        Scores[(int)AiAction.Retreat] = hp < 0.45f && !Pressing ? ((0.45f - hp) * 2.6f + 0.15f + (vis && dist < p.Range * 0.8f ? 0.15f : 0f)) * nerve : 0f;
         Scores[(int)AiAction.Search] = k == null ? 0.6f : age >= 4f ? 0.55f : 0f;
         Scores[(int)Action] += 0.12f; // commitment bonus: prevents flip-flopping
 
@@ -462,6 +464,84 @@ public sealed partial class AiPilot
         if (best != null) Note($"target → {best.Name}{(focus == best ? " (team focus)" : "")}");
     }
 
+    /// <summary>Preferred fighting range: the personality's, closed to 60 % while pressing an advantage.</summary>
+    private float Range => Personality.Range * (Pressing ? 0.6f : 1f);
+
+    /// <summary>
+    /// Clearly winning the exchange: healthy, the target badly hurt (its damage shows), and not outnumbered. Then the
+    /// pilot presses: engages harder, closes to 60 % of its range, chases a target backing off, never retreats.
+    /// </summary>
+    public bool Pressing { get; private set; }
+
+    /// <summary>The estimate behind <see cref="Pressing"/>: own health minus the target's, plus 0.3 per fighter the sides differ by.</summary>
+    public float Advantage { get; private set; }
+
+    private void UpdateAdvantage(BattleSim b, BattleUnit me, float hp)
+    {
+        if (Target is not { IsOut: false } t || !Contacts.TryGetValue(t, out var k) || _now - k.LastSeen > 6f)
+        {
+            Advantage = 0f;
+            if (Pressing) Note("no longer pressing");
+            Pressing = false;
+            return;
+        }
+        // Fighters on each side: the pilot knows the opposing lance from the briefing and sees wrecks go down. (Counting
+        // only current contacts made nearly everyone feel ahead early on: pressing 36 % of the time.)
+        int allies = 0, enemies = 0;
+        foreach (var u in b.Units)
+            if (!u.IsOut) { if (u.Team == me.Team) allies++; else enemies++; }
+        Advantage = hp - HealthFactor(t) + 0.3f * (allies - enemies);
+        // Hysteresis: start well ahead (0.5) with the target under 60 % and ourselves over 60 %, stop below 0.25.
+        float theirs = HealthFactor(t);
+        bool press = Pressing ? Advantage > 0.25f : Advantage > 0.5f && theirs < 0.6f && hp > 0.6f;
+        if (press && !Pressing) Note($"pressing the advantage on {t.Name} (me {100f * hp:0}%, it {100f * theirs:0}%)");
+        else if (!press && Pressing) Note("no longer pressing");
+        Pressing = press;
+    }
+
+    /// <summary>
+    /// A fighting withdrawal instead of parking in a cover point: every ~6 s (or on arrival) pick a spot 60-140 m away
+    /// that gains distance from the threats, is hidden from them if possible, sits at a new angle to them and near
+    /// friends, with a clear path to it, then go. The pilot keeps firing when it can and comes back when its nerve
+    /// recovers. Before, a retreating pilot sat in its cover point for ~20 s doing nothing.
+    /// </summary>
+    private Vector3 RetreatDestination(BattleSim b, BattleUnit me, Contact? k)
+    {
+        if (_retreatSpot is { } spot && MathUtil.PlanarDistance(me.Position, spot) > 12f && _now < _retreatUntil) return spot;
+        var map = b.Map;
+        Vector3 threat = k?.Position ?? me.Position + MathUtil.Forward(me.Sim.Locomotion.Body.Psi) * 100f;
+        float away = MathUtil.Heading(me.Position - threat), dNow = MathUtil.PlanarDistance(me.Position, threat);
+        float s = me.Chassis.Scale, hide = 0.85f * (me.Volume(MechSection.Torso).Center.Y - me.Position.Y);
+        Vector3 best = map.ClampDestination(me.Position + MathUtil.Forward(away) * 80f);
+        float bestScore = float.NegativeInfinity;
+        foreach (float r in new[] { 60f, 100f, 140f })
+        foreach (float off in new[] { 0f, 0.5f, -0.5f, 1f, -1f, 1.5f, -1.5f })
+        {
+            Vector3 c = map.ClampDestination(me.Position + MathUtil.Forward(away + off) * r);
+            float score = (MathUtil.PlanarDistance(c, threat) - dNow) / 150f * 0.8f - r / 400f;
+            int seen = 0, threats = 0;
+            foreach (var (e, ce) in Contacts)
+            {
+                if (e.IsOut || _now - ce.LastSeen > 6f) continue;
+                threats++;
+                if (map.LineClear(ce.Position + Vector3.UnitY * ce.EyeHeight, c + Vector3.UnitY * hide)) seen++;
+            }
+            score += threats > 0 ? 1f - (float)seen / threats : 0.5f;
+            score += 0.2f * MathF.Abs(MathUtil.WrapAngle(MathUtil.Heading(c - threat) - away));
+            foreach (var a in b.Units)
+                if (a != me && a.Team == me.Team && !a.IsOut && MathUtil.PlanarDistance(a.Position, c) < 90f) { score += 0.25f; break; }
+            if (!map.PathClear(me.Position, MathUtil.Heading(c - me.Position), 2.4f * s, MathUtil.PlanarDistance(me.Position, c), 3f * s)) score -= 0.6f;
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        _retreatSpot = best;
+        _retreatUntil = _now + 6f;
+        Note($"falling back {MathUtil.PlanarDistance(me.Position, best):0} m");
+        return best;
+    }
+
+    private Vector3? _retreatSpot;
+    private float _retreatUntil;
+
     /// <summary>
     /// Lights hunt the big ones (heavies and assaults, whose backs they can get at), unless an enemy light or medium
     /// is within 110 m of them: then that pursuer is the problem to deal with first.
@@ -505,7 +585,7 @@ public sealed partial class AiPilot
         if (_ward is { IsOut: false } ward && Threat is { IsOut: false } && Action is AiAction.Engage or AiAction.Search or AiAction.Flank)
             return EscortDestination(b.Map, me, ward);
         var map = b.Map;
-        float range = Personality.Range;
+        float range = Range;
         switch (Action)
         {
             case AiAction.Engage or AiAction.Flank when k != null && Role == AiRole.Skirmisher:
@@ -537,7 +617,9 @@ public sealed partial class AiPilot
                 var orbit = map.ClampDestination(k.Position + MathUtil.Forward(a) * range);
                 return map.Terrain != null ? FiringPosition(map, me, k, a) : orbit;
             }
-            case AiAction.Cool or AiAction.Retreat:
+            case AiAction.Retreat:
+                return RetreatDestination(b, me, k);
+            case AiAction.Cool:
             {
                 if (CoverIndex < 0 || _now > _coverUntil || k != null && !Hidden(me, map.Cover[CoverIndex].Position, k, map))
                 {
@@ -633,7 +715,7 @@ public sealed partial class AiPilot
         float legHeight = 0.45f * me.Chassis.HipHeight;
         Vector3 targetEye = k.Position + Vector3.UnitY * k.EyeHeight;
         Vector3 targetAim = k.Position + Vector3.UnitY * k.AimHeight;
-        float range = Personality.Range;
+        float range = Range;
         float stay = Role is AiRole.Line or AiRole.Anchor ? 0.25f : _relocate ? -1f : 0.1f; // heavies hold their ground
         bool relocating = _relocate;
         // Jump-capable mediums also count spots fully hidden from the target that a pop-up clears (8 m up) as firing

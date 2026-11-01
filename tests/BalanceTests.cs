@@ -268,6 +268,7 @@ public class BalanceTests
         var alive = new Dictionary<ChassisClass, float>(); var still = new Dictionary<ChassisClass, float>();
         var longStops = new Dictionary<ChassisClass, int>();
         int rearEvents = 0, faced = 0; float faceTime = 0; int retargeted = 0, helpCalls = 0, helpAnswered = 0;
+        float retreatT = 0, retreatMovingT = 0, pressT = 0, aiT = 0;
         foreach (string map in new[] { "nml", "hills" })
         for (uint seed = 1; seed <= 6; seed++)
         {
@@ -300,6 +301,13 @@ public class BalanceTests
                     var j = u.Ai.Jump;
                     if (j != JumpPlan.None && lastJump[u] == JumpPlan.None) jumps[(c, j)] = jumps.GetValueOrDefault((c, j)) + 1;
                     lastJump[u] = j;
+                    aiT += 1f / 120f;
+                    if (u.Ai.Pressing) pressT += 1f / 120f;
+                    if (u.Ai.Action == AiAction.Retreat)
+                    {
+                        retreatT += 1f / 120f;
+                        if (MathF.Abs(u.Sim.Locomotion.Body.V) > 0.25f * u.Chassis.VMax) retreatMovingT += 1f / 120f;
+                    }
                     bool calling = u.Ai.HelpWanted != null;
                     if (calling && !called[u]) { helpCalls++; }
                     called[u] = calling;
@@ -316,6 +324,7 @@ public class BalanceTests
             }
         }
                 _out.WriteLine($"support calls {helpCalls}, ticks answered {helpAnswered / 120f:0} s");
+        _out.WriteLine($"retreating {100 * retreatT / aiT:0}% of the time, moving {100 * retreatMovingT / Math.Max(1e-3f, retreatT):0}% of it; pressing an advantage {100 * pressT / aiT:0}% of the time");
         _out.WriteLine($"rear-hit events {rearEvents}: victim turned to face the attacker within 15 s in {faced} ({100f * faced / Math.Max(1, rearEvents):0}%), mean {faceTime / Math.Max(1, faced):0.0} s; targeting it then: {retargeted}");
         foreach (var c in Enum.GetValues<ChassisClass>())
         {

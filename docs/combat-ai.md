@@ -163,6 +163,14 @@ Shoot-and-scoot: a medium relocates after every pop-up and pops at most every 5 
 Lights jink (a 0.3-0.5 s hop half the time they're hit) and bound over rough ground at speed: 0.9 -> ~6.3 jumps/min.
 Lance report after: light 202 dealt / 43 % survived, medium 128 / 30 %, heavy 139 / 28 %, assault 158 / 40 %.
 
+**Pressing and falling back** (player feedback: "is the AI aware it has an advantage?", "in retreat they sit in their
+hidey hole ~20 s doing nothing"). Advantage = own health - the target's (its damage shows) + 0.3 per fighter the
+sides differ by (the opposing roster minus confirmed kills; counting only current contacts made everyone feel ahead
+early). Pressing starts when it is over 0.5 with the target under 60 % and the pilot over 60 %, stops under 0.25:
++0.35 to Engage, preferred range x0.6, no retreat. ~28 % of AI time in lance games. Retreat is a fighting
+withdrawal: every ~6 s or on arrival a new spot 60-140 m away scored for distance gained from the threat, being
+hidden from it, a new angle on it, friends nearby and a clear path; retreating pilots now move 65 % of the time.
+
 **Missiles and point defense.** A third mount on the right shoulder (fire bit 2, in the torso frame, lost only
 with the mech). Rocket pod (light): 6 unguided rounds, wide cone, 18 per salvo, 130/220 m. Strike rack (medium):
 10 unguided fast rounds, tight pattern, 25, 300/400 m; no homing on purpose (hard to balance, would dominate).
