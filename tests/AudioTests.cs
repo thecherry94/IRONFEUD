@@ -33,7 +33,8 @@ public class AudioTests
         foreach (var x in new[]
                  {
                      SynthKit.Footfall(0.72f, 1), SynthKit.Footfall(1.3f, 2), SynthKit.GunReport(0.5f, 3), SynthKit.GunReport(2.3f, 4),
-                     SynthKit.Pulse(0.8f, 5), SynthKit.LaserBurn(1.2f, 1.25f, 6), SynthKit.LaserBurn(1.5f, 2f, 9), SynthKit.Impact(0.3f, false, 7), SynthKit.Impact(3f, true, 8),
+                     SynthKit.Pulse(0.8f, 5), SynthKit.LaserBurn(1.2f, 1.25f, 6), SynthKit.LaserBurn(1.5f, 2f, 9),
+                     SynthKit.MissileLaunch(0.5f, 10), SynthKit.MissileLaunch(1f, 11), SynthKit.PointDefenseBurst(12), SynthKit.Impact(0.3f, false, 7), SynthKit.Impact(3f, true, 8),
                  })
         {
             Assert.InRange(Peak(x), 0.89f, 0.901f);

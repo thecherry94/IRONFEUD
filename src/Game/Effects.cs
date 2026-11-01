@@ -232,6 +232,28 @@ public partial class Effects : Node3D
         }
     }
 
+    /// <summary>A missile leaving its tube: a small flash of exhaust and a puff of smoke.</summary>
+    public void MissileLaunch(Vector3 at, Vector3 dir)
+    {
+        _fire.Emit(at, dir * 6f, max: 0.08f, size0: 0.7f, grow: 1.2f, opacity: 1f, drag: 3f);
+        _smoke.Emit(at - dir * 0.5f, -dir * 3f + Vector3.Up, max: 1.2f, size0: 0.6f, grow: 2.5f, opacity: 0.35f, drag: 2f);
+    }
+
+    /// <summary>One tick of a missile's flight: its motor glow and, every other tick, a puff of exhaust smoke left behind.</summary>
+    public void MissileTrail(Vector3 at, Vector3 vel)
+    {
+        if (_rng.NextFloat() < 0.5f)
+            _smoke.Emit(at, vel * 0.02f + Vector3.Up * 0.3f, max: 1.4f + _rng.NextFloat() * 0.6f, size0: 0.45f, grow: 3f, opacity: 0.3f, drag: 1.5f);
+    }
+
+    /// <summary>A point-defense turret's tracer burst to a missile it kills, and the missile popping.</summary>
+    public void PointDefenseShot(Vector3 from, Vector3 to)
+    {
+        BeamShot(from, to, 0.08f, new Color("ffe28a"), 0.25f);
+        _fire.Emit(to, Vector3.Zero, max: 0.15f, size0: 0.9f, grow: 1.5f, opacity: 1f, drag: 0f);
+        _smoke.Emit(to, Vector3.Up, max: 1f, size0: 0.6f, grow: 2.5f, opacity: 0.4f, drag: 1f);
+    }
+
     /// <summary>Cannon muzzle blast: fire puffs along the barrel, a dust puff and a flash.</summary>
     /// <param name="weight">Visual weight relative to the cannon (1); a siege cannon is ~2.3, an autocannon ~0.5.</param>
     public void MuzzleBlast(Vector3 at, Vector3 dir, float weight = 1f)

@@ -107,13 +107,69 @@ public partial class Battlefield : Node3D
                     break;
                 }
                 case BattleEventKind.Impact:
-                    // Size 1 = the cannon's shell; beams leave smaller scorches.
-                    Effects?.Explosion(at, Weight(e.Shot.Spec) * (e.Shot.Spec.Kind == WeaponKind.Projectile ? 1f : 0.35f));
-                    Audio?.Impact(e.Shot.Spec, at, e.Target != null);
+                {
+                    // Size 1 = the cannon's shell, by the damage the round carried (a pulse, one missile of a salvo);
+                    // beams leave smaller scorches.
+                    float share = e.Shot.DamageFraction;
+                    Effects?.Explosion(at, Mathf.Sqrt(e.Shot.Spec.Damage * share / WeaponSpec.Cannon.Damage) * (e.Shot.Spec.Kind == WeaponKind.Beam ? 0.35f : 1f));
+                    Audio?.Impact(e.Shot.Spec, at, e.Target != null, share);
+                    break;
+                }
+                case BattleEventKind.MissileFired:
+                    Effects?.MissileLaunch(from, e.Shot.Direction.ToGodot());
+                    Audio?.MissileLaunch(e.Shot.Spec, from);
+                    break;
+                case BattleEventKind.PointDefense:
+                    Effects?.PointDefenseShot(from, at);
+                    Audio?.PointDefense(from);
                     break;
             }
         }
         DrawShells();
+        DrawMissiles();
+    }
+
+    private readonly Dictionary<int, MeshInstance3D> _missiles = new();
+    private readonly Stack<MeshInstance3D> _missilePool = new();
+    private readonly HashSet<int> _liveMissiles = new();
+    private Mesh? _missileMesh;
+
+    /// <summary>Missiles in flight: a slim body pointed along its velocity, with an exhaust trail.</summary>
+    private void DrawMissiles()
+    {
+        _missileMesh ??= new BoxMesh { Size = new Vector3(0.22f, 0.22f, 1.8f) };
+        _liveMissiles.Clear();
+        foreach (var m in Battle.Missiles)
+        {
+            _liveMissiles.Add(m.Id);
+            bool fresh = !_missiles.TryGetValue(m.Id, out var mesh);
+            if (fresh)
+            {
+                mesh = _missilePool.Count > 0 ? _missilePool.Pop() : NewMissileMesh();
+                _missiles[m.Id] = mesh;
+                mesh.Visible = true;
+            }
+            Vector3 pos = m.Position.ToGodot(), vel = m.Velocity.ToGodot(), dir = vel.Normalized();
+            Vector3 up = Mathf.Abs(dir.Y) > 0.99f ? Vector3.Right : Vector3.Up;
+            mesh!.Transform = new Transform3D(Basis.LookingAt(dir, up), pos);
+            if (fresh) mesh.ResetPhysicsInterpolation();
+            Effects?.MissileTrail(pos - dir * 1f, vel);
+        }
+        if (_missiles.Count == _liveMissiles.Count) return;
+        foreach (var id in new List<int>(_missiles.Keys))
+        {
+            if (_liveMissiles.Contains(id)) continue;
+            _missiles[id].Visible = false;
+            _missilePool.Push(_missiles[id]);
+            _missiles.Remove(id);
+        }
+    }
+
+    private MeshInstance3D NewMissileMesh()
+    {
+        var mi = new MeshInstance3D { Mesh = _missileMesh, MaterialOverride = _shellMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, TopLevel = true };
+        AddChild(mi);
+        return mi;
     }
 
     private void OnDamaged(BattleUnit unit, DamageReport report, System.Numerics.Vector3 at, BattleUnit? attacker)

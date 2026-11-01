@@ -174,6 +174,9 @@ public partial class Hud : CanvasLayer
         var sb = new StringBuilder();
         sb.Append($"HEAT {heat} · THR {Mathf.RoundToInt(Pilot.Throttle * 100)}% · {body.V * 3.6f:0.0} km/h · TWIST {Mathf.RoundToInt(Mathf.RadToDeg(-body.Twist))}°");
         if (sim.Chassis.HasJumpJets) sb.Append($" · JETS {Mathf.RoundToInt(sim.Locomotion.JumpCharge * 100)}%{(sim.Locomotion.JetsBurning ? " ▲" : "")}");
+        if (sim.Chassis.TorsoWeapon is { Guided: true } guided && Mech!.Unit is var unit)
+            sb.Append(unit.Locked != null ? $" · LOCKED {unit.Locked.Name}"
+                : unit.LockCandidate != null ? $" · LOCK {Mathf.RoundToInt(100f * unit.LockProgress / guided.LockTime)}%" : " · NO LOCK");
         sb.Append('\n');
         for (int i = 0; i < weapons.Mounts.Count; i++)
         {

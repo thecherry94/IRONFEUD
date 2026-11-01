@@ -124,14 +124,26 @@ public partial class AudioDirector : Node3D
     }
 
     /// <param name="onMech">Struck armour rings; the ground thuds.</param>
-    public void Impact(WeaponSpec spec, Vector3 at, bool onMech)
+    /// <param name="share">Share of the weapon's damage the round carried (a pulse, one missile of a salvo).</param>
+    public void Impact(WeaponSpec spec, Vector3 at, bool onMech, float share = 1f)
     {
-        float size = Weight(spec) * (spec.Kind == WeaponKind.Projectile ? 1f : 0.35f);
+        float size = Mathf.Sqrt(spec.Damage * share / WeaponSpec.Cannon.Damage) * (spec.Kind == WeaponKind.Beam ? 0.35f : 1f);
         string set = (onMech ? "impact_mech_" : "impact_ground_") + (size > 1.4f ? "big" : size > 0.6f ? "mid" : "small");
         float s = size > 1.4f ? 2f : size > 0.6f ? 1f : 0.35f;
         Play(Set(set, k => SynthKit.Impact(s, onMech, k)), at, Mathf.LinearToDb(Mathf.Clamp(0.5f + 0.3f * size, 0.4f, 1.1f)),
             unitSize: 20f * Mathf.Max(0.5f, size), delayed: true);
     }
+
+    /// <summary>One missile of a salvo leaving its rack.</summary>
+    public void MissileLaunch(WeaponSpec spec, Vector3 at)
+    {
+        float w = Mathf.Sqrt(spec.Damage / spec.Pulses / 3f);
+        Play(Set("missile_" + Key(spec), k => SynthKit.MissileLaunch(w, k)), at, Mathf.LinearToDb(0.55f), unitSize: 22f, delayed: true);
+    }
+
+    /// <summary>A point-defense turret firing at a missile.</summary>
+    public void PointDefense(Vector3 at) =>
+        Play(Set("point_defense", k => SynthKit.PointDefenseBurst(k)), at, Mathf.LinearToDb(0.6f), unitSize: 20f, delayed: true);
 
     /// <summary>A section blown off or the mech destroyed.</summary>
     public void OnDamaged(MechNode mech, in DamageReport r, Vector3 at)

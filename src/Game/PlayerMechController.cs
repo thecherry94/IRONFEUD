@@ -76,6 +76,7 @@ public partial class PlayerMechController : Node
         uint fire = 0;
         if (triggersLive && Input.IsActionPressed("fire_cannon")) fire |= 1u << 0;
         if (triggersLive && Input.IsActionPressed("fire_laser")) fire |= 1u << 1;
+        if (triggersLive && Input.IsActionPressed("fire_rack")) fire |= 1u << 2;
 
         if (_autopilot)
         {
@@ -84,7 +85,7 @@ public partial class PlayerMechController : Node
             _throttle = _autopilotTime < 14f ? Mathf.Min(1f, _autopilotTime * 0.25f) : 0f;
             turn = _autopilotTime is > 6f and < 11f ? Mathf.Sin((_autopilotTime - 6f) * 1.2f) : 0f;
             _twistTarget = 0.5f * Mathf.Sin(_autopilotTime * 0.4f);
-            fire = _autopilotTime is > 3f and < 9f ? 0b11u : 0u;
+            fire = _autopilotTime is > 3f and < 9f ? 0b111u : 0u;
             // A standing hop at 2 s, a running jump at 7 s and a long burn at 12 s (if the chassis has jets).
             jump = _autopilotTime is > 2f and < 2.4f or > 7f and < 7.7f or > 12f and < 13.2f;
         }
@@ -108,7 +109,19 @@ public partial class PlayerMechController : Node
             Convergence = convergence,
             Jump = jump,
         };
+
+        // Missile lock: whatever enemy mech is under the reticle, kept for 2 s after it slips off.
+        if (aim.Mech is { } under && under.Unit.Team != Mech.Unit.Team && !under.Sim.IsOut)
+        {
+            _lockCandidate = under;
+            _lockSeen = 0f;
+        }
+        else if ((_lockSeen += h) > 2f) _lockCandidate = null;
+        Mech.Unit.LockCandidate = _lockCandidate?.Unit;
     }
+
+    private MechNode? _lockCandidate;
+    private float _lockSeen;
 
     private readonly bool _autopilot = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--autopilot") >= 0;
     private float _autopilotTime;

@@ -143,6 +143,46 @@ public static class SynthKit
     }
 
     /// <summary>
+    /// A missile leaving its tube: a short ignition thump and a rushing whoosh (band-passed noise whose band rises as
+    /// the motor spools up), heavier rounds lower and longer.
+    /// </summary>
+    public static float[] MissileLaunch(float weight, uint seed)
+    {
+        var rng = new DeterministicRng(seed);
+        float w = MathF.Max(0.3f, weight), len = 0.35f + 0.25f * MathF.Sqrt(w);
+        var x = new float[(int)(len * Rate)];
+        Svf band = new();
+        for (int i = 0; i < x.Length; i++)
+        {
+            float t = i / (float)Rate, u = t / len;
+            float fc = (500f + 2200f * MathF.Sqrt(u)) / MathF.Pow(w, 0.3f);
+            float env = (1f - MathF.Exp(-t / 0.01f)) * MathF.Pow(1f - u, 1.5f);
+            x[i] = band.Band(Noise(rng), fc, 0.5f) * env * 2.5f;
+        }
+        Sweep(x, 0, 120f, 50f, 0.02f, 0.05f, 0.6f);
+        return Finish(x, drive: 1.5f);
+    }
+
+    /// <summary>A point-defense burst: five sharp cracks 25 ms apart over a short mechanical rattle.</summary>
+    public static float[] PointDefenseBurst(uint seed)
+    {
+        var rng = new DeterministicRng(seed);
+        var x = new float[(int)(0.22f * Rate)];
+        OnePole hp = new(3000f);
+        for (int k = 0; k < 5; k++)
+        {
+            int start = (int)((k * 0.025f + rng.Range(0f, 0.004f)) * Rate);
+            for (int i = start; i < x.Length; i++)
+            {
+                float t = (i - start) / (float)Rate, n = Noise(rng);
+                x[i] += (n - hp.Low(n)) * MathF.Exp(-t / 0.006f) * 1.5f;
+            }
+        }
+        Sweep(x, 0, 220f, 140f, 0.01f, 0.03f, 0.3f);
+        return Finish(x, drive: 1.3f);
+    }
+
+    /// <summary>
     /// Something hitting a mech or the ground. On a mech (<paramref name="metal"/>) it rings like struck armour;
     /// on the ground it is a dull burst with dirt falling back.
     /// <paramref name="size"/>: 0.3 a beam scorch, 1 a cannon shell, 3 a mech blowing apart.

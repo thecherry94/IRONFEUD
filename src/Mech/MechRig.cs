@@ -147,6 +147,8 @@ public sealed class MechRig
                 r.DressHauberk(t);
                 break;
         }
+        if (t.TorsoWeapon is { } rack) r.BuildRack(r.Torso, rack, t.TorsoMount.ToGodot() / s);
+        if (t.PointDefense > 0) r.BuildPointDefense(r.Torso, t);
         return r;
     }
 
@@ -397,6 +399,41 @@ public sealed class MechRig
     /// the spec's calibre, muzzle brakes (the siege cannon gets cooling rings). Beams: an emitter block sized by
     /// calibre with a row of lenses, cooling fins on the big ones.
     /// </summary>
+    /// <summary>
+    /// A shoulder missile rack: an armoured box on a short pylon, its face a grid of launch tubes (two rows), the
+    /// guided arc-missile box taller and angled up a little.
+    /// </summary>
+    private void BuildRack(Node3D parent, WeaponSpec spec, Vector3 mount)
+    {
+        var m = _m;
+        int tubes = spec.Barrels, cols = (tubes + 1) / 2;
+        float tube = 0.32f * spec.Caliber + 0.12f, w = cols * tube + 0.25f, h = 2f * tube + 0.25f, len = spec.Length;
+        var box = Group(parent, "Rack", mount.X, mount.Y, mount.Z + len / 2f);
+        if (spec.Guided) box.Rotation = new Vector3(0.18f, 0f, 0f);
+        Box(parent, 0.35f, 0.5f, 0.6f, m.Frame, mount.X, mount.Y - h / 2f - 0.2f, mount.Z + len / 2f);
+        Box(box, w, h, len, m.Armor, 0f, 0f, 0f);
+        Box(box, w * 1.02f, 0.1f, len * 0.8f, m.Accent, 0f, h / 2f + 0.04f, 0.05f);
+        for (int i = 0; i < tubes; i++)
+        {
+            float x = (i % cols - (cols - 1) / 2f) * tube, y = (i / cols - 0.5f) * tube;
+            Cyl(box, tube * 0.36f, tube * 0.36f, 0.06f, m.Hole, x, y, -len / 2f - 0.01f, -HalfPi);
+        }
+    }
+
+    /// <summary>A point-defense turret per fitted mount: a small dome with a twin barrel on the left shoulder (stacked back).</summary>
+    private void BuildPointDefense(Node3D parent, MechChassis t)
+    {
+        var m = _m;
+        for (int i = 0; i < t.PointDefense; i++)
+        {
+            float x = -1.1f, y = 1.75f, z = 0.4f + 0.9f * i;
+            Cyl(parent, 0.42f, 0.5f, 0.35f, m.Armor, x, y, z, 0f);
+            Box(parent, 0.5f, 0.3f, 0.5f, m.Frame, x, y + 0.3f, z);
+            for (int b = 0; b < 2; b++)
+                Cyl(parent, 0.06f, 0.06f, 0.9f, m.Frame, x + (b - 0.5f) * 0.16f, y + 0.32f, z - 0.6f, -HalfPi);
+        }
+    }
+
     private void BuildWeapon(Node3D parent, WeaponSpec spec, Vector3 mount)
     {
         var m = _m;
