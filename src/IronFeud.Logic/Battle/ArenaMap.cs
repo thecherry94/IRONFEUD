@@ -374,10 +374,12 @@ public sealed class ArenaMap : IGround
     }
 
     /// <summary>Pushes a circle (mech footprint) out of every block it overlaps. Returns the corrected ground position.</summary>
-    public Vector3 PushOut(Vector3 p, float radius)
+    /// <param name="feetY">Height of the mech's feet: blocks it is flying over (top below its feet) don't push.</param>
+    public Vector3 PushOut(Vector3 p, float radius, float feetY = float.NegativeInfinity)
     {
         foreach (var b in Blocks)
         {
+            if (b.Max.Y < feetY) continue;
             float cx = MathUtil.Clamp(p.X, b.Min.X, b.Max.X), cz = MathUtil.Clamp(p.Z, b.Min.Z, b.Max.Z);
             float dx = p.X - cx, dz = p.Z - cz, d2 = dx * dx + dz * dz;
             if (d2 >= radius * radius) continue;

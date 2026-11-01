@@ -11,7 +11,7 @@ namespace IronFeud.AI;
 /// Draws what the selected mech's AI is thinking, like the prototype's overlay: destination (gold line + ring),
 /// line of sight to its target (green visible / red remembered), lead point (cyan), the target's rear arc as this
 /// pilot last saw it (magenta wedge: where its thin rear armour is), an escort's ward (light blue line and threat-range ring,
-/// red line to the enemy threatening it), steering heading (yellow) and every cover point
+/// red line to the enemy threatening it), a cyan column while a jump is planned, steering heading (yellow) and every cover point
 /// (grey; green = hidden from the target; gold = chosen). The selection ring is always drawn.
 /// </summary>
 public partial class AiDebugDraw : MeshInstance3D
@@ -89,6 +89,9 @@ public partial class AiDebugDraw : MeshInstance3D
                 Ring(w, Logic.AI.AiPilot.ThreatRange, new Color(Escort, 0.35f), 48);
                 if (ai.Threat is { IsOut: false } t) Line(w, t.Position.ToGodot() + Vector3.Up * 0.5f, Remembered);
             }
+            // Jump plan: a cyan column above the mech while a tactical jump is lined up or under way.
+            if (ai.Jump != Logic.AI.JumpPlan.None || ai.VaultArmed)
+                Line(ground + Vector3.Up * 2f, ground + Vector3.Up * 30f * unit.Chassis.Scale, Lead);
             DrawCover(ai, unit, k, delta);
         }
         _mesh.SurfaceEnd();

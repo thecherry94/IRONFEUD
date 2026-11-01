@@ -106,6 +106,9 @@ public sealed class BattleSim
 
     public float Time { get; private set; }
 
+    /// <summary>Which jump-jet tactics AI pilots use (all by default). Switched off only to measure what each changes.</summary>
+    public JumpTactics JumpTactics = JumpTactics.All;
+
     /// <summary>Mediums escort a heavy or assault (<see cref="AiPilot.Ward"/>). Off only to measure what escorts change.</summary>
     public bool Escorts = true;
 
@@ -263,7 +266,7 @@ public sealed class BattleSim
             Vector3 d = b.Position - a.Position;
             d.Y = 0f;
             float dist = d.Length(), min = a.Radius + b.Radius;
-            if (dist >= min || dist < 1e-3f || a.IsOut && b.IsOut) continue;
+            if (dist >= min || dist < 1e-3f || a.IsOut && b.IsOut || PassesOver(a, b) || PassesOver(b, a)) continue;
             Vector3 n = d / dist;
             float push = min - dist;
             float wa = a.IsOut ? 0f : b.IsOut ? 1f : 0.5f;
@@ -271,8 +274,12 @@ public sealed class BattleSim
             b.Sim.Locomotion.Body.Position += n * (push * (1f - wa));
         }
         foreach (var u in Units)
-            if (!u.IsOut) u.Sim.Locomotion.Body.Position = Map.PushOut(u.Position, u.Radius * 0.8f);
+            if (!u.IsOut) u.Sim.Locomotion.Body.Position = Map.PushOut(u.Position, u.Radius * 0.8f, u.Position.Y);
     }
+
+    /// <summary>A mech on jets whose feet are above the other's torso centre passes over it (a vault), no shove.</summary>
+    private static bool PassesOver(BattleUnit air, BattleUnit other) =>
+        air.Sim.Locomotion.Body.Airborne && air.Position.Y > other.Volume(MechSection.Torso).Center.Y;
 
     /// <summary>Squad coordinator: each team focuses the enemy that is most damaged and most seen by its pilots.</summary>
     private void Coordinate()

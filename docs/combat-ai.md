@@ -124,6 +124,26 @@ threat so the ward keeps its own line of fire. History: a leashed escort that st
 while guns wobbled (lights lost 2 -> 8 of 12), but once weapons were stabilised it blocked the ward's shots and kept
 the medium from finding lights early, and turned harmful (7 -> 2 of 24). On call: 7 -> 9 of 24, damage on lights +35 %.
 
+**Jump tactics** (`AiPilot.Jumps.cs`, all through `MechInput.Jump`; `BattleSim.JumpTactics` switches them per battle
+for measurement, `JumpTactics_WhatEachIsWorth` reports them):
+- *Pop-up* (mediums): hidden from a target seen in the last 8 s, a gun ready, heat to spare: burn just long enough for
+  the lowest muzzle to clear the crest (+1.5 m), hold position, check the target every tick while up (the pilot knows
+  where to look: no reaction delay), fire, drop back. Firing positions also value spots fully hidden that a pop clears.
+  Medium vs heavy on No Man's Land: damage 1714 -> 2154, mediums lost 10 -> 8 of 12, heavies killed 2 -> 4.
+- *Vault* (lights, only alone on the target): head-on to a heavy or assault with a full tank and a run-up clear of
+  blocks, run straight at where it will be and take off once a full burn clears its torso top + 3 m there; in the air
+  yaw round to land facing it. Lone light vs assault: lights lost 9 -> 7, kills 3 -> 4, rear share 3 -> 10 %. With a
+  teammate on the target it cost lights and kills (plain flanking already reaches the back), hence alone only.
+  Getting it right took: a bigger light tank (apex 17 -> 23 m to clear an assault), leading the target (it moves
+  20-30 m in the flight), a 0.08 rad take-off alignment, and flight momentum separate from the body's yaw.
+- *Traverse*: a wall (no walkable heading within ±35°) inside jet reach is jumped. Jumping every steep slope instead
+  of a short detour cost lights 2x the damage taken; walls only, it is neutral in the arena (helps on bigger walls).
+- *Dodge*: a heavy shell on course for the torso 0.5-1.5 s out (visible tracer) triggers a 0.6 s hop. Light + medium
+  vs assault: lights lost 1 -> 0, assault killed 11 -> 12, the light takes 25 % less.
+All together, lone light vs assault: lights lost 9 -> 6, kills 3 -> 5; light + medium: 1 -> 0, 11 -> 12. Lance report
+after: light 171 dealt / 38 % survived, medium 140 / 28 %, heavy 132 / 25 %, assault 142 / 35 %. Escorts are about
+neutral now (`Escorts_WhatTheyAreWorth`); revisit with the heavies' role.
+
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
 them at each model's arm mount point and flashes, beams, shells and impacts scale with damage.

@@ -47,7 +47,7 @@ public sealed class Contact
 /// line of sight, radar range and being shot, and aims with Gaussian error. Thinks every 0.35 s (staggered), steers
 /// and aims every tick. All state the debug overlay needs is public.
 /// </summary>
-public sealed class AiPilot
+public sealed partial class AiPilot
 {
     public const float ThinkInterval = 0.35f;
     // Distances are the prototype's ×2 (its mechs walked at 4 m/s; ours run at 11-36 m/s).
@@ -170,7 +170,10 @@ public sealed class AiPilot
             _thinkTimer = ThinkInterval;
             Think(battle, me);
         }
-        me.Input = Control(battle, me);
+        RefreshPopTarget(battle, me);
+        var input = Control(battle, me);
+        FlyJump(battle, me, ref input, h);
+        me.Input = input;
     }
 
     // ---------- think (every 0.35 s) ----------
@@ -240,6 +243,7 @@ public sealed class AiPilot
 
         Destination = PlanDestination(b, me, k);
         DesiredHeading = Steer(b, me, Destination);
+        PlanJump(b, me, k, dist, age);
 
         // Aim error grows with own speed, heat and how fast the target crosses the line of sight (≈ 0.12 s of tracking
         // lag): a light running across your nose at close range is genuinely hard to hit.
@@ -407,6 +411,13 @@ public sealed class AiPilot
                 // is the one thing a slow heavy gun can hit.
                 float here = MathUtil.Heading(me.Position - k.Position);
                 float toRear = MathUtil.WrapAngle(k.RearBearing - here);
+                // Head-on to a slow heavy or assault with a full tank: run straight at it and vault it.
+                if (WantsVault(b, me, k, toRear))
+                {
+                    Vector3 through = k.Position - me.Position;
+                    through.Y = 0f;
+                    return map.ClampDestination(k.Position + Vector3.Normalize(through) * 50f);
+                }
                 // Nearly dead ahead of it the short way flips sides with every wobble: keep the current circle then.
                 if (MathF.Abs(toRear) > 2.4f) toRear = _orbit * MathF.Abs(toRear);
                 else if (MathF.Abs(toRear) > 0.5f) _orbit = MathF.Sign(toRear) > 0 ? 1 : -1;
@@ -520,6 +531,8 @@ public sealed class AiPilot
         float range = Personality.Range;
         float stay = Role is AiRole.Line or AiRole.Anchor ? 0.25f : _relocate ? -1f : 0.1f; // heavies hold their ground
         bool relocating = _relocate;
+        // Jump-capable mediums also like spots fully hidden from the target that a pop-up clears (8 m up).
+        bool pops = Role == AiRole.Flex && me.Chassis.HasJumpJets;
 
         Vector3 best = me.Position;
         float bestScore = float.NegativeInfinity;
@@ -538,7 +551,9 @@ public sealed class AiPilot
             bool torsoHidden = legsHidden && !map.LineClear(targetEye, c + up * (0.8f * gunHeight));
             // High ground only counts from behind a crest; on an exposed hilltop it just makes a better target.
             if (relocating && MathUtil.PlanarDistance(c, me.Position) < 30f) continue; // a new spot, not a shuffle
-            float score = (shoot ? 1f : -0.5f) + (legsHidden ? 0.6f : 0f) + (shoot && torsoHidden ? 0.25f : 0f)
+            bool popSpot = pops && !shoot && torsoHidden && map.LineClear(c + up * (gunHeight + 8f), targetAim);
+            float score = (shoot || popSpot ? 1f : -0.5f) + (legsHidden ? 0.6f : 0f) + (torsoHidden && (shoot || popSpot) ? 0.25f : 0f)
+                          + (popSpot ? 0.15f : 0f)
                           - MathF.Abs(MathUtil.PlanarDistance(c, k.Position) - range) / 450f
                           - MathUtil.PlanarDistance(c, me.Position) / 300f
                           + (legsHidden ? MathUtil.Clamp(c.Y - k.Position.Y, -10f, 10f) * 0.015f : 0f)
@@ -597,8 +612,17 @@ public sealed class AiPilot
         float desired = MathUtil.Heading(to);
         float lookAhead = MathF.Max(16f, 1.2f * MathF.Abs(me.Sim.Locomotion.Body.V));
         float probe = MathF.Min(lookAhead, MathUtil.PlanarDistance(dest, me.Position));
-        if (probe < 3f) return desired;
+        if (probe < 3f || Jump is JumpPlan.Traverse or JumpPlan.Vault) return desired;
         float s = me.Chassis.Scale;
+        // A wall (no walkable way within ±35°) but within reach of the jets: jump it rather than walk the long way
+        // round. Not for a slope a short detour avoids: jumping those cost more (heat, fuel, height in view) than it saved.
+        if (!b.Map.PathClear(me.Position, desired, 2.4f * s, probe, 3f * s))
+        {
+            bool shortDetour = false;
+            foreach (float off in SteerOffsets)
+                if (MathF.Abs(off) <= 0.6f && off != 0f && b.Map.PathClear(me.Position, desired + off * _orbit, 2.4f * s, probe, 3f * s)) { shortDetour = true; break; }
+            if (!shortDetour && TryTraverse(b, me, desired, probe)) return desired;
+        }
         foreach (float off in SteerOffsets)
         {
             float h = desired + off * _orbit;
@@ -630,7 +654,7 @@ public sealed class AiPilot
         // Legs: follow the planned heading; back up when the goal is behind during a fight (skirmishers wheel round
         // at speed instead: their circle reverses every few seconds).
         float dist = MathUtil.PlanarDistance(me.Position, Destination);
-        bool circling = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null;
+        bool circling = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null && !VaultArmed;
         // Skirmishers weave around their course while fighting, less while hugging a target (the weave costs the
         // angular rate they need to stay ahead of its turn).
         float hug = Target != null ? MathUtil.Smoothstep(40f, 120f, MathUtil.PlanarDistance(me.Position, Target.Position)) : 1f;
@@ -670,7 +694,8 @@ public sealed class AiPilot
         float age = _now - k.LastSeen;
         float d = MathUtil.PlanarDistance(me.Position, k.Position);
         float tof = shell != null ? d / shell.MuzzleVelocity : 0f;
-        Vector3 lead = k.Position + k.Velocity * (age + tof);
+        // Extrapolate a lost contact for at most 2 s: further out the guess is worse than the last sighting.
+        Vector3 lead = k.Position + k.Velocity * (MathF.Min(age, 2f) + tof);
         float bearing = MathUtil.Heading(lead - me.Position);
         float needTwist = MathUtil.WrapAngle(bearing + _errYaw - body.Psi);
         if (MathF.Abs(needTwist) > c.TwistMax * 0.9f && dist < 8f) input.Turn = MathUtil.Clamp(needTwist * 2f, -1f, 1f);

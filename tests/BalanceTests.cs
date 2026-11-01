@@ -4,6 +4,7 @@ using System.Numerics;
 using IronFeud.Logic.AI;
 using IronFeud.Logic.Battle;
 using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Damage;
 using Xunit.Abstractions;
 
 namespace IronFeud.Tests;
@@ -144,5 +145,92 @@ public class BalanceTests
             _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%");
         _out.WriteLine($"unfinished battles: {unfinished}/20");
         Assert.True(unfinished <= 2, $"{unfinished} lance battles didn't finish in 400 s");
+    }
+
+    /// <summary>Lone light, or light + medium, vs an assault on the cluttered arena, with a set of jump tactics.</summary>
+    private string LightsVsAssault(bool withMedium, JumpTactics tactics, bool escorts = true)
+    {
+        float dealt = 0, rear = 0, taken = 0;
+        int lost = 0, kills = 0;
+        for (uint seed = 1; seed <= 12; seed++)
+        {
+            var b = new BattleSim(ArenaMap.Arena(seed), seed) { TrackOutcome = false, JumpTactics = tactics, Escorts = escorts };
+            var light = b.AddUnit("L", 0, MechChassis.Light(), new Vector3(-20, 0, 150), 0f, Personality.Balanced);
+            if (withMedium) b.AddUnit("M", 0, MechChassis.Medium(), new Vector3(20, 0, 150), 0f, Personality.Balanced);
+            var a = b.AddUnit("A", 1, MechChassis.Assault(), new Vector3(0, 0, -150), MathF.PI, Personality.Balanced);
+            b.Damaged += (t, r, _, _) => { if (t == light) taken += r.Amount; };
+            for (int i = 0; i < 90 * 120 && !light.IsOut && !a.IsOut; i++) b.Step(1f / 120f);
+            dealt += light.Stats.DamageDealt;
+            rear += light.Stats.RearDamage;
+            if (light.IsOut) lost++;
+            if (a.IsOut) kills++;
+        }
+        return $"light dealt {dealt,5:0} ({100 * rear / Math.Max(1, dealt),2:0} % rear), took {taken,5:0}, lights lost {lost,2}/12, assault killed {kills,2}/12";
+    }
+
+    /// <summary>
+    /// What each jump tactic is worth, switched on alone and all together (12 seeds each). Measured when added: all
+    /// tactics vs none, lone light: lights lost 9 -> 6, assault killed 3 -> 5 (vault alone 7 and 4; holding fire
+    /// while lined up made it 10 and 2, so it doesn't); light + medium: 1 -> 0, 11 -> 12 (dodge does most of it).
+    /// Pop-ups, medium vs heavy on No Man's Land: medium damage 1714 -> 2154, mediums lost 10 -> 8, heavies killed 2 -> 4.
+    /// </summary>
+    [BalanceFact]
+    public void JumpTactics_WhatEachIsWorth()
+    {
+        foreach (bool withMedium in new[] { false, true })
+            foreach (var t in new[] { JumpTactics.None, JumpTactics.PopUp, JumpTactics.Vault, JumpTactics.Traverse, JumpTactics.Dodge, JumpTactics.All })
+                _out.WriteLine($"{(withMedium ? "light + medium" : "light alone   ")} vs assault, {t,-8}: {LightsVsAssault(withMedium, t)}");
+
+        foreach (var t in new[] { JumpTactics.None, JumpTactics.PopUp })
+        {
+            float dealt = 0;
+            int lost = 0, kills = 0;
+            for (uint seed = 1; seed <= 12; seed++)
+            {
+                var b = new BattleSim(ArenaMap.NoMansLand(seed), seed) { TrackOutcome = false, JumpTactics = t };
+                var m = b.AddUnit("M", 0, MechChassis.Medium(), new Vector3(0, 0, ArenaMap.ArenaSpawnZ), 0f, Personality.Balanced);
+                var h = b.AddUnit("H", 1, MechChassis.Heavy(), new Vector3(0, 0, -ArenaMap.ArenaSpawnZ), MathF.PI, Personality.Balanced);
+                for (int i = 0; i < 150 * 120 && !m.IsOut && !h.IsOut; i++) b.Step(1f / 120f);
+                dealt += m.Stats.DamageDealt;
+                if (m.IsOut) lost++;
+                if (h.IsOut) kills++;
+            }
+            _out.WriteLine($"medium vs heavy, No Man's Land, {t,-6}: medium dealt {dealt:0}, mediums lost {lost}/12, heavies killed {kills}/12");
+        }
+    }
+
+    /// <summary>
+    /// Assault + medium vs two lights with and without escorts. Its value has flipped with every system around it
+    /// (leashed, wobbling guns: lights lost 2 -> 8 of 12; stabilised guns: 7 -> 2 of 24, so it went on call;
+    /// on call: 7 -> 9; with jump tactics: about even). Revisit with the heavies' role.
+    /// </summary>
+    [BalanceFact]
+    public void Escorts_WhatTheyAreWorth()
+    {
+        foreach (bool escorts in new[] { false, true })
+        {
+            float rear = 0f, taken = 0f, lightsTaken = 0f;
+            int lost = 0;
+            for (uint seed = 1; seed <= 12; seed++)
+            {
+                var b = new BattleSim(ArenaMap.Arena(seed), seed) { TrackOutcome = false, Escorts = escorts };
+                var assault = b.AddUnit("A", 0, MechChassis.Assault(), new Vector3(-15, 0, 150), 0f, Personality.Balanced);
+                b.AddUnit("M", 0, MechChassis.Medium(), new Vector3(15, 0, 150), 0f, Personality.Balanced);
+                var l1 = b.AddUnit("L1", 1, MechChassis.Light(), new Vector3(-30, 0, -150), MathF.PI, Personality.Balanced);
+                var l2 = b.AddUnit("L2", 1, MechChassis.Light(), new Vector3(30, 0, -150), MathF.PI, Personality.Balanced);
+                b.Damaged += (target, report, _, _) =>
+                {
+                    if (target == assault)
+                    {
+                        taken += report.Amount;
+                        if (report.Facing == Facing.Rear) rear += report.Amount;
+                    }
+                    else if (target == l1 || target == l2) lightsTaken += report.Amount;
+                };
+                for (int i = 0; i < 90 * 120 && !assault.IsOut && !(l1.IsOut && l2.IsOut); i++) b.Step(1f / 120f);
+                lost += (l1.IsOut ? 1 : 0) + (l2.IsOut ? 1 : 0);
+            }
+            _out.WriteLine($"{(escorts ? "escort   " : "no escort")}: assault took {taken:0} ({rear:0} in the rear), lights took {lightsTaken:0}, lost {lost}/24");
+        }
     }
 }
