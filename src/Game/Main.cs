@@ -226,11 +226,12 @@ public partial class Main : Node3D
                 Ai("Bravo-2", 1, M, x, -z2, Personality.Sniper);
                 break;
             case GameMode.WatchLance:
-                // One of each class per side, models mixed: light skirmisher, medium, heavy line, assault anchor.
+                // One of each class per side: light skirmisher, medium, heavy line, assault anchor. Both sides field the
+                // same lance (models mixed within it) on a point-symmetric map: a fair match. Mirrored model mixes
+                // tilted it ~59-41, mostly through the taller Hauberk assault being picked off over crests.
                 foreach (var (team, sign, name) in new[] { (0, 1f, "Alpha"), (1, -1f, "Bravo") })
                 {
-                    var model = team == 0 ? MechModel.Sicklefoot : MechModel.Hauberk;
-                    var other = team == 0 ? MechModel.Hauberk : MechModel.Sicklefoot;
+                    const MechModel model = MechModel.Sicklefoot, other = MechModel.Hauberk;
                     Ai($"{name}-1", team, L, -45f * sign, sign * z, Personality.Balanced, model);
                     Ai($"{name}-2", team, M, -15f * sign, sign * z, Personality.Balanced, other);
                     Ai($"{name}-3", team, ChassisClass.Heavy, 15f * sign, sign * z2, Personality.Balanced, model);
