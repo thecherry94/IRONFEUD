@@ -41,8 +41,10 @@ public sealed class BodyState
 public static class BodyKinematics
 {
     /// <param name="speedFactor">Forward top-speed multiplier (crippled legs).</param>
-    /// <param name="control">Leg authority: 1 on the ground; in the air only the jets steer (a fraction of it).</param>
-    public static void Step(BodyState s, in MechInput input, MechChassis t, float h, float speedFactor = 1f, float control = 1f)
+    /// <param name="control">Leg authority over speed: 1 on the ground; in the air only the jets push (a fraction of it).</param>
+    /// <param name="turnControl">Authority over the turn rate (default: the square root of <paramref name="control"/>).</param>
+    public static void Step(BodyState s, in MechInput input, MechChassis t, float h, float speedFactor = 1f, float control = 1f,
+        float turnControl = -1f)
     {
         float throttle = MathUtil.Clamp(input.Throttle, -1f, 1f);
         float turn = MathUtil.Clamp(input.Turn, -1f, 1f);
@@ -55,7 +57,7 @@ public static class BodyKinematics
         s.V += MathUtil.Clamp(dv, -a * h, a * h);
         s.Acc = MathUtil.Lerp(s.Acc, (s.V - vPrev) / h, MathF.Min(1f, h * 6f));
 
-        float omegaT = turn * t.OmegaMax * (1f - t.TurnSpeedPenalty * MathF.Abs(s.V) / t.VMax) * MathF.Sqrt(control);
+        float omegaT = turn * t.OmegaMax * (1f - t.TurnSpeedPenalty * MathF.Abs(s.V) / t.VMax) * (turnControl >= 0f ? turnControl : MathF.Sqrt(control));
         s.Omega += MathUtil.Clamp(omegaT - s.Omega, -t.OmegaAccel * h, t.OmegaAccel * h);
         s.Psi += s.Omega * h;
         s.Position += MathUtil.Forward(s.Psi) * (s.V * h);

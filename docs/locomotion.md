@@ -194,7 +194,9 @@ Lights and mediums carry jets (`MechChassis.JumpThrust`, fuel in seconds of burn
 second); heavies and assaults don't (quirks may change that). `MechInput.Jump` burns while held; take-off needs a
 quarter charge. In the air the gait steps aside: the body flies ballistically (`MechLocomotion.Gravity` = 12 m/s²,
 heavier than Earth's so arcs read as heavy machines), thrust beats gravity while burning and pushes forward a little,
-the legs keep a fifth of their authority (momentum carries). Full burns: light ~17 m, medium ~13 m apex.
+the legs keep a fifth of their authority over speed. The flight keeps its own horizontal momentum while the body
+yaws freely on its jets (turn to face a target mid-air); throttle and the jets' push nudge the momentum along the way
+the body faces, and on touchdown the legs take the component along it. Full burns: light ~23 m, medium ~13 m apex.
 
 Same rule as on terrain: exact IK, cheated inputs. Airborne foot targets are body-relative (`GaitController.AirTarget`):
 tucked up and trailing while rising, reaching down once touchdown is under ~0.6 s away, never below the ground under

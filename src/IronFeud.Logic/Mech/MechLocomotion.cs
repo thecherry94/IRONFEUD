@@ -128,6 +128,7 @@ public sealed class MechLocomotion
         {
             Body.Airborne = true;
             Body.Vy = MathF.Max(0f, _groundVel);
+            _airVel = MathUtil.Forward(Body.Psi) * Body.V;
             // The walking body lags its ground spring; carry that lag into the flight (fading) instead of snapping.
             _supportLag = Ground != null ? Body.Position.Y - Support(Body.Position) : 0f;
             Gait.TakeOff();
@@ -162,16 +163,26 @@ public sealed class MechLocomotion
     /// </summary>
     private void Fly(in MechInput input, float h)
     {
-        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor, control: 0.2f);
+        // The flight keeps its own horizontal momentum. The body yaws freely on its jets (turn to face a target
+        // mid-air: a vaulting light lands facing the back it jumped over); throttle and the jets' push only nudge
+        // the momentum along the way the body faces.
+        Vector3 start = Body.Position;
+        float vBefore = Body.V;
+        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor, control: 0.2f, turnControl: 1f);
+        Vector3 fwd = MathUtil.Forward(Body.Psi);
+        _airVel += fwd * (Body.V - vBefore);
         JetsBurning = input.Jump && JumpFuel > 0f && !Collapsed;
         if (JetsBurning)
         {
             JumpFuel = MathF.Max(0f, JumpFuel - h);
             Body.Vy += (Chassis.JumpThrust - Gravity) * h;
-            Body.V = MathF.Min(Body.V + Chassis.JumpPush * h, Chassis.VMax * SpeedFactor * 1.1f);
+            _airVel += fwd * (Chassis.JumpPush * h);
+            float cap = Chassis.VMax * SpeedFactor * 1.1f;
+            if (_airVel.Length() > cap) _airVel *= cap / _airVel.Length();
         }
         else Body.Vy -= Gravity * h;
-        Body.Position.Y += Body.Vy * h;
+        Body.Position = new Vector3(start.X + _airVel.X * h, start.Y + Body.Vy * h, start.Z + _airVel.Z * h);
+        Body.V = Vector3.Dot(_airVel, fwd); // what the legs will meet the ground with
 
         // The ground the body rides on when walking (footprint average), so take-off and touchdown are seamless.
         // Rising into a slope rides up it; coming down onto it is a landing.
@@ -263,6 +274,7 @@ public sealed class MechLocomotion
     }
 
     private float _groundVel, _supportLag;
+    private Vector3 _airVel;
 
     private void Solve() => MechPoseSolver.Solve(Pose, Body, Gait, Secondary, Chassis, Time, CollapseAmount, CollapseRoll);
 }

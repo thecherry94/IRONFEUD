@@ -35,7 +35,7 @@ public class JumpJetTests
     }
 
     [Theory]
-    [InlineData(ChassisClass.Light, 14f, 20f)]
+    [InlineData(ChassisClass.Light, 20f, 26f)]
     [InlineData(ChassisClass.Medium, 10f, 16f)]
     public void FullBurn_ReachesItsClassHeight_AndLandsHard(ChassisClass cls, float minApex, float maxApex)
     {

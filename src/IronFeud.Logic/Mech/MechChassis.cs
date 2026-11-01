@@ -214,9 +214,9 @@ public sealed class MechChassis
                 // Agile at speed (1.26 rad/s flat out, a 29 m circle): enough to out-turn a heavy's or an assault's
                 // legs up close and get at their rear armour.
                 c.TurnSpeedPenalty = 0.3f;
-                // Jets: ~17 m on a full burn, a hop over a crest on a tap.
+                // Jets: ~23 m on a full burn (enough to vault an assault), a hop over a crest on a tap.
                 c.JumpThrust = 24f;
-                c.JumpFuel = 1.2f;
+                c.JumpFuel = 1.4f;
                 c.JumpRecharge = 5f;
                 c.JumpHeat = 0.1f;
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
