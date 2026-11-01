@@ -226,6 +226,7 @@ public partial class AudioDirector : Node3D
     private AudioStream[] ShotSet(WeaponSpec spec)
     {
         float w = Weight(spec);
+        if (spec.DisruptTime > 0f) return Set("particle_" + Key(spec), k => SynthKit.ParticleShot(k));
         return spec.Kind == WeaponKind.Projectile
             ? Set("gun_" + Key(spec), k => SynthKit.GunReport(w, k))
             : Set("pulse_" + Key(spec), k => SynthKit.Pulse(w, k));
@@ -234,6 +235,7 @@ public partial class AudioDirector : Node3D
     private AudioStream[] BurnSet(WeaponSpec spec)
     {
         float w = Weight(spec);
+        if (spec.Flame) return Set("flame_" + Key(spec), k => SynthKit.FlameBurn(spec.BurnTime, k));
         return Set("burn_" + Key(spec), k => SynthKit.LaserBurn(w, spec.BurnTime, k));
     }
 

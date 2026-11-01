@@ -39,7 +39,7 @@ public partial class Battlefield : Node3D
     private readonly Stack<MeshInstance3D> _shellPool = new();
     private readonly HashSet<int> _liveShells = new();
     private Mesh _shellMesh = null!;
-    private Material _shellMaterial = null!;
+    private Material _shellMaterial = null!, _boltMaterial = null!, _incendiaryMaterial = null!;
 
     public IReadOnlyList<MechNode> Mechs => _mechs;
 
@@ -50,6 +50,8 @@ public partial class Battlefield : Node3D
     {
         _shellMesh = new BoxMesh { Size = new Vector3(0.18f, 0.18f, 6f) };
         _shellMaterial = new StandardMaterial3D { AlbedoColor = new Color("ffd27a"), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
+        _boltMaterial = new StandardMaterial3D { AlbedoColor = new Color("bfe4ff"), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
+        _incendiaryMaterial = new StandardMaterial3D { AlbedoColor = new Color("ff7a2a"), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
     }
 
     /// <summary>Takes over a battle and builds a view for each of its units. Call once, after adding this node.</summary>
@@ -78,6 +80,7 @@ public partial class Battlefield : Node3D
         {
             m.SyncFromSimulation();
             if (m.Locomotion.JetsBurning) Effects?.JetFlame(m);
+            if (m.Sim.Shutdown) Effects?.ShutdownVent(m);
             foreach (var f in m.Locomotion.Footfalls)
             {
                 Effects?.Footfall(f, m.Sim.Chassis.Scale);
@@ -90,6 +93,10 @@ public partial class Battlefield : Node3D
             Vector3 from = e.From.ToGodot(), at = e.Point.ToGodot();
             switch (e.Kind)
             {
+                case BattleEventKind.ShellFired when e.Shot.Spec.DisruptTime > 0f:
+                    Effects?.ParticleFlash(from, 1f);
+                    Audio?.Shot(e.Shot.Spec, from);
+                    break;
                 case BattleEventKind.ShellFired:
                     Effects?.MuzzleBlast(from, e.Shot.Direction.ToGodot(), Weight(e.Shot.Spec));
                     Audio?.Shot(e.Shot.Spec, from);
@@ -102,7 +109,8 @@ public partial class Battlefield : Node3D
                 {
                     int key = e.Shooter.Id * 8 + e.Shot.Weapon;
                     bool start = e.Shot.Phase == ShotPhase.Start;
-                    Effects?.BeamHold(key, from, at, start, e.Target != null, e.Hit && e.Target == null, NodeOf(e.Shooter)?.Accent, Weight(e.Shot.Spec));
+                    if (e.Shot.Spec.Flame) Effects?.FlameHold(from, at, e.Hit);
+                    else Effects?.BeamHold(key, from, at, start, e.Target != null, e.Hit && e.Target == null, NodeOf(e.Shooter)?.Accent, Weight(e.Shot.Spec));
                     Audio?.BeamHold(key, e.Shot.Spec, from, start);
                     break;
                 }
@@ -114,6 +122,7 @@ public partial class Battlefield : Node3D
                     float share = e.Shot.DamageFraction;
                     float size = Mathf.Sqrt(e.Shot.Spec.Damage * share / WeaponSpec.Cannon.Damage) * (e.Shot.Spec.Kind == WeaponKind.Beam ? 0.35f : 1f);
                     if (e.Shot.Spec.Kind == WeaponKind.Missile) size = Mathf.Max(size, 0.6f);
+                    if (e.Shot.Spec.DisruptTime > 0f) Effects?.ParticleFlash(at, 1.2f);
                     Effects?.Explosion(at, size);
                     Audio?.Impact(e.Shot.Spec, at, e.Target != null, Mathf.Max(share, e.Shot.Spec.Kind == WeaponKind.Missile ? 0.35f : 0f));
                     break;
@@ -197,6 +206,8 @@ public partial class Battlefield : Node3D
                 mesh = _shellPool.Count > 0 ? _shellPool.Pop() : NewShellMesh();
                 _shells[s.Id] = mesh;
                 mesh.Visible = true;
+                // Particle bolts glow blue-white, incendiary rounds orange, everything else is a yellow tracer.
+                mesh.MaterialOverride = s.State.Spec.DisruptTime > 0f ? _boltMaterial : s.State.Spec.HeatToTarget > 0f ? _incendiaryMaterial : _shellMaterial;
             }
             Vector3 pos = s.State.Position.ToGodot(), dir = s.State.Velocity.ToGodot().Normalized();
             Vector3 up = Mathf.Abs(dir.Y) > 0.99f ? Vector3.Right : Vector3.Up;

@@ -232,6 +232,40 @@ public partial class Effects : Node3D
         }
     }
 
+    /// <summary>One tick of a flamethrower stream: fire puffs thrown along it, smoke and heat where it lands.</summary>
+    public void FlameHold(Vector3 from, Vector3 to, bool hitSomething)
+    {
+        Vector3 dir = (to - from).Normalized();
+        float len = from.DistanceTo(to);
+        for (int k = 0; k < 3; k++)
+        {
+            float t = _rng.NextFloat();
+            var jitter = new Vector3(_rng.NextFloat() - 0.5f, _rng.NextFloat() - 0.3f, _rng.NextFloat() - 0.5f) * 1.5f;
+            _fire.Emit(from + dir * (len * t * 0.8f), dir * 30f + jitter, max: 0.25f + 0.2f * t, size0: 0.8f + 2.2f * t, grow: 1.8f, opacity: 0.9f, drag: 2.5f);
+        }
+        if (hitSomething && _rng.NextFloat() < 0.3f)
+            _smoke.Emit(to, Vector3.Up * 2f, max: 1.6f, size0: 1f, grow: 3f, opacity: 0.35f, drag: 1f);
+    }
+
+    /// <summary>A particle bolt leaving the barrel or striking: a hard blue-white flash and a burst of sparks.</summary>
+    public void ParticleFlash(Vector3 at, float size)
+    {
+        for (int k = 0; k < 6; k++)
+            _fire.Emit(at, new Vector3(_rng.NextFloat() - 0.5f, _rng.NextFloat() - 0.2f, _rng.NextFloat() - 0.5f) * 14f * size,
+                max: 0.12f, size0: 0.5f * size, grow: 1f, opacity: 1f, drag: 4f);
+        _flash.LightColor = new Color("9fd0ff");
+        Flash(at, 45f * size, 0.12f);
+    }
+
+    /// <summary>A shut-down mech vents: smoke out of its back.</summary>
+    public void ShutdownVent(MechNode m)
+    {
+        if (_rng.NextFloat() > 0.25f) return;
+        Vector3 c = m.Sim.Pose.TorsoWorldPosition.ToGodot();
+        _smoke.Emit(c + new Vector3(_rng.NextFloat() - 0.5f, 1.5f, _rng.NextFloat() - 0.5f), new Vector3(0f, 3f, 0f),
+            max: 2f, size0: 0.9f, grow: 2.5f, opacity: 0.4f, drag: 0.5f);
+    }
+
     /// <summary>A missile leaving its tube: a small flash of exhaust and a puff of smoke.</summary>
     public void MissileLaunch(Vector3 at, Vector3 dir)
     {
@@ -350,6 +384,7 @@ public partial class Effects : Node3D
     /// <summary>Intensity uses the prototype's numbers; scaled to Godot light energy here.</summary>
     private void Flash(Vector3 at, float intensity, float duration)
     {
+        if (_flashT <= 0f) _flash.LightColor = new Color("ffa040");
         // Don't let a small flash cut off a bigger one that is still bright.
         if (_flashT > 0f && intensity / 6f < _flashEnergy * (_flashT / _flashMax)) return;
         _flash.Position = at;

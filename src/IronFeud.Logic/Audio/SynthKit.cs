@@ -163,6 +163,52 @@ public static class SynthKit
         return Finish(x, drive: 1.5f);
     }
 
+    /// <summary>
+    /// A particle bolt: a split-second electric tearing (noise chopped at 90-140 Hz, band rising) over a crack and a deep
+    /// thunderous thump with a long rumble. Meant to be frightening, not a "zap".
+    /// </summary>
+    public static float[] ParticleShot(uint seed)
+    {
+        var rng = new DeterministicRng(seed);
+        var x = new float[(int)(1.2f * Rate)];
+        Svf tear = new();
+        float chop = rng.Range(90f, 140f);
+        for (int i = 0; i < x.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float gate = 0.5f + 0.5f * MathF.Sin(MathF.Tau * chop * t);
+            float env = (1f - MathF.Exp(-t / 0.003f)) * MathF.Exp(-t / 0.12f);
+            x[i] = tear.Band(Noise(rng), 1500f + 3000f * MathF.Exp(-t / 0.08f), 0.4f) * gate * gate * env * 3f;
+        }
+        Sweep(x, 0, 180f, 38f, 0.05f, 0.35f, 1.2f);
+        OnePole lp = new(200f);
+        for (int i = 0; i < x.Length; i++)
+        {
+            float t = i / (float)Rate;
+            x[i] += lp.Low(Noise(rng)) * (1f - MathF.Exp(-t / 0.02f)) * MathF.Exp(-t / 0.45f) * 2.5f;
+        }
+        return Finish(x, drive: 2f);
+    }
+
+    /// <summary>A flamethrower stream: a roaring rush of low band noise with crackle, sustained for the burn and a short tail.</summary>
+    public static float[] FlameBurn(float burn, uint seed)
+    {
+        var rng = new DeterministicRng(seed);
+        var x = new float[(int)((burn + 0.3f) * Rate)];
+        Svf roar = new(), hiss = new();
+        float grain = 0f;
+        for (int i = 0; i < x.Length; i++)
+        {
+            float t = i / (float)Rate, after = t - burn;
+            float env = (1f - MathF.Exp(-t / 0.05f)) * (after > 0f ? MathF.Exp(-after / 0.08f) : 1f);
+            float body = roar.Band(Noise(rng), 350f + 80f * MathF.Sin(MathF.Tau * 3.3f * t), 0.9f) * 2.2f;
+            if (rng.NextFloat() < 60f / Rate) grain = rng.Range(0.3f, 1f);
+            grain *= 0.997f;
+            x[i] = (body + hiss.Band(Noise(rng), 2500f, 0.6f) * grain * 0.6f) * env;
+        }
+        return Finish(x, drive: 1.6f);
+    }
+
     /// <summary>A point-defense burst: five sharp cracks 25 ms apart over a short mechanical rattle.</summary>
     public static float[] PointDefenseBurst(uint seed)
     {

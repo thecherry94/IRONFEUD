@@ -186,6 +186,8 @@ public partial class Hud : CanvasLayer
         }
         sb.Append('\n').Append(SectionLine(dmg));
         if (sim.IsOut) sb.Append(dmg.Status == MechStatus.PilotKilled ? "\nPILOT KILLED" : "\nMECH DESTROYED");
+        else if (sim.Shutdown) sb.Append($"\nHEAT SHUTDOWN · restart in {sim.ShutdownLeft:0.0} s");
+        else if (sim.DisruptLeft > 0f) sb.Append("\nSENSORS SCRAMBLED");
         if (GetTree().Paused) sb.Append("\nPAUSED");
         else if (Engine.TimeScale < 1.0) sb.Append("\nSLOW-MO");
         _stat.Text = sb.ToString();
