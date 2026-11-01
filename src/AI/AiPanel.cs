@@ -96,6 +96,7 @@ public partial class AiPanel : CanvasLayer
             sb.Append($"aim error σ {ai.Sigma * 1000f:0.0} mrad\n");
             if (u.MarkedBy is { } marker && Battle?.Marked(marker.Team, u) == true) sb.Append($"[color=#ff4a3a]marked by {marker.Name}[/color]\n");
             if (Battle!.Jammed(u.Team, u)) sb.Append("[color=#ff4a3a]sensors jammed (enemy ECM)[/color]\n");
+            if (ai.Evading) sb.Append($"[color=#ff4a3a]evading {Battle.IncomingGuided(u)} missiles[/color]\n");
         }
 
         sb.Append($"shots · hits · dmg  {u.Stats.Shots} · {u.Stats.Hits} · {u.Stats.DamageDealt:0}\n");

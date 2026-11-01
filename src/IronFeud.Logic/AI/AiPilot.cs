@@ -56,6 +56,9 @@ public sealed partial class AiPilot
     // Distances are the prototype's ×2 (its mechs walked at 4 m/s; ours run at 11-36 m/s).
     public const float SensorRange = 600f, RadarRange = 260f, ContactMemory = 15f;
 
+    /// <summary>Full period of the evasive weave (seconds).</summary>
+    public const float EvadePeriod = 2f;
+
     /// <summary>Aim error against a target our lance has marked.</summary>
     public const float MarkedAimFactor = 0.75f;
 
@@ -192,6 +195,13 @@ public sealed partial class AiPilot
 
     /// <summary>On an observation post right now (debug).</summary>
     public bool Spotting { get; private set; }
+
+    /// <summary>
+    /// Lights and mediums with a guided salvo inbound: flat out, weaving hard, no hops. The missiles steer on a track
+    /// refreshed every half second, so a mech that keeps changing direction makes them dive on where it would have
+    /// been (a hop's ballistic arc is the easiest course of all to predict).
+    /// </summary>
+    public bool Evading { get; private set; }
 
     /// <summary>Under missile threat and closing on a teammate's point defense (debug).</summary>
     public BattleUnit? Umbrella { get; private set; }
@@ -366,6 +376,9 @@ public sealed partial class AiPilot
 
         Destination = PlanDestination(b, me, k);
         DesiredHeading = Steer(b, me, Destination);
+        bool evading = Role is AiRole.Skirmisher or AiRole.Flex && b.IncomingGuided(me) > 0;
+        if (evading && !Evading) Note($"evading {b.IncomingGuided(me)} missiles");
+        Evading = evading;
         PlanJump(b, me, k, dist, age);
 
         // Aim error grows with own speed, heat and how fast the target crosses the line of sight (≈ 0.12 s of tracking
@@ -1114,6 +1127,15 @@ public sealed partial class AiPilot
             // Skirmishers carve their turns at speed; everyone else slows to turn.
             float turnThrottle = Role == AiRole.Skirmisher ? MathF.Max(0.5f, MathF.Cos(err)) : MathF.Max(0.1f, MathF.Cos(err));
             input.Throttle = MathUtil.Clamp(brake, MathF.Min(0.3f, 1.3f / c.VMax), 1f) * turnThrottle;
+        }
+
+        // Missiles inbound: full throttle, swinging the course hard either side of the plan every 0.6 s (the
+        // missiles' track refreshes every 0.5 s and extrapolates a straight line).
+        if (Evading)
+        {
+            float weave = 0.7f * MathF.Sign(MathF.Sin(MathUtil.Tau * _now / EvadePeriod + me.Id));
+            input.Turn = MathUtil.Clamp(MathUtil.WrapAngle(DesiredHeading + weave - body.Psi) * 2.2f, -1f, 1f);
+            input.Throttle = 1f;
         }
 
         bool wasHolding = HoldingFire;

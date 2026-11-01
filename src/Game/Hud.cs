@@ -190,6 +190,12 @@ public partial class Hud : CanvasLayer
         else if (sim.DisruptLeft > 0f) sb.Append("\nSENSORS SCRAMBLED");
         if (Mech!.Unit is { MarkedBy: { } marker } me && Battlefield?.Battle.Marked(marker.Team, me) == true) sb.Append("\nMARKED BY DESIGNATOR");
         if (Battlefield?.Battle.Jammed(Mech.Unit.Team, Mech.Unit) == true) sb.Append("\nECM: SENSORS JAMMED");
+        if (Battlefield?.Battle is { } battle)
+        {
+            int inbound = battle.IncomingGuided(Mech.Unit);
+            if (inbound > 0) sb.Append($"\nINCOMING MISSILES ×{inbound} · keep turning");
+            else if (battle.LockedOn(Mech.Unit)) sb.Append("\nMISSILE LOCK");
+        }
         if (GetTree().Paused) sb.Append("\nPAUSED");
         else if (Engine.TimeScale < 1.0) sb.Append("\nSLOW-MO");
         _stat.Text = sb.ToString();

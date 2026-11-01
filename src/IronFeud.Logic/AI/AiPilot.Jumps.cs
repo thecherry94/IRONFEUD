@@ -162,6 +162,8 @@ public sealed partial class AiPilot
         _tactics = b.JumpTactics;
         if (!me.Chassis.HasJumpJets || _tactics == JumpTactics.None) { VaultArmed = false; return; }
         if (Action is not (AiAction.Engage or AiAction.Flank) || !_tactics.HasFlag(JumpTactics.Vault)) VaultArmed = false;
+        // Evading a guided salvo, a hop is the worst move: its ballistic arc is the easiest course to predict.
+        if (Evading) return;
         if (_tactics.HasFlag(JumpTactics.Dodge)) TryDodge(b, me);
         if (Role == AiRole.Skirmisher)
         {
