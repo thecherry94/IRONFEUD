@@ -418,7 +418,7 @@ public sealed partial class AiPilot
                 Observe(k, e);
                 k.AimHeight = seenHeight;
             }
-            else if (d < RadarRange * signature)
+            else if (d < RadarRange * signature && !b.Jammed(me.Team, e) && !b.Jammed(me.Team, me))
             {
                 if (k == null)
                 {
@@ -455,8 +455,9 @@ public sealed partial class AiPilot
         // eyes; a missile lock can use the teammate's).
         foreach (var mate in b.Units)
         {
-            if (!b.TacticsOf(me.Team).HasFlag(TeamTactics.Radar)) break;
-            if (mate == me || mate.Team != me.Team || mate.IsOut || mate.Ai == null) continue;
+            if (!b.TacticsOf(me.Team).HasFlag(TeamTactics.Radar) || b.Jammed(me.Team, me)) break;
+            // A jammed lancemate can't share what it sees (ECM cuts it off the network).
+            if (mate == me || mate.Team != me.Team || mate.IsOut || mate.Ai == null || b.Jammed(me.Team, mate)) continue;
             foreach (var (e, theirs) in mate.Ai.Contacts)
             {
                 if (e.IsOut || !theirs.Visible || theirs.Shared) continue;
@@ -542,6 +543,8 @@ public sealed partial class AiPilot
         bool pursued = Pursued(me);
         float reach = 0f;
         foreach (var m in me.Sim.Weapons.Mounts) if (!m.Offline) reach = MathF.Max(reach, m.Spec.EffectiveRange);
+        // ECM shows: our own sensors jammed, or our target unlockable and unscannable without a mark.
+        bool jammedMe = b.Jammed(me.Team, me), jammedTarget = Target is { IsOut: false } tj && b.Jammed(me.Team, tj) && !b.Marked(me.Team, tj);
         foreach (var key in new List<BattleUnit>(_damageBy.Keys))
             if ((_damageBy[key] *= MathF.Exp(-ThinkInterval / 5f)) < 0.5f || key.IsOut) _damageBy.Remove(key);
         foreach (var (e, k) in Contacts)
@@ -570,6 +573,8 @@ public sealed partial class AiPilot
                       + SkirmisherPreference(e, d, pursued)
                       // A target our designator has marked is the lance's call: easier to lock, see and hit.
                       + (b.Marked(me.Team, e) ? 0.3f : 0f)
+                      // Kill the jammer: an enemy ECM blinding us, or shielding what we're after, goes up the list.
+                      + (e.Chassis.Ecm && k.Visible && (jammedMe || jammedTarget) ? 0.6f : 0f)
                       // Machine guns shred exposed internals: a mech with a stripped section is the better target for them.
                       + (HasWeapon(me, w => w.VsStructure > 1.2f) && b.Scan(me.Team, e) is { AnyExposed: true } ? 0.4f : 0f)
                       // A spotter looks at what its heavy is shooting at, unless something closer is on it.

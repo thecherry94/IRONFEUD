@@ -449,4 +449,41 @@ public class BalanceTests
             _out.WriteLine($"{lightModel} light, marks vs none: won {wins} lost {losses} of {games}; enemies marked {100 * markedT / enemyT:0}% of the time; {100 * markedHits / Math.Max(1, hits):0}% of damage on marked; light dealt {lightDealt / games:0}, survived {100 * lightSurv / games:0}%");
         }
     }
+
+    /// <summary>
+    /// The default lance (Sicklefoot light: flamer brawler with ECM) against the same lance with its light's jammer
+    /// switched off, 24 seeds x 2 sides on both maps.
+    /// </summary>
+    [BalanceFact]
+    public void Ecm_WhatItIsWorth()
+    {
+        int wins = 0, losses = 0, games = 0;
+        float jammedT = 0, heavyT = 0, arcFired = 0, arcHit = 0, lightDealt = 0, lightSurv = 0;
+        foreach (string map in new[] { "nml", "hills" })
+        for (uint seed = 1; seed <= 12; seed++)
+        foreach (int smart in new[] { 0, 1 })
+        {
+            var b = TacticsLance(seed, map);
+            foreach (var u in b.Units) if (u.Team != smart) u.Chassis.Ecm = false;
+            for (int i = 0; i < 300 * 120 && !b.Over; i++)
+            {
+                b.Step(1f / 120f);
+                foreach (var e in b.Events)
+                {
+                    if (e.Shooter?.Team == smart || e.Shot.Spec?.Guided != true) continue;
+                    if (e.Kind == BattleEventKind.MissileFired) arcFired++;
+                    if (e.Kind == BattleEventKind.Impact && e.Target != null && e.Report.Amount > 0f) arcHit++;
+                }
+                if (i % 12 == 0)
+                    foreach (var u in b.Units)
+                        if (u.Team != smart && !u.IsOut && u.Chassis.Class == ChassisClass.Heavy) { heavyT++; if (b.Jammed(u.Team, u)) jammedT++; }
+            }
+            games++;
+            if (b.Over && b.Winner == smart) wins++; else if (b.Over && b.Winner == 1 - smart) losses++;
+            var l = b.Units.First(u => u.Team == smart && u.Chassis.Class == ChassisClass.Light);
+            lightDealt += l.Stats.DamageDealt; if (!l.IsOut) lightSurv++;
+        }
+        _out.WriteLine($"ECM vs none: won {wins} lost {losses} of {games}; enemy heavies jammed {100 * jammedT / Math.Max(1, heavyT):0}% of the time; "
+                       + $"their arc rounds hitting {100 * arcHit / Math.Max(1, arcFired):0}%; ECM light dealt {lightDealt / games:0}, survived {100 * lightSurv / games:0}%");
+    }
 }

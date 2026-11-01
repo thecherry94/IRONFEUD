@@ -192,8 +192,7 @@ while far out (before, the 0.9 rad flank step around a 300 m circle made the "sp
 target, in flame range 12 % of the time; after, 21 % and 4x the heat put in). The machine-gun AI prefers targets the
 scan shows with exposed structure. Flamer heat per burn 0.3 -> 0.5: at 0.3 lance games saw no shutdowns at all.
 Lance report (20 games): light 50 dealt / 0.30 kills / 25 % survived / 0.51 heat in / 0.05 shutdowns per game,
-medium 97 / 0.50 / 40 %, heavy 163 / 1.45 / 43 %, assault 111 / 0.33 / 35 %. Lights are still the weakest class;
-ECM is next.
+medium 97 / 0.50 / 40 %, heavy 163 / 1.45 / 43 %, assault 111 / 0.33 / 35 %. Lights were still the weakest class here (see marks and ECM below).
 
 **Signature by size.** Sight (600 m), radar (260 m), team spotting and so locks scale with the target's chassis
 signature: light 0.6, medium 0.8, heavy 1, assault 1.15 (`MechChassis.Signature`). Firing or a jet burn shows a mech
@@ -214,6 +213,19 @@ the designator's bearing; the HUD shows "MARKED BY DESIGNATOR" and tags marked t
 Sicklefoot flamer light 24-24 (it marks from flame range, mid-brawl); passive marks alone, before full-size painting
 and the preference, were 25-23 / 21-27. Enemies are marked ~13 % of the time. Lance report: light 55 / 0.20 / 18 %,
 medium 84 / 0.43 / 28 %, heavy 142 / 1.63 / 38 %, assault 121 / 0.58 / 35 % (marks also expose enemy lights).
+
+**ECM** (generic genre jammer; the Sicklefoot light carries it, `MechChassis.Ecm`, so the two light models differ:
+Hauberk = ranged designator, Sicklefoot = flamer brawler with a jammer). Inside its 120 m bubble
+(`BattleSim.Jammed`): enemy mechs can't lock or scan and drop off their lance's shared sightings and radar; its own
+lance can't be locked (so not scanned, nor fired on with arc missiles) unless marked, and designators burn through,
+so the enemy light is the answer. A salvo already in the air keeps homing. Pilots that are jammed, or whose target is
+shielded, go for a visible jammer (+0.6: "kill the jammer"). The HUD says "ECM: SENSORS JAMMED", the AI panel too;
+the overlay draws every bubble. `Ecm_WhatItIsWorth` (the default lance vs the same with the jammer off, 48 games),
+by effect alone: jamming the locker 24-24, shielding targets from locks 30-18, cutting the network 28-19, shaking
+off missiles in flight 35-13 (the lance moves within 120 m of its light: arc missiles, half a heavy's damage, were
+gutted); all of it 37-11. Without the missile shake-off and with the jammer drawing fire: 31-17, the ECM light
+surviving 50 %. Lance report: light 58 dealt / 0.40 kills / 33 % survived / 0.35 shutdowns per game, medium 89 / 0.38
+/ 38 %, heavy 143 / 1.35 / 43 %, assault 103 / 0.38 / 38 % (lights started this round at 0.23 kills, 20 %).
 
 **Lance tactics** (`BattleSim.Tactics` per team, `TeamTactics_HeadToHead` reports them). Radar: lancemates share
 sightings (position, not sight: firing still needs one's own eyes; a missile lock can use a teammate's). Spotters: the

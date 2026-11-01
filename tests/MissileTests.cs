@@ -152,6 +152,51 @@ public class MissileTests
         Assert.False(b.Spotted(0, target));
     }
 
+    /// <summary>
+    /// An enemy ECM light next to the target: the heavy can't lock it. A designator light burns through, marks it,
+    /// and then the heavy locks through the mark.
+    /// </summary>
+    [Fact]
+    public void Ecm_BlocksLocks_UntilADesignatorMarksTheTarget()
+    {
+        var b = new BattleSim(new ArenaMap { Radius = 700f }) { TrackOutcome = false };
+        var heavy = b.AddUnit("H", 0, MechChassis.Heavy(), new Vector3(0, 0, 450), 0f);
+        var target = b.AddUnit("T", 1, MechChassis.Medium(MechModel.Sicklefoot), Vector3.Zero, MathF.PI);
+        var jammer = b.AddUnit("J", 1, MechChassis.Light(MechModel.Sicklefoot), new Vector3(40, 0, 0), MathF.PI);
+        Assert.True(jammer.Chassis.Ecm);
+        float twist = 0f, aim = 0f;
+        void Track(int ticks)
+        {
+            for (int i = 0; i < ticks; i++)
+            {
+                AimSolver.Track(heavy.Sim.Pose, heavy.Sim.Locomotion.Body, heavy.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
+                heavy.Input = new MechInput { TwistTarget = twist, AimTarget = aim };
+                heavy.LockCandidate = target;
+                b.Step(H);
+            }
+        }
+        Track(120 * 4);
+        Assert.True(b.Spotted(0, target));
+        Assert.True(b.Jammed(0, target));
+        Assert.Null(heavy.Locked);
+        Assert.Null(b.Scan(0, target));
+
+        var designator = b.AddUnit("D", 0, MechChassis.Light(MechModel.Hauberk), new Vector3(0, 0, 220), 0f);
+        Assert.False(designator.Chassis.Ecm);
+        float dTwist = 0f, dAim = 0f, lockedAt = -1f;
+        for (int i = 0; i < 120 * 4 && lockedAt < 0f; i++)
+        {
+            AimSolver.Track(designator.Sim.Pose, designator.Sim.Locomotion.Body, designator.Chassis, target.Volume(MechSection.Torso).Center, ref dTwist, ref dAim);
+            designator.Input = new MechInput { TwistTarget = dTwist, AimTarget = dAim };
+            designator.LockCandidate = target;
+            Track(1);
+            if (heavy.Locked != null) lockedAt = b.Time;
+        }
+        _out.WriteLine($"designator marked: {b.Marked(0, target)}, heavy locked at {lockedAt:0.00} s");
+        Assert.True(b.Marked(0, target), "designators burn through ECM");
+        Assert.NotNull(heavy.Locked);
+    }
+
     [Fact]
     public void ArcMissiles_AreDudsInsideTheirMinimumRange()
     {

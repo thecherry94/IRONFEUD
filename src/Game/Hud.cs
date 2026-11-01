@@ -189,6 +189,7 @@ public partial class Hud : CanvasLayer
         else if (sim.Shutdown) sb.Append($"\nHEAT SHUTDOWN · restart in {sim.ShutdownLeft:0.0} s");
         else if (sim.DisruptLeft > 0f) sb.Append("\nSENSORS SCRAMBLED");
         if (Mech!.Unit is { MarkedBy: { } marker } me && Battlefield?.Battle.Marked(marker.Team, me) == true) sb.Append("\nMARKED BY DESIGNATOR");
+        if (Battlefield?.Battle.Jammed(Mech.Unit.Team, Mech.Unit) == true) sb.Append("\nECM: SENSORS JAMMED");
         if (GetTree().Paused) sb.Append("\nPAUSED");
         else if (Engine.TimeScale < 1.0) sb.Append("\nSLOW-MO");
         _stat.Text = sb.ToString();

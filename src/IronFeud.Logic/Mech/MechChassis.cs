@@ -129,6 +129,12 @@ public sealed class MechChassis
     /// </summary>
     public bool Designator;
 
+    /// <summary>
+    /// Carries an ECM jammer: enemies inside its bubble can't lock or scan, and its lance inside it can't be locked
+    /// unless marked (see <see cref="Battle.BattleSim.Jammed"/>). The Sicklefoot light carries one.
+    /// </summary>
+    public bool Ecm;
+
     // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
     public Vector3 TorsoHitOffset = new(0f, 1.2f, 0f);         // torso-local
     public float TorsoHitRadius = 2.4f;
@@ -292,6 +298,7 @@ public sealed class MechChassis
         };
         c.PointDefense = cls == ChassisClass.Assault ? 1 : 0;
         c.Designator = cls == ChassisClass.Light;
+        c.Ecm = cls == ChassisClass.Light && model == MechModel.Sicklefoot;
         c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
         c.FitGaitToLegs();
         c.ApplyModelArmour(model);

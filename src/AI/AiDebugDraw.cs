@@ -13,7 +13,7 @@ namespace IronFeud.AI;
 /// pilot last saw it (magenta wedge: where its thin rear armour is), an escort's ward (light blue line and threat-range ring,
 /// red line to the enemy threatening it), a cyan column while a jump is planned, steering heading (yellow) and every cover point
 /// (grey; green = hidden from the target; gold = chosen), and an orange ring over every enemy this mech's lance has
-/// marked (a faint line to it from the designator). The selection ring is always drawn.
+/// marked (a faint line to it from the designator), and every working ECM bubble (violet ring). The selection ring is always drawn.
 /// </summary>
 public partial class AiDebugDraw : MeshInstance3D
 {
@@ -39,6 +39,7 @@ public partial class AiDebugDraw : MeshInstance3D
     private static readonly Color RearArc = new(1f, 0.35f, 0.9f, 0.85f);
     private static readonly Color Escort = new("9fd8ff");
     private static readonly Color Mark = new("ff9a2a");
+    private static readonly Color Ecm = new(0.7f, 0.45f, 1f, 0.5f);
 
     public override void _Ready()
     {
@@ -102,6 +103,8 @@ public partial class AiDebugDraw : MeshInstance3D
                 Ring(top, 3f * e.Chassis.Scale, Mark);
                 if (e.MarkedBy is { IsOut: false } by) Line(by.Volume(MechSection.Cockpit).Center.ToGodot(), top, new Color(Mark, 0.5f));
             }
+            foreach (var j in Battle.Units)
+                if (j.Chassis.Ecm && !j.IsOut && !j.Sim.Shutdown) Ring(j.Position.ToGodot() + Vector3.Up * 0.3f, BattleSim.EcmRadius, Ecm, 64);
         }
         _mesh.SurfaceEnd();
     }

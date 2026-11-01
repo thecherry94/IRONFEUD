@@ -535,7 +535,9 @@ public sealed class BattleSim
             if (Marked(u.Team, c) && c.MarkedBy != u) lockTime *= MarkedLockFactor;
             u.LockTime = lockTime;
             bool inCone = d < range && Vector3.Dot(pose.AimDirection, to / MathF.Max(1e-3f, d)) > MathF.Cos(0.35f);
-            u.LockProgress = inCone && Spotted(u.Team, c)
+            // ECM: a jammed locker can't lock at all; a jammed target only by a designator, or once it is marked.
+            bool jammed = Jammed(u.Team, u) || (Jammed(u.Team, c) && !u.Chassis.Designator && !Marked(u.Team, c));
+            u.LockProgress = inCone && !jammed && Spotted(u.Team, c)
                 ? MathF.Min(lockTime, u.LockProgress + h)
                 : MathF.Max(0f, u.LockProgress - 2f * h);
             u.Locked = u.LockProgress >= lockTime ? c : null;
@@ -580,6 +582,24 @@ public sealed class BattleSim
     /// </summary>
     public bool Marked(int team, BattleUnit e) =>
         e.MarkedBy is { } m && m.Team == team && Time < e.MarkedUntil && !e.IsOut && TacticsOf(team).HasFlag(TeamTactics.Marks);
+
+    /// <summary>ECM bubble radius.</summary>
+    public const float EcmRadius = 120f;
+
+    /// <summary>
+    /// Is <paramref name="u"/> inside an ECM bubble hostile to <paramref name="team"/> (a working jammer of another team
+    /// within <see cref="EcmRadius"/>)? For <paramref name="team"/>'s own mechs that means their sensors are jammed (no
+    /// locks, no scans, cut off from the lance's shared sightings); for enemies, that they can't be locked (so not
+    /// scanned, nor fired on with guided missiles) unless marked: designators burn through. A salvo already in the
+    /// air keeps homing (letting it shake missiles off too made the whole lance near immune to arc missiles: 35-13).
+    /// </summary>
+    public bool Jammed(int team, BattleUnit u)
+    {
+        foreach (var j in Units)
+            if (j.Chassis.Ecm && j.Team != team && !j.IsOut && !j.Sim.Shutdown
+                && Vector3.DistanceSquared(j.Position, u.Position) < EcmRadius * EcmRadius) return true;
+        return false;
+    }
 
     /// <summary>
     /// Does <paramref name="u"/>'s cockpit see <paramref name="e"/>'s torso, within sight range scaled by its signature
