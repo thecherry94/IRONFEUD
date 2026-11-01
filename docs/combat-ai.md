@@ -163,6 +163,18 @@ Shoot-and-scoot: a medium relocates after every pop-up and pops at most every 5 
 Lights jink (a 0.3-0.5 s hop half the time they're hit) and bound over rough ground at speed: 0.9 -> ~6.3 jumps/min.
 Lance report after: light 202 dealt / 43 % survived, medium 128 / 30 %, heavy 139 / 28 %, assault 158 / 40 %.
 
+**Lance tactics** (`BattleSim.Tactics` per team, `TeamTactics_HeadToHead` reports them). Radar: lancemates share
+sightings (position, not sight: firing still needs one's own eyes; a missile lock can use a teammate's). Spotters: the
+coordinator pairs each guided-missile mech with the nearest free light; while its heavy has a salvo nearly ready and
+its target is in range but unseen by anyone else, the light takes an observation post 300-460 m out (cockpit sees the
+target, torso hidden from it) and holds it; otherwise it skirmishes. Umbrella: a pilot under a lock or an inbound
+guided volley closes on a teammate with point defense within 350 m (~50 m from it, away from the threat); without
+one, a stationary pilot moves. Head-to-head vs an identical lance without them, 48 games each: all 29-19, radar
+alone 29-19, radar + spotters 27-21, umbrella alone 24-24. Target choice also weighs who is hurting the pilot now
+(damage in the last few seconds, any direction: 15 is worth +0.6), drops targets beyond every weapon's effective range
+(-0.6), and a light counts as chased with an enemy light or medium within 160 m (player report: a light chased the
+far assault while an enemy light harassed it from 150 m; pinned by `ALight_DealsWithTheLightOnItsTail`).
+
 **Pressing and falling back** (player feedback: "is the AI aware it has an advantage?", "in retreat they sit in their
 hidey hole ~20 s doing nothing"). Advantage = own health - the target's (its damage shows) + 0.3 per fighter the
 sides differ by (the opposing roster minus confirmed kills; counting only current contacts made everyone feel ahead

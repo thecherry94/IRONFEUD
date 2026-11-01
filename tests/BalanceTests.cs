@@ -338,4 +338,63 @@ public class BalanceTests
         Assert.True(lightJumps >= 3f * lightMins, $"lights jump {lightJumps / lightMins:0.0}/min");
         Assert.True(still.GetValueOrDefault(ChassisClass.Medium) < 0.25f * alive.GetValueOrDefault(ChassisClass.Medium), "mediums shouldn't camp");
     }
+
+    private static BattleSim TacticsLance(uint seed, string map)
+    {
+        var personas = new[] { Personality.Balanced, Personality.Balanced, Personality.Balanced, Personality.Sniper };
+        var b = new BattleSim(map == "nml" ? ArenaMap.NoMansLand(seed) : ArenaMap.Arena(seed), seed * 13);
+        for (int team = 0; team < 2; team++)
+        {
+            float sign = team == 0 ? 1f : -1f;
+            for (int i = 0; i < 4; i++)
+                b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk),
+                    new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
+        }
+        return b;
+    }
+    /// <summary>
+    /// A lance using each team tactic against an identical lance without, 24 seeds x 2 sides on both maps. Measured
+    /// when added: all 29-19, radar alone 29-19, radar + spotters 27-21, umbrella alone 24-24 (spotters and the
+    /// umbrella read as teamwork but don't move win rates yet: lights spotted 9 % of the time).
+    /// </summary>
+    [BalanceFact]
+    public void TeamTactics_HeadToHead()
+    {
+        foreach (var t in new[] { TeamTactics.Radar, TeamTactics.Spotters | TeamTactics.Radar, TeamTactics.Umbrella, TeamTactics.All })
+        {
+            int wins = 0, losses = 0, games = 0; float lockT = 0, heavyT = 0, spotT = 0, lightT = 0, arcDmg = 0; int salvos = 0, umbrellas = 0;
+            foreach (string map in new[] { "nml", "hills" })
+            for (uint seed = 1; seed <= 12; seed++)
+            foreach (int smart in new[] { 0, 1 })
+            {
+                var b = TacticsLance(seed, map);
+                b.Tactics[smart] = t;
+                b.Tactics[1 - smart] = TeamTactics.None;
+                b.Damaged += (tg, r, _, att) => { };
+                var umbrellaWas = b.Units.ToDictionary(u => u, _ => false);
+                for (int i = 0; i < 300 * 120 && !b.Over; i++)
+                {
+                    b.Step(1f / 120f);
+                    foreach (var e in b.Events)
+                    {
+                        if (e.Shooter?.Team != smart) continue;
+                        if (e.Kind == BattleEventKind.Impact && e.Shot.Spec.Guided && e.Target != null) arcDmg += e.Report.Amount;
+                        if (e.Kind == BattleEventKind.MissileFired && e.Shot.Spec.Guided && e.Shooter.Sim.Weapons.Mounts[2].Cooldown > e.Shot.Spec.Cooldown - 0.05f) salvos++;
+                    }
+                    foreach (var u in b.Units)
+                    {
+                        if (u.IsOut || u.Team != smart) continue;
+                        if (u.Chassis.Class == ChassisClass.Heavy) { heavyT++; if (u.Locked != null) lockT++; }
+                        if (u.Chassis.Class == ChassisClass.Light) { lightT++; if (u.Ai!.Spotting) spotT++; }
+                        bool um = u.Ai!.Umbrella != null;
+                        if (um && !umbrellaWas[u]) umbrellas++;
+                        umbrellaWas[u] = um;
+                    }
+                }
+                games++;
+                if (b.Over && b.Winner == smart) wins++; else if (b.Over && b.Winner == 1 - smart) losses++;
+            }
+            _out.WriteLine($"{t,-24} vs none: won {wins}, lost {losses} of {games}; smart heavies locked {100 * lockT / Math.Max(1, heavyT):0}%, {salvos} salvos, arc dmg {arcDmg:0}; lights spotting {100 * spotT / Math.Max(1, lightT):0}%; umbrella moves {umbrellas}");
+        }
+    }
 }

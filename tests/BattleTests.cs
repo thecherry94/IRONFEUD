@@ -190,6 +190,34 @@ public class BattleTests
         Assert.Equal(spec.Damage * fraction, taken, 0);
     }
 
+    /// <summary>
+    /// Player report: a light kept chasing the enemy assault across the map while the enemy light harassed it up
+    /// close. With an assault in view 500 m off and a light on its tail, it must deal with the light.
+    /// </summary>
+    [Fact]
+    public void ALight_DealsWithTheLightOnItsTail_NotTheFarAssault()
+    {
+        int onTheLight = 0, checks = 0;
+        for (uint seed = 1; seed <= 4; seed++)
+        {
+            var b = new BattleSim(new ArenaMap { Radius = 600f }, seed) { TrackOutcome = false };
+            var me = b.AddUnit("L", 0, MechChassis.Light(), new Vector3(0, 0, 200), 0f, Personality.Balanced);
+            b.AddUnit("A", 1, MechChassis.Assault(), new Vector3(0, 0, -300), MathF.PI, Personality.Balanced);
+            var pest = b.AddUnit("P", 1, MechChassis.Light(), new Vector3(70, 0, 150), MathF.PI, Personality.Brawler);
+            for (int i = 0; i < 120 * 12; i++)
+            {
+                b.Step(H);
+                if (i > 120 * 4 && i % 60 == 0 && !me.IsOut && !pest.IsOut)
+                {
+                    checks++;
+                    if (me.Ai!.Target == pest) onTheLight++;
+                }
+            }
+        }
+        _out.WriteLine($"targeting the harassing light {onTheLight}/{checks} of the checks");
+        Assert.True(onTheLight > 0.8f * checks, $"only {onTheLight}/{checks}");
+    }
+
     [Fact]
     public void Blocks_StopShells()
     {

@@ -81,6 +81,13 @@ public sealed class Shell
     public BattleUnit Owner = null!;
 }
 
+/// <summary>
+/// Lance tactics: Radar (lancemates share sightings), Spotters (lights take observation posts for guided-missile
+/// teammates), Umbrella (pilots under missile threat close on a teammate's point defense).
+/// </summary>
+[Flags]
+public enum TeamTactics { None = 0, Radar = 1, Spotters = 2, Umbrella = 4, All = Radar | Spotters | Umbrella }
+
 /// <summary>A missile in flight: boosts to cruise speed, homes on <see cref="Target"/> if guided (after a 0.5 s climb).</summary>
 public sealed class Missile
 {
@@ -146,6 +153,17 @@ public sealed class BattleSim
     public readonly Dictionary<int, BattleUnit?> TeamFocus = new();
 
     public float Time { get; private set; }
+
+    /// <summary>Which lance tactics each team's AI pilots use (all by default). Switched off only to measure what each changes.</summary>
+    public readonly TeamTactics[] Tactics = { TeamTactics.All, TeamTactics.All };
+
+    /// <summary>Sets both teams' lance tactics.</summary>
+    public TeamTactics TeamTactics
+    {
+        set => Tactics[0] = Tactics[1] = value;
+    }
+
+    public TeamTactics TacticsOf(int team) => Tactics[Math.Clamp(team, 0, Tactics.Length - 1)];
 
     /// <summary>Which jump-jet tactics AI pilots use (all by default). Switched off only to measure what each changes.</summary>
     public JumpTactics JumpTactics = JumpTactics.All;
@@ -524,7 +542,49 @@ public sealed class BattleSim
             TeamFocus[team] = best;
         }
         if (Escorts) AssignEscorts();
+        AssignSpotters();
         AnswerHelpCalls();
+    }
+
+    /// <summary>Each mech with a guided weapon gets the nearest free light of its team as its spotter (one each).</summary>
+    private void AssignSpotters()
+    {
+        foreach (var u in Units)
+            if (u.Ai?.SpotFor is { } s && (s.IsOut || u.IsOut)) u.Ai.SpotFor = null;
+        foreach (var heavy in Units)
+        {
+            if (heavy.IsOut || !heavy.Sim.Weapons.Mounts.Exists(m => m.Spec.Guided && !m.Offline)) continue;
+            if (!TacticsOf(heavy.Team).HasFlag(TeamTactics.Spotters))
+            {
+                foreach (var u in Units) if (u.Ai?.SpotFor == heavy) u.Ai.SpotFor = null;
+                continue;
+            }
+            if (Units.Exists(u => u.Ai?.SpotFor == heavy)) continue;
+            BattleUnit? best = null;
+            float bestD = float.MaxValue;
+            foreach (var u in Units)
+            {
+                if (u.Team != heavy.Team || u.IsOut || u.Ai == null || u.Ai.SpotFor != null || u.Chassis.Class != ChassisClass.Light) continue;
+                float d = PlanarDistance(u.Position, heavy.Position);
+                if (d < bestD) { bestD = d; best = u; }
+            }
+            if (best != null) best.Ai!.SpotFor = heavy;
+        }
+    }
+
+    /// <summary>Has an enemy a missile lock on <paramref name="u"/> (the lock warning a pilot gets)?</summary>
+    public bool LockedOn(BattleUnit u)
+    {
+        foreach (var e in Units) if (e.Team != u.Team && !e.IsOut && e.Locked == u) return true;
+        return false;
+    }
+
+    /// <summary>Guided missiles in flight homing on <paramref name="u"/>.</summary>
+    public int IncomingGuided(BattleUnit u)
+    {
+        int n = 0;
+        foreach (var m in Missiles) if (m.Target == u) n++;
+        return n;
     }
 
     /// <summary>

@@ -40,6 +40,9 @@ public sealed class Contact
 
     /// <summary>Bearing (heading from the contact) of its rear, the way a flanker wants to get round to.</summary>
     public float RearBearing => Facing + MathF.PI;
+
+    /// <summary>Known through the lance radar (a teammate sees it), not by this pilot's own eyes.</summary>
+    public bool Shared;
 }
 
 /// <summary>
@@ -149,7 +152,11 @@ public sealed partial class AiPilot
         _dmgRecent += damage;
         _danger += damage;
         _lastHurt = _now;
-        if (attacker != null) _hurtBy = attacker;
+        if (attacker != null)
+        {
+            _hurtBy = attacker;
+            _damageBy[attacker] = _damageBy.GetValueOrDefault(attacker) + damage;
+        }
         if (Role == AiRole.Flex) _relocate = true; // spotted: shoot and move
         if (attacker == null) return;
         _lastAttacker = attacker;
@@ -161,6 +168,32 @@ public sealed partial class AiPilot
             Contacts[attacker] = new Contact { Position = attacker.Position, LastSeen = _now, FirstSeen = _now };
     }
 
+    /// <summary>
+    /// The teammate with guided missiles this light spots for (set by the coordinator). While that teammate has a
+    /// salvo nearly ready and its target is in its range but nobody else sees it, the light takes an observation post
+    /// on that target (cockpit in sight, torso hidden) and holds it; otherwise it skirmishes as usual.
+    /// </summary>
+    public BattleUnit? SpotFor
+    {
+        get => _spotFor;
+        internal set
+        {
+            if (value == _spotFor) return;
+            _spotFor = value;
+            if (value != null) Note($"spotting for {value.Name}");
+        }
+    }
+
+    /// <summary>On an observation post right now (debug).</summary>
+    public bool Spotting { get; private set; }
+
+    /// <summary>Under missile threat and closing on a teammate's point defense (debug).</summary>
+    public BattleUnit? Umbrella { get; private set; }
+
+    private BattleUnit? _spotFor;
+    private Vector3? _post;
+    private float _postUntil, _umbrellaUntil;
+
     /// <summary>The enemy this pilot is calling for support against (the coordinator sends the nearest help).</summary>
     public BattleUnit? HelpWanted { get; private set; }
 
@@ -169,6 +202,9 @@ public sealed partial class AiPilot
 
     // _hurtBy: who hit us last, kept for support calls (Perceive consumes _lastAttacker every think).
     private BattleUnit? _rearAttacker, _pest, _hurtBy;
+
+    /// <summary>Damage each enemy has done to us lately (decays over ~5 s): whoever is hurting us now.</summary>
+    private readonly Dictionary<BattleUnit, float> _damageBy = new();
     private float _rearHitAt = -99f, _rearDamage, _answerUntil, _danger, _calledAt;
 
     /// <summary>Answer a teammate's call: escort it and hunt the pest for 20 s.</summary>
@@ -403,6 +439,30 @@ public sealed partial class AiPilot
             ka.LastSeen = _now;
         }
         _lastAttacker = null;
+
+        // Lance radar: what a teammate sees, this pilot knows about (position, not sight: firing still needs its own
+        // eyes; a missile lock can use the teammate's).
+        foreach (var mate in b.Units)
+        {
+            if (!b.TacticsOf(me.Team).HasFlag(TeamTactics.Radar)) break;
+            if (mate == me || mate.Team != me.Team || mate.IsOut || mate.Ai == null) continue;
+            foreach (var (e, theirs) in mate.Ai.Contacts)
+            {
+                if (e.IsOut || !theirs.Visible || theirs.Shared) continue;
+                if (Contacts.TryGetValue(e, out var mine) && mine.Visible) continue;
+                if (mine == null)
+                {
+                    mine = new Contact { Position = e.Position, LastSeen = _now, FirstSeen = _now };
+                    Contacts[e] = mine;
+                    Observe(mine, e);
+                }
+                mine.Position = theirs.Position;
+                mine.Velocity = theirs.Velocity;
+                mine.LastSeen = _now;
+                mine.Shared = true;
+            }
+        }
+        foreach (var k in Contacts.Values) if (k.Visible) k.Shared = false;
     }
 
     /// <summary>
@@ -441,6 +501,10 @@ public sealed partial class AiPilot
         BattleUnit? threat = null;
         float worst = 0.35f;
         bool pursued = Pursued(me);
+        float reach = 0f;
+        foreach (var m in me.Sim.Weapons.Mounts) if (!m.Offline) reach = MathF.Max(reach, m.Spec.EffectiveRange);
+        foreach (var key in new List<BattleUnit>(_damageBy.Keys))
+            if ((_damageBy[key] *= MathF.Exp(-ThinkInterval / 5f)) < 0.5f || key.IsOut) _damageBy.Remove(key);
         foreach (var (e, k) in Contacts)
         {
             float age = _now - k.LastSeen;
@@ -454,7 +518,13 @@ public sealed partial class AiPilot
                       // Whatever is at my back, or just shot me there, comes first.
                       + (d < 200f ? 0.6f * HitFacing.RearWeight(me.Sim.TorsoFacing, me.Position - k.Position) : 0f)
                       + (e == _rearAttacker && _now - _rearHitAt < 6f ? 1f : 0f)
-                      + SkirmisherPreference(e, d, pursued);
+                      // Whoever is hurting us now, from any side (15 damage in the last few seconds is worth +0.6).
+                      + MathF.Min(1.2f, 0.04f * _damageBy.GetValueOrDefault(e))
+                      // Something out of reach of every gun we have can wait (and we can take cover from it).
+                      - (reach > 0f && d > reach ? 0.6f : 0f)
+                      + SkirmisherPreference(e, d, pursued)
+                      // A spotter looks at what its heavy is shooting at, unless something closer is on it.
+                      + (_spotFor?.Ai?.Target == e && !pursued ? 0.7f : 0f);
             if (s > bestScore) { bestScore = s; best = e; }
         }
         if (threat != Threat && threat != null) Note($"{threat.Name} threatens {Ward?.Name}");
@@ -462,6 +532,89 @@ public sealed partial class AiPilot
         if (best == Target) return;
         Target = best;
         if (best != null) Note($"target → {best.Name}{(focus == best ? " (team focus)" : "")}");
+    }
+
+    /// <summary>
+    /// Missile awareness: locked on (the warning) or a guided volley inbound, and a teammate with point defense within
+    /// 350 m: get within ~50 m of it, on its side away from the threat, for 6 s (top-attack rounds beat cover; turrets
+    /// cover nearby teammates). With no umbrella around, a pilot standing still under a lock moves (new position).
+    /// </summary>
+    private Vector3? UnderUmbrella(BattleSim b, BattleUnit me)
+    {
+        bool threatened = b.TacticsOf(me.Team).HasFlag(TeamTactics.Umbrella) && (b.LockedOn(me) || b.IncomingGuided(me) > 0);
+        if (threatened && Umbrella == null)
+        {
+            BattleUnit? best = null;
+            float bestD = 350f;
+            foreach (var u in b.Units)
+            {
+                if (u == me || u.Team != me.Team || u.IsOut || u.Chassis.PointDefense <= 0) continue;
+                float d = MathUtil.PlanarDistance(u.Position, me.Position);
+                if (d < bestD) { bestD = d; best = u; }
+            }
+            if (best != null)
+            {
+                Umbrella = best;
+                _umbrellaUntil = _now + 6f;
+                Note($"missile lock: closing on {best.Name}'s point defense");
+            }
+            else if (MathF.Abs(me.Sim.Locomotion.Body.V) < 2f && Role != AiRole.Skirmisher) _relocate = true;
+        }
+        if (Umbrella is not { IsOut: false } shelter || _now > _umbrellaUntil && !threatened)
+        {
+            Umbrella = null;
+            return null;
+        }
+        Vector3 threat = Target?.Position ?? me.Position;
+        Vector3 away = shelter.Position - threat;
+        away.Y = 0f;
+        away = away.LengthSquared() > 1f ? Vector3.Normalize(away) : Vector3.UnitZ;
+        return b.Map.ClampDestination(shelter.Position + away * 40f + MathUtil.Right(MathUtil.Heading(away)) * (_orbit * 20f));
+    }
+
+    /// <summary>
+    /// A spotter's observation post on <paramref name="k"/>, or null when there is no spotting to do: its heavy must
+    /// be up, nearly ready to fire (rack under 3 s), engaging this target within its guided range, and nobody else
+    /// must already see the target. The post: 300-460 m from the target round the current bearing, scored for the
+    /// cockpit seeing its torso while our own torso stays hidden from its cockpit, then distance to travel; held
+    /// ~5 s at a time.
+    /// </summary>
+    private Vector3? SpotPost(BattleSim b, BattleUnit me, Contact k)
+    {
+        if (_spotFor is not { IsOut: false } heavy || heavy.Ai?.Target != Target || Target == null) return null;
+        WeaponSpec? guided = null;
+        float ready = 99f;
+        foreach (var m in heavy.Sim.Weapons.Mounts)
+            if (m.Spec.Guided && !m.Offline) { guided = m.Spec; ready = m.Cooldown; }
+        if (guided == null || ready > 3f) return null;
+        float range = MathUtil.PlanarDistance(heavy.Position, k.Position);
+        if (range < guided.MinRange + 20f || range > guided.EffectiveRange) return null;
+        bool othersSee = false;
+        foreach (var u in b.Units)
+            if (u != me && u.Team == me.Team && !u.IsOut && u.Ai != null && u.Ai.Contacts.TryGetValue(Target, out var c) && c.Visible && !c.Shared) othersSee = true;
+        if (othersSee) return null;
+
+        if (_post is { } held && _now < _postUntil) return held;
+        var map = b.Map;
+        float eye = me.Volume(MechSection.Cockpit).Center.Y - me.Position.Y, torso = me.Volume(MechSection.Torso).Center.Y - me.Position.Y;
+        Vector3 targetTorso = k.Position + Vector3.UnitY * k.AimHeight, targetEye = k.Position + Vector3.UnitY * k.EyeHeight;
+        float bearing = MathUtil.Heading(me.Position - k.Position);
+        Vector3 best = me.Position;
+        float bestScore = float.NegativeInfinity;
+        foreach (float r in new[] { 300f, 380f, 460f })
+        foreach (float off in new[] { 0f, 0.3f, -0.3f, 0.6f, -0.6f })
+        {
+            Vector3 c = map.ClampDestination(k.Position + MathUtil.Forward(bearing + off) * r);
+            bool sees = map.LineClear(c + Vector3.UnitY * eye, targetTorso);
+            bool hidden = !map.LineClear(targetEye, c + Vector3.UnitY * torso);
+            float score = (sees ? 1f : -1f) + (sees && hidden ? 0.6f : 0f) - MathUtil.PlanarDistance(c, me.Position) / 300f;
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        if (bestScore < 0f) return null;
+        if (_post == null || MathUtil.PlanarDistance(best, _post.Value) > 20f) Note($"observation post on {Target.Name} for {heavy.Name}");
+        _post = best;
+        _postUntil = _now + 5f;
+        return best;
     }
 
     /// <summary>Preferred fighting range: the personality's, closed to 60 % while pressing an advantage.</summary>
@@ -544,13 +697,14 @@ public sealed partial class AiPilot
 
     /// <summary>
     /// Lights hunt the big ones (heavies and assaults, whose backs they can get at), unless an enemy light or medium
-    /// is within 110 m of them: then that pursuer is the problem to deal with first.
+    /// is within 160 m of them: then that pursuer is the problem to deal with first. (At 110 m, plus a flat bonus for
+    /// big targets, a light kept chasing an assault across the map with an enemy light harassing it from 150 m.)
     /// </summary>
     private float SkirmisherPreference(BattleUnit e, float d, bool pursued)
     {
         if (Role != AiRole.Skirmisher) return 0f;
         bool big = e.Chassis.Class is ChassisClass.Heavy or ChassisClass.Assault;
-        if (pursued) return !big && d < 110f ? 0.8f : 0f;
+        if (pursued) return !big && d < 160f ? 0.8f : 0f;
         return big ? 0.5f : 0f;
     }
 
@@ -559,7 +713,7 @@ public sealed partial class AiPilot
         if (Role != AiRole.Skirmisher) return false;
         foreach (var (e, k) in Contacts)
             if (!e.IsOut && _now - k.LastSeen < 3f && e.Chassis.Class is ChassisClass.Light or ChassisClass.Medium
-                && MathUtil.PlanarDistance(me.Position, k.Position) < 110f) return true;
+                && MathUtil.PlanarDistance(me.Position, k.Position) < 160f) return true;
         return false;
     }
 
@@ -582,8 +736,15 @@ public sealed partial class AiPilot
         // On call: an escort fights freely (sweeping forward, focus-firing) until something threatens its ward, then
         // breaks off to intercept. A permanent leash cost more than it saved once the guns were stabilised: the ward
         // can defend itself, and a medium tied to it found and killed fewer lights (24-light runs: 7 vs 2).
+        if (UnderUmbrella(b, me) is { } shelter) return shelter;
         if (_ward is { IsOut: false } ward && Threat is { IsOut: false } && Action is AiAction.Engage or AiAction.Search or AiAction.Flank)
             return EscortDestination(b.Map, me, ward);
+        Spotting = false;
+        if (Action is AiAction.Engage or AiAction.Flank or AiAction.Search && k != null && SpotPost(b, me, k) is { } post)
+        {
+            Spotting = true;
+            return post;
+        }
         var map = b.Map;
         float range = Range;
         switch (Action)
@@ -844,7 +1005,7 @@ public sealed partial class AiPilot
         // Legs: follow the planned heading; back up when the goal is behind during a fight (skirmishers wheel round
         // at speed instead: their circle reverses every few seconds).
         float dist = MathUtil.PlanarDistance(me.Position, Destination);
-        bool circling = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null && !VaultArmed;
+        bool circling = Role == AiRole.Skirmisher && Action is AiAction.Engage or AiAction.Flank && Target != null && !VaultArmed && !Spotting;
         // Skirmishers weave around their course while fighting, less while hugging a target (the weave costs the
         // angular rate they need to stay ahead of its turn).
         float hug = Target != null ? MathUtil.Smoothstep(40f, 120f, MathUtil.PlanarDistance(me.Position, Target.Position)) : 1f;
