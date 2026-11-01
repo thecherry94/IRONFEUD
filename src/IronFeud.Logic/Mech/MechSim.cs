@@ -63,9 +63,14 @@ public sealed class MechSim
         if (!IsOut) Weapons.Step(command, Locomotion, h, Shots);
     }
 
-    /// <summary>Nearest hit volume along a ray (unit direction).</summary>
-    public bool Raycast(Vector3 origin, Vector3 dir, float maxDistance, out RayHit hit) =>
-        HitTest.Raycast(Pose.HitVolumes, origin, dir, maxDistance, out hit);
+    /// <summary>Nearest hit volume or cover plate along a ray (unit direction); a destroyed arm's plates are gone.</summary>
+    public bool Raycast(Vector3 origin, Vector3 dir, float maxDistance, out RayHit hit)
+    {
+        uint gone = 0u;
+        foreach (var s in new[] { MechSection.ArmLeft, MechSection.ArmRight })
+            if (Damage.IsDestroyed(s)) gone |= 1u << (int)s;
+        return HitTest.Raycast(Pose.HitVolumes, Pose.HitBoxes, gone, origin, dir, maxDistance, out hit);
+    }
 
     /// <summary>Torso forward on the ground plane: the way its front armour faces (follows the torso twist).</summary>
     public Vector3 TorsoFacing

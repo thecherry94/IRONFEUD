@@ -28,6 +28,13 @@ public enum LegLayout
     Digitigrade,
 }
 
+/// <summary>A cover plate as a box in a shoulder's frame (see <see cref="MechChassis.ShoulderCover"/>).</summary>
+public struct ShoulderPlate
+{
+    public Vector3 Center;
+    public Vector3 Size;
+}
+
 /// <summary>
 /// Everything that differs between mechs: kinematics, gait, rig dimensions, hit volumes, armour, hardpoints,
 /// heat, plus the feel multipliers from the prototype's sliders. Each mech owns its own instance (the Godot side
@@ -144,6 +151,18 @@ public sealed class MechChassis
     public float LegsHitRadius = 2.0f;
     public Vector3 CockpitHitOffset = new(0f, 0.05f, -0.7f);  // head-local, just in front of the torso sphere
     public float CockpitHitRadius = 0.12f;
+
+    /// <summary>
+    /// Cover plates on the left shoulder (shoulder-local, the right one mirrored), part of that arm: hits on them strike
+    /// the arm, not the core behind. The Hauberk's pauldrons, with a raised flange on the inner edge that screens the
+    /// head and upper torso from the side; the rig draws exactly these boxes. A mech that twists a shoulder toward the
+    /// fire takes it on the arm (and risks that arm's weapon) instead of the torso.
+    /// </summary>
+    public ShoulderPlate[] ShoulderCover =
+    {
+        new() { Center = new Vector3(-0.35f, 0.3f, 0f), Size = new Vector3(1.25f, 1.0f, 1.8f) },  // pauldron
+        new() { Center = new Vector3(0.17f, 1.0f, -0.75f), Size = new Vector3(0.24f, 1.0f, 2.3f) },  // flange, swept forward to the canopy
+    };
 
     // Armour (section hit points)
     public float TorsoHp = 100f;
@@ -341,6 +360,7 @@ public sealed class MechChassis
         LegsHitDrop = 2.6f,
         CockpitHitOffset = new Vector3(0f, 0.1f, -0.8f),
         CockpitHitRadius = 0.08f, // its head juts out of the torso sphere: no shield round the canopy, so a smaller window
+        ShoulderCover = System.Array.Empty<ShoulderPlate>(), // weapon pods on bare pylons: nothing screens the hull
         CollapseDrop = 2.8f,
     };
 
@@ -446,6 +466,9 @@ public sealed class MechChassis
         LegsHitRadius *= s;
         CockpitHitOffset *= s;
         CockpitHitRadius *= s;
+        var cover = new ShoulderPlate[ShoulderCover.Length];
+        for (int i = 0; i < cover.Length; i++) cover[i] = new ShoulderPlate { Center = ShoulderCover[i].Center * s, Size = ShoulderCover[i].Size * s };
+        ShoulderCover = cover;
         CollapseDrop *= s;
         return this;
     }

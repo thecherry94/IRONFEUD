@@ -101,6 +101,28 @@ public static class MechPoseSolver
         pose.HitVolumes[(int)MechSection.Legs] = Sphere(MechSection.Legs, pose.PelvisPosition - new Vector3(0f, t.LegsHitDrop, 0f), t.LegsHitRadius);
         pose.HitVolumes[(int)MechSection.Cockpit] = Sphere(MechSection.Cockpit, headPos + Vector3.Transform(t.CockpitHitOffset, headRot), t.CockpitHitRadius);
 
+        // Cover plates ride on the shoulders (left as defined, right mirrored) and belong to that arm.
+        int plates = t.ShoulderCover.Length;
+        if (pose.HitBoxes.Length != 2 * plates) pose.HitBoxes = new HitBox[2 * plates];
+        for (int i = 0; i < 2; i++)
+        {
+            float side = i == 0 ? 1f : -1f;
+            Vector3 shoulderPos = torsoPos + Vector3.Transform(new Vector3(-side * t.ShoulderOffset.X, t.ShoulderOffset.Y, t.ShoulderOffset.Z), torsoRot);
+            Quaternion shoulderRot = torsoRot * pose.Shoulders[i];
+            for (int k = 0; k < plates; k++)
+            {
+                var c = t.ShoulderCover[k];
+                Vector3 local = i == 0 ? c.Center : new Vector3(-c.Center.X, c.Center.Y, c.Center.Z);
+                pose.HitBoxes[i * plates + k] = new HitBox
+                {
+                    Section = i == 0 ? MechSection.ArmLeft : MechSection.ArmRight,
+                    Center = shoulderPos + Vector3.Transform(local, shoulderRot),
+                    Rotation = shoulderRot,
+                    HalfExtents = 0.5f * c.Size,
+                };
+            }
+        }
+
         Quaternion pelvisInv = Quaternion.Inverse(pose.PelvisRotation);
         for (int i = 0; i < gait.Legs.Length; i++)
         {

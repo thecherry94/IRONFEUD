@@ -267,7 +267,13 @@ public sealed class MechRig
         {
             int side = i == 0 ? +1 : -1;
             var arm = Arms[i];
-            Box(arm.Shoulder, 1.25f, 1.0f, 1.8f, m.Armor, -side * 0.35f, 0.3f, 0);
+            // Pauldron and flange: the chassis' cover plates, drawn exactly where the hit test has them.
+            for (int k = 0; k < t.ShoulderCover.Length; k++)
+            {
+                var c = t.ShoulderCover[k];
+                Vector3 size = c.Size.ToGodot() / Scale, at = c.Center.ToGodot() / Scale;
+                Box(arm.Shoulder, size.X, size.Y, size.Z, k == 0 ? m.Armor : m.ArmorDark, i == 0 ? at.X : -at.X, at.Y, at.Z);
+            }
             Box(arm.Shoulder, 0.2f, 0.85f, 1.6f, m.Accent, -side * 1.0f, 0.25f, 0);
             Cyl(arm.Shoulder, 0.5f, 0.5f, 0.9f, m.Frame, -side * 0.2f, 0, 0, 0, 0, -HalfPi);
             Box(arm.Shoulder, 0.75f, 1.9f, 0.8f, m.Frame, -side * 0.45f, -1.1f, 0);

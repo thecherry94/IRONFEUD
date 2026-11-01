@@ -34,6 +34,9 @@ public sealed class MechPose
     /// <summary>World-space hit spheres, indexed by <see cref="Damage.MechSection"/>.</summary>
     public readonly Damage.HitVolume[] HitVolumes = new Damage.HitVolume[Damage.MechDamage.SectionCount];
 
+    /// <summary>World-space cover plates (see <see cref="MechChassis.ShoulderCover"/>): left shoulder's, then right's.</summary>
+    public Damage.HitBox[] HitBoxes = System.Array.Empty<Damage.HitBox>();
+
     /// <summary>Signed shake this tick, for cameras.</summary>
     public float Jank;
 

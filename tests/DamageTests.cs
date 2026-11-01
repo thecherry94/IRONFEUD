@@ -84,6 +84,35 @@ public class DamageTests
         }
     }
 
+    /// <summary>
+    /// Cover geometry (player note: shoulder and torso structures that give extra cover): the Hauberk's pauldron
+    /// flanges, swept forward beside the head, screen it from the side, so a side shot at the canopy strikes the arm;
+    /// head-on the chest is still the torso; with the arm destroyed its plates are gone. Torso-aimed shots (1.5 m
+    /// scatter) on the torso: side 78 -> 59 %, at 45° 67 -> 51 % (the arms take the rest). The Sicklefoot has none.
+    /// </summary>
+    [Fact]
+    public void ShoulderPlates_ScreenTheHauberksCore_FromTheSide()
+    {
+        var sim = new MechSim(MechChassis.Medium());
+        for (int i = 0; i < 240; i++) sim.Step(default, H);
+        Assert.Equal(4, sim.Pose.HitBoxes.Length);
+        Vector3 canopy = Volume(sim, MechSection.Cockpit).Center;
+        Assert.True(sim.Raycast(canopy + new Vector3(100, 0.3f, 0), -Vector3.UnitX, 200f, out var hit));
+        Assert.Equal(MechSection.ArmRight, hit.Section); // right side = +X
+        Assert.True(sim.Raycast(canopy + new Vector3(-100, 0.3f, 0), Vector3.UnitX, 200f, out hit));
+        Assert.Equal(MechSection.ArmLeft, hit.Section);
+
+        Vector3 chest = Volume(sim, MechSection.Torso).Center;
+        Assert.True(sim.Raycast(chest + new Vector3(0, 0, -100), Vector3.UnitZ, 200f, out hit));
+        Assert.Equal(MechSection.Torso, hit.Section);
+
+        sim.Damage.Structure[(int)MechSection.ArmRight] = 0f;
+        Assert.True(sim.Raycast(canopy + new Vector3(100, 0.3f, 0), -Vector3.UnitX, 200f, out hit));
+        Assert.NotEqual(MechSection.ArmRight, hit.Section);
+
+        Assert.Empty(new MechSim(MechChassis.Medium(MechModel.Sicklefoot)).Pose.HitBoxes);
+    }
+
     [Fact]
     public void FrontalShots_HitTheExpectedSections()
     {

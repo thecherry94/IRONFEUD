@@ -321,7 +321,18 @@ Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
   (1.5 m scatter) striking it: 0.1-0.3 % head-on, from a diving missile or the side (was 1.3-3.2 %, r 0.3 m, proud
   of the torso: one 10-round arc salvo had a ~15 % chance to kill the pilot and lights died that way at 6-8 s).
   Pilot kills in 20 lance games 18 -> 6, light median death 28 -> 34 s. Originally it could only be
-  struck from the front. Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the
+  struck from the front.
+- **Cover plates** (player note: some genre mechs have torso/shoulder structures that give extra cover):
+  `MechChassis.ShoulderCover`, oriented boxes in the shoulder frame belonging to that arm, drawn by the rig from the
+  same data (F3 shows them). The Hauberk has its pauldrons and a raised flange on each, swept forward beside the
+  head; the Sicklefoot has none (weapon pods on bare pylons). The section spheres are coarse (the torso sphere
+  reaches ~1 m past the visible chest), the plates exact: a plate takes the hit if the ray reaches it first or meets
+  it inside the sphere it struck. A destroyed arm's plates are gone. Torso-aimed hits on a Hauberk medium: torso
+  share head-on 84 -> 80 %, at 45° 67 -> 51 %, side 78 -> 59 % (arms take the rest; the plates add a little
+  silhouette: misses 20 -> 16 % head-on). Twisting a shoulder into the fire now spends an arm to spare the core.
+  Medium duels Hauberk vs Sicklefoot (Models_AreBalanced): hills 28-12 before the plates (already lopsided since
+  per-model loadouts: the Sicklefoot medium's particle cannon + machine gun does ~11/s on armour vs ~23/s), 34-6 after.
+  Swapping its machine gun for a laser made it worse (34-5, overheats). Open. Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the
   frame intact (salvage). One cannon hit, or one laser hit inside ~127 m, kills the pilot. Cannon shells drop
   ~0.3 m over 60 m, so a cockpit shot needs holdover.
 - Mechs that are out keep their hit spheres (shots stop on wrecks) but take no further damage.

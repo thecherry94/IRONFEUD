@@ -80,8 +80,21 @@ public partial class GaitDebugDraw : MeshInstance3D
                 if (!IsInstanceValid(m)) continue;
                 foreach (var v in m.Sim.Pose.HitVolumes)
                     Sphere(v.Center.ToGodot(), v.Radius, v.Section == MechSection.Cockpit ? CockpitSphere : HitSphere);
+                foreach (var b in m.Sim.Pose.HitBoxes)
+                    if (!m.Sim.Damage.IsDestroyed(b.Section)) WireBox(b, HitSphere);
             }
         _mesh.SurfaceEnd();
+    }
+
+    /// <summary>A cover plate's twelve edges.</summary>
+    private void WireBox(Logic.Mech.Damage.HitBox b, Color col)
+    {
+        Vector3 Corner(int i) => (b.Center + System.Numerics.Vector3.Transform(new System.Numerics.Vector3(
+            (i & 1) != 0 ? b.HalfExtents.X : -b.HalfExtents.X, (i & 2) != 0 ? b.HalfExtents.Y : -b.HalfExtents.Y,
+            (i & 4) != 0 ? b.HalfExtents.Z : -b.HalfExtents.Z), b.Rotation)).ToGodot();
+        for (int i = 0; i < 8; i++)
+            for (int bit = 1; bit < 8; bit <<= 1)
+                if ((i & bit) == 0) Line(Corner(i), Corner(i | bit), col);
     }
 
     private void Sphere(Vector3 c, float r, Color col)
