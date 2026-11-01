@@ -244,6 +244,25 @@ public sealed class HeightField : IGround
         }
     }
 
+    /// <summary>
+    /// Makes the field point-symmetric through the centre, h(x, z) = h(-x, -z), keeping the north half: the south
+    /// half becomes it rotated 180°, crossfaded over a band of ±<paramref name="blend"/> m around z = 0 so there is no
+    /// seam (a plain copy left 8:1 cliffs along the centre line). Symmetric everywhere because the crossfade weights
+    /// of a point and its mirror image add up to one. Battle spawns mirror the same way.
+    /// </summary>
+    public HeightField MirrorThroughCentre(float blend = 30f)
+    {
+        var original = (float[])Heights.Clone();
+        for (int iz = 0; iz < N; iz++)
+        {
+            float z = Origin + iz * Cell, w = MathUtil.Smoothstep(-blend, blend, z);
+            for (int ix = 0; ix < N; ix++)
+                Heights[iz * N + ix] = w * original[iz * N + ix] + (1f - w) * original[(N - 1 - iz) * N + (N - 1 - ix)];
+        }
+        UpdateBounds();
+        return this;
+    }
+
     public void UpdateBounds()
     {
         MaxHeight = 0f;

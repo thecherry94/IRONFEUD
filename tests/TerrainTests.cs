@@ -236,4 +236,43 @@ public class TerrainTests
         Assert.True(minPelvis > 0.3f * c.HipHeight, $"{what}: pelvis {minPelvis:0.0} m over the ground");
         Assert.True(floating < 0.1f * stance, $"{what}: planted feet off target {100f * floating / stance:0}% of the time");
     }
+
+    /// <summary>Battle maps are point-symmetric through the centre, like the spawns: neither side starts on better ground.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void BattleMaps_AreFairToBothSides(bool noMansLand)
+    {
+        foreach (uint seed in new uint[] { 3, 7 })
+        {
+            var map = noMansLand ? ArenaMap.NoMansLand(seed) : ArenaMap.Arena(seed);
+            for (float x = -200f; x <= 200f; x += 17f)
+            for (float z = -200f; z <= 200f; z += 13f)
+                Assert.True(MathF.Abs(map.Height(x, z) - map.Height(-x, -z)) < 1e-3f, $"({x}, {z})");
+            foreach (var b in map.Blocks)
+            {
+                Vector3 c = 0.5f * (b.Min + b.Max);
+                Assert.Contains(map.Blocks, o => Vector3.Distance(0.5f * (o.Min + o.Max) * new Vector3(-1f, 1f, -1f), c) < 0.01f);
+            }
+        }
+    }
+
+    /// <summary>On No Man's Land the lances form up out of each other's sight (the staging berms).</summary>
+    [Fact]
+    public void NoMansLand_SpawnsCantSeeEachOther()
+    {
+        foreach (uint seed in new uint[] { 3, 7, 11 })
+        {
+            var map = ArenaMap.NoMansLand(seed);
+            float z = ArenaMap.ArenaSpawnZ;
+            foreach (float x in new[] { -45f, -15f, 15f, 45f })
+            foreach (float x2 in new[] { -45f, -15f, 15f, 45f })
+            foreach (float dz in new[] { 0f, 17f })
+            {
+                // An assault's cockpit (~17 m) looking at a light's torso (~6 m) on the far side.
+                Vector3 eye = new(x, map.Height(x, z + dz) + 17f, z + dz), torso = new(-x2, map.Height(-x2, -z) + 6f, -z);
+                Assert.False(map.LineClear(eye, torso), $"seed {seed}: ({x}, {z + dz}) sees ({-x2}, {-z})");
+            }
+        }
+    }
 }

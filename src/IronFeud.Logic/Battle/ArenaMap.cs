@@ -115,6 +115,7 @@ public sealed class ArenaMap : IGround
                 if (b.Max.X + gap > o.Min.X && b.Min.X - gap < o.Max.X && b.Max.Z + gap > o.Min.Z && b.Min.Z - gap < o.Max.Z) { ok = false; break; }
             if (ok) map.Blocks.Add(b);
         }
+        map.MirrorThroughCentre();
         map.BuildCover();
         return map;
     }
@@ -169,31 +170,64 @@ public sealed class ArenaMap : IGround
             map.Trenches.Add(line);
         }
 
+        // Mid-field features go in the north half only: the map is mirrored through the centre at the end, which
+        // doubles them (generating over both halves and mirroring threw half of them away).
         for (int i = 0; i < 3; i++)
-            f.AddCrater(rng.Range(-150f, 150f), rng.Range(-90f, 90f), rng.Range(24f, 34f), rng.Range(9f, 12f), rng.Range(3f, 4f));
+            f.AddCrater(rng.Range(-150f, 150f), rng.Range(0f, 90f), rng.Range(24f, 34f), rng.Range(9f, 12f), rng.Range(3f, 4f));
         for (int i = 0; i < 5; i++)
-            f.AddMound(rng.Range(-180f, 180f), rng.Range(-90f, 90f), rng.Range(25f, 40f), rng.Range(9f, 15f), rng.Range(0.7f, 1f));
+            f.AddMound(rng.Range(-180f, 180f), rng.Range(0f, 90f), rng.Range(25f, 40f), rng.Range(9f, 15f), rng.Range(0.7f, 1f));
         for (int i = 0; i < 2; i++)
         {
-            float x = rng.Range(-170f, 70f), z = rng.Range(-70f, 70f), a = rng.Range(-0.5f, 0.5f), len = rng.Range(70f, 110f);
+            float x = rng.Range(-170f, 70f), z = rng.Range(0f, 70f), a = rng.Range(-0.5f, 0.5f), len = rng.Range(70f, 110f);
             var from = new Vector2(x, z);
             f.AddRidge(from, from + new Vector2(MathF.Cos(a), MathF.Sin(a)) * len, rng.Range(18f, 26f), rng.Range(8f, 12f), 0.8f);
         }
         for (int i = 0; i < 80; i++)
-            f.AddCrater(rng.Range(-210f, 210f), rng.Range(-trenchZ + 10f, trenchZ - 10f), rng.Range(7f, 16f), rng.Range(1f, 3f), rng.Range(0.6f, 1.5f));
+            f.AddCrater(rng.Range(-210f, 210f), rng.Range(0f, trenchZ - 10f), rng.Range(7f, 16f), rng.Range(1f, 3f), rng.Range(0.6f, 1.5f));
 
         f.Flatten(0f, ArenaSpawnZ, 20f).Flatten(0f, -ArenaSpawnZ, 20f); // soft edge stops short of the trenches
+        // Staging berms: a long walkable earthwork between each trench and its spawn ground, so the lances form up out
+        // of sight. Without them the trench parapet (5.5 m) hid nothing taller than a light, and an assault at the
+        // back of the spawn was under fire from across no man's land within two seconds of the start.
+        foreach (float side in new[] { -1f, 1f })
+            f.AddRidge(new Vector2(-220f, side * 172f), new Vector2(220f, side * 172f), 12f, 13f, 0.8f);
         map.Terrain = f.Fade(r + 20f);
 
         // Ruined bunkers: low concrete stubs scattered in no man's land.
-        for (int tries = 0; map.Blocks.Count < 10 && tries < 400; tries++)
+        for (int tries = 0; map.Blocks.Count < 5 && tries < 400; tries++) // 10 once mirrored
         {
-            float x = rng.Range(-190f, 190f), z = rng.Range(-115f, 115f), w = rng.Range(6f, 12f), d = rng.Range(6f, 12f);
+            float x = rng.Range(-190f, 190f), z = rng.Range(10f, 115f), w = rng.Range(6f, 12f), d = rng.Range(6f, 12f);
             if (map.InsideAnyBlock(x, z, 20f)) continue;
             map.Blocks.Add(new Block(x, z, w, d, rng.Range(4f, 7f), map.BaseUnder(x, z, w, d)));
         }
+        map.MirrorThroughCentre();
         map.BuildCover();
         return map;
+    }
+
+    /// <summary>
+    /// Makes a battle map fair: the south half becomes the north half rotated 180° about the centre (terrain and
+    /// blocks), matching the mirrored spawns. Measured before: on No Man's Land seed 7 the north assault's spawn had
+    /// open sight lines to the south spawns (shot within 1-2 s from ~400 m, dead in a median 23 s) and the south side
+    /// won 13-18 of 24.
+    /// </summary>
+    private void MirrorThroughCentre()
+    {
+        Terrain?.MirrorThroughCentre();
+        var north = new List<Block>();
+        foreach (var b in Blocks)
+        {
+            float cz = 0.5f * (b.Min.Z + b.Max.Z), hd = 0.5f * (b.Max.Z - b.Min.Z);
+            if (cz - hd > 2f) north.Add(b); // wholly north (a block straddling the centre line would overlap its twin)
+        }
+        Blocks.Clear();
+        foreach (var b in north)
+        {
+            // Both re-seated on the mirrored ground (the crossfade moves the north side near the centre line too).
+            Vector3 size = b.Max - b.Min, c = 0.5f * (b.Min + b.Max);
+            Blocks.Add(new Block(c.X, c.Z, size.X, size.Z, size.Y, BaseUnder(c.X, c.Z, size.X, size.Z)));
+            Blocks.Add(new Block(-c.X, -c.Z, size.X, size.Z, size.Y, BaseUnder(-c.X, -c.Z, size.X, size.Z)));
+        }
     }
 
     /// <summary>Base height for a block: the lowest ground under its corners, sunk half a metre.</summary>
