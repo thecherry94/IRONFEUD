@@ -10,7 +10,8 @@ namespace IronFeud.AI;
 /// <summary>
 /// Draws what the selected mech's AI is thinking, like the prototype's overlay: destination (gold line + ring),
 /// line of sight to its target (green visible / red remembered), lead point (cyan), the target's rear arc as this
-/// pilot last saw it (magenta wedge: where its thin rear armour is), steering heading (yellow) and every cover point
+/// pilot last saw it (magenta wedge: where its thin rear armour is), an escort's ward (light blue line and leash ring,
+/// red line to the enemy threatening it), steering heading (yellow) and every cover point
 /// (grey; green = hidden from the target; gold = chosen). The selection ring is always drawn.
 /// </summary>
 public partial class AiDebugDraw : MeshInstance3D
@@ -35,6 +36,7 @@ public partial class AiDebugDraw : MeshInstance3D
     private static readonly Color Steer = new(1f, 1f, 0.4f, 0.8f);
     private static readonly Color CoverIdle = new(0.4f, 0.42f, 0.45f);
     private static readonly Color RearArc = new(1f, 0.35f, 0.9f, 0.85f);
+    private static readonly Color Escort = new("9fd8ff");
 
     public override void _Ready()
     {
@@ -78,6 +80,14 @@ public partial class AiDebugDraw : MeshInstance3D
                 Line(eye, (k.Position + System.Numerics.Vector3.UnitY * k.AimHeight).ToGodot(), k.Visible ? Seen : Remembered);
                 Cross(ai.AimPoint.ToGodot(), 0.8f, Lead);
                 Wedge(k.Position.ToGodot() + Vector3.Up * 0.3f, k.RearBearing, 0.87f, 40f, RearArc); // ±50°: full rear hits
+            }
+            if (ai.Ward is { IsOut: false } ward)
+            {
+                // Escort: a ring round the ward at the leash, a line to it, and a red line from the ward to its threat.
+                Vector3 w = ward.Position.ToGodot() + Vector3.Up * 0.5f;
+                Line(ground + Vector3.Up * 0.5f, w, Escort);
+                Ring(w, Logic.AI.AiPilot.Leash, new Color(Escort, 0.35f), 48);
+                if (ai.Threat is { IsOut: false } t) Line(w, t.Position.ToGodot() + Vector3.Up * 0.5f, Remembered);
             }
             DrawCover(ai, unit, k, delta);
         }

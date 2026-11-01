@@ -168,6 +168,46 @@ public class BattleTests
         Assert.True(share[1] > 0.15f, $"with a medium keeping the assault busy only {100 * share[1]:0} % hit the rear");
     }
 
+    /// <summary>Assault + medium vs two lights, with or without the medium escorting the assault.</summary>
+    private (float AssaultRearTaken, float AssaultTaken, float LightsTaken, int LightsLost) EscortDuel(bool escorts)
+    {
+        float rear = 0f, taken = 0f, lightsTaken = 0f;
+        int lost = 0;
+        foreach (uint seed in new uint[] { 1, 2, 3, 4, 5, 6 })
+        {
+            var b = new BattleSim(ArenaMap.Arena(seed), seed) { TrackOutcome = false, Escorts = escorts };
+            var assault = b.AddUnit("A", 0, MechChassis.Assault(), new Vector3(-15, 0, 150), 0f, Personality.Balanced);
+            b.AddUnit("M", 0, MechChassis.Medium(), new Vector3(15, 0, 150), 0f, Personality.Balanced);
+            var l1 = b.AddUnit("L1", 1, MechChassis.Light(), new Vector3(-30, 0, -150), MathF.PI, Personality.Balanced);
+            var l2 = b.AddUnit("L2", 1, MechChassis.Light(), new Vector3(30, 0, -150), MathF.PI, Personality.Balanced);
+            b.Damaged += (target, report, _, _) =>
+            {
+                if (target == assault)
+                {
+                    taken += report.Amount;
+                    if (report.Facing == Facing.Rear) rear += report.Amount;
+                }
+                else if (target == l1 || target == l2) lightsTaken += report.Amount;
+            };
+            for (int i = 0; i < 90 * 120 && !assault.IsOut && !(l1.IsOut && l2.IsOut); i++) b.Step(H);
+            lost += (l1.IsOut ? 1 : 0) + (l2.IsOut ? 1 : 0);
+        }
+        return (rear, taken, lightsTaken, lost);
+    }
+
+    /// <summary>The medium's job: hunting the lights that flank its heavy or assault.</summary>
+    [Fact]
+    public void Escorts_PeelLightsOffTheirWard()
+    {
+        var off = EscortDuel(false);
+        var on = EscortDuel(true);
+        _out.WriteLine($"no escort: assault took {off.AssaultTaken:0} ({off.AssaultRearTaken:0} in the rear), lights took {off.LightsTaken:0}, lost {off.LightsLost}");
+        _out.WriteLine($"escort:    assault took {on.AssaultTaken:0} ({on.AssaultRearTaken:0} in the rear), lights took {on.LightsTaken:0}, lost {on.LightsLost}");
+        // Measured when added: lights lost 2 -> 8 of 12, damage taken 809 -> 1361.
+        Assert.True(on.LightsLost >= off.LightsLost + 3, "an escort should cost flanking lights dearly");
+        Assert.True(on.LightsTaken > 1.3f * off.LightsTaken);
+    }
+
     [Fact]
     public void Blocks_StopShells()
     {

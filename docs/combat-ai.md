@@ -111,6 +111,14 @@ nearer the target's rear. Measured: lights alone vs an assault 6 % of damage fro
 30 % (was ~0 %); lance games: lights 181 dealt/game (was 125), heavies take 24 % of their damage from behind.
 Known gap: a retreating light parks in cover for ~20 s instead of staying mobile.
 
+**Escorts.** The squad coordinator gives each medium a ward (an assault first, else a heavy; one escort each).
+An escort weighs every enemy by its threat to the ward (near it, in its rear arc, a light) and when one threatens,
+stands between the ward and it, 30 m out from the ward: a flanker circling the ward then passes the escort's guns
+at short range and low crossing. Otherwise it fights from its usual firing positions pulled within an 80 m leash,
+and with no target it covers the ward's rear quarter. Assault + medium vs two lights over 6 seeds: lights lost
+2 -> 8 of 12, damage to lights 809 -> 1361. Lance report after: light 109 dealt / 20 % survived, medium 218 / 43 %,
+heavy 157 / 13 % (unescorted; takes 18 % of its damage from behind), assault 246 / 33 % (7 % from behind).
+
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
 them at each model's arm mount point and flashes, beams, shells and impacts scale with damage.

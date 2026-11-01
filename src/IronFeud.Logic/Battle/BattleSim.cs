@@ -106,6 +106,9 @@ public sealed class BattleSim
 
     public float Time { get; private set; }
 
+    /// <summary>Mediums escort a heavy or assault (<see cref="AiPilot.Ward"/>). Off only to measure what escorts change.</summary>
+    public bool Escorts = true;
+
     /// <summary>Decide a winner once at most one team is left standing (off for the firing range).</summary>
     public bool TrackOutcome = true;
     public bool Over { get; private set; }
@@ -289,6 +292,33 @@ public sealed class BattleSim
                 if (s > bestScore) { bestScore = s; best = e; }
             }
             TeamFocus[team] = best;
+        }
+        if (Escorts) AssignEscorts();
+    }
+
+    /// <summary>
+    /// Each medium escorts one heavy or assault of its team: assaults first, one escort per ward, nearest first.
+    /// A ward is kept while it stands; a medium with no ward left fights on its own.
+    /// </summary>
+    private void AssignEscorts()
+    {
+        var claimed = new HashSet<BattleUnit>();
+        foreach (var u in Units)
+            if (u.Ai?.Ward is { IsOut: false } w) claimed.Add(w);
+        foreach (var u in Units)
+        {
+            if (u.IsOut || u.Ai == null || u.Chassis.Class != ChassisClass.Medium) continue;
+            if (u.Ai.Ward is { IsOut: false }) continue;
+            BattleUnit? best = null;
+            float bestScore = float.NegativeInfinity;
+            foreach (var w in Units)
+            {
+                if (w.Team != u.Team || w.IsOut || claimed.Contains(w) || w.Chassis.Class is not (ChassisClass.Heavy or ChassisClass.Assault)) continue;
+                float s = (w.Chassis.Class == ChassisClass.Assault ? 100f : 0f) - PlanarDistance(u.Position, w.Position);
+                if (s > bestScore) { bestScore = s; best = w; }
+            }
+            u.Ai.Ward = best;
+            if (best != null) claimed.Add(best);
         }
     }
 

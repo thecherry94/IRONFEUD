@@ -91,6 +91,7 @@ public partial class AiPanel : CanvasLayer
                 sb.Append($"target  {t.Name}{(focus == t ? " ★focus" : "")} · {range:0} m · LOS {los}\n");
             }
             else sb.Append("target  none\n");
+            sb.Append($"role    {ai.Role}{(ai.Ward is { IsOut: false } w ? $" · escorting {w.Name}{(ai.Threat is { IsOut: false } th ? $" · threat {th.Name}" : "")}" : "")}\n");
             sb.Append($"aim error σ {ai.Sigma * 1000f:0.0} mrad\n");
         }
 
