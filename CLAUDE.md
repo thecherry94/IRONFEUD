@@ -10,7 +10,9 @@ Treat him as a senior engineer: be direct, skip the basics, and push back when a
    Read `docs/locomotion.md` before touching anything that moves.
 2. **AI pilots use exactly the same `MechInput` the player uses.** They get no shortcuts in physics, heat or turn rates,
    and they only perceive what a pilot could see. Read `docs/combat-ai.md` before touching AI.
-3. **Readable, fallible enemies, not perfect ones.** Aim error, reaction time, visible intent.
+3. **Readable, fallible enemies, not perfect ones, and never a pattern to farm.** Aim error, reaction time, visible
+   intent; but decisions are situational and varied enough that players think "this AI is actually smart" and can't
+   learn to play it like a fiddle. Prefer teamwork, terrain use and adapting to the situation over cheats.
 4. **Every weight class stays viable to the end of the campaign.** Bigger must never simply be better (the genre's
    endgame "lance of assaults" is the anti-goal). Lights and mediums keep jobs assaults can't do, through mission
    design, campaign constraints (tonnage/budget caps, upkeep, transport), in-battle mechanics (facing armour, twist
