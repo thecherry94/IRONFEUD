@@ -70,6 +70,9 @@ public sealed class BattleUnit
     internal float HeatedAt = -99f;
     internal bool WasShutdown;
 
+    /// <summary>Battle time of its last shot (muzzle flash: it shows at full size for a moment).</summary>
+    internal float LastFiredAt = -99f;
+
     /// <summary>Ground velocity (legs plus jets), for leading.</summary>
     public Vector3 Velocity
     {
@@ -319,6 +322,7 @@ public sealed class BattleSim
     private void Fire(BattleUnit u, in ShotFired shot)
     {
         if (shot.Phase != ShotPhase.Hold) u.Stats.Shots++;
+        u.LastFiredAt = Time;
         switch (shot.Spec.Kind)
         {
             case WeaponKind.Projectile:
@@ -537,15 +541,26 @@ public sealed class BattleSim
         }
     }
 
-    /// <summary>Can any mech of <paramref name="team"/> see <paramref name="e"/> (cockpit to torso, within 600 m)?</summary>
+    /// <summary>Seconds a shot or a jet burn shows a mech at full size.</summary>
+    public const float RevealTime = 2f;
+
+    /// <summary>
+    /// How far off <paramref name="e"/> can be seen, as a share of sight and radar range: its chassis' size, but at
+    /// least full size within <see cref="RevealTime"/> of firing or while its jets burn.
+    /// </summary>
+    public float SignatureOf(BattleUnit e) =>
+        Time - e.LastFiredAt < RevealTime || e.Sim.Locomotion.JetsBurning ? MathF.Max(1f, e.Chassis.Signature) : e.Chassis.Signature;
+
+    /// <summary>Can any mech of <paramref name="team"/> see <paramref name="e"/> (cockpit to torso, within 600 m scaled by its signature)?</summary>
     public bool Spotted(int team, BattleUnit e)
     {
         Vector3 target = e.Volume(MechSection.Torso).Center;
+        float range = AiPilot.SensorRange * SignatureOf(e);
         foreach (var u in Units)
         {
             if (u.Team != team || u.IsOut) continue;
             Vector3 eye = u.Volume(MechSection.Cockpit).Center;
-            if (Vector3.Distance(eye, target) < 600f && Map.LineClear(eye, target)) return true;
+            if (Vector3.Distance(eye, target) < range * u.Sim.SensorQuality && Map.LineClear(eye, target)) return true;
         }
         return false;
     }

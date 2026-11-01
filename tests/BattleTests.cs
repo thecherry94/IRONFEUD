@@ -296,6 +296,28 @@ public class BattleTests
         Assert.Null(b.Scan(0, enemy)); // stale without a lock
     }
 
+    /// <summary>
+    /// Signature by size: in the open at 450 m a light sees an assault (600 m x 1.15) but the assault doesn't see the
+    /// light (600 m x 0.6) until it fires or burns its jets, which shows it at full size for 2 s.
+    /// </summary>
+    [Fact]
+    public void Lights_SeeFirst_UntilTheyFire()
+    {
+        var b = Open();
+        var light = b.AddUnit("L", 0, MechChassis.Light(), Vector3.Zero, 0f);
+        var assault = b.AddUnit("A", 1, MechChassis.Assault(), new Vector3(0, 0, -450), MathF.PI);
+        b.Step(H);
+        Assert.True(b.Spotted(0, assault), "the light sees the assault");
+        Assert.False(b.Spotted(1, light), "the assault doesn't see the light");
+
+        light.Input = new MechInput { FireMask = 0b11u };
+        b.Step(H);
+        light.Input = default;
+        Assert.True(b.Spotted(1, light), "a shot gives it away");
+        for (int i = 0; i < 120 * 3; i++) b.Step(H);
+        Assert.False(b.Spotted(1, light), "and it fades again");
+    }
+
     [Fact]
     public void Blocks_StopShells()
     {

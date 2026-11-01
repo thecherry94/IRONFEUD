@@ -375,7 +375,10 @@ public sealed partial class AiPilot
         _dmgRecent *= 0.6f;
     }
 
-    /// <summary>Line of sight from the cockpit to the enemy torso (300 m), radar inside 130 m, and being shot.</summary>
+    /// <summary>
+    /// Line of sight from the cockpit to the enemy torso (600 m), radar inside 260 m (both scaled by the enemy's
+    /// signature: lights are seen last), and being shot.
+    /// </summary>
     private void Perceive(BattleSim b, BattleUnit me)
     {
         Vector3 eye = me.Volume(MechSection.Cockpit).Center;
@@ -388,8 +391,8 @@ public sealed partial class AiPilot
                 continue;
             }
             float d = MathUtil.PlanarDistance(me.Position, e.Position);
-            float seenHeight = 0f;
-            bool vis = d < SensorRange * me.Sim.SensorQuality && Sees(b.Map, eye, e, out seenHeight);
+            float seenHeight = 0f, signature = b.SignatureOf(e);
+            bool vis = d < SensorRange * me.Sim.SensorQuality * signature && Sees(b.Map, eye, e, out seenHeight);
             Contacts.TryGetValue(e, out var k);
             if (vis)
             {
@@ -411,7 +414,7 @@ public sealed partial class AiPilot
                 Observe(k, e);
                 k.AimHeight = seenHeight;
             }
-            else if (d < RadarRange)
+            else if (d < RadarRange * signature)
             {
                 if (k == null)
                 {

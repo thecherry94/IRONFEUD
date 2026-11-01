@@ -193,7 +193,14 @@ target, in flame range 12 % of the time; after, 21 % and 4x the heat put in). Th
 scan shows with exposed structure. Flamer heat per burn 0.3 -> 0.5: at 0.3 lance games saw no shutdowns at all.
 Lance report (20 games): light 50 dealt / 0.30 kills / 25 % survived / 0.51 heat in / 0.05 shutdowns per game,
 medium 97 / 0.50 / 40 %, heavy 163 / 1.45 / 43 %, assault 111 / 0.33 / 35 %. Lights are still the weakest class;
-signature by size, active marking and ECM are next.
+active marking and ECM are next.
+
+**Signature by size.** Sight (600 m), radar (260 m), team spotting and so locks scale with the target's chassis
+signature: light 0.6, medium 0.8, heavy 1, assault 1.15 (`MechChassis.Signature`). Firing or a jet burn shows a mech
+at full size for 2 s (`BattleSim.RevealTime`): a light picks its moment, but is as visible as anyone while shooting
+(so it stays hittable; "lights unhittable at range" is an open item). An assault sees a quiet light at 360 m, the
+light sees it at 690 m. Lance report: light 60 dealt / 0.38 kills / 23 % survived / 0.45 shutdowns per game (was 50 /
+0.30 / 25 % / 0.05), medium 90 / 0.48 / 30 %, heavy 146 / 1.35 / 33 %, assault 125 / 0.65 / 30 %.
 
 **Lance tactics** (`BattleSim.Tactics` per team, `TeamTactics_HeadToHead` reports them). Radar: lancemates share
 sightings (position, not sight: firing still needs one's own eyes; a missile lock can use a teammate's). Spotters: the
