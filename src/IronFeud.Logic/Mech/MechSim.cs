@@ -37,6 +37,7 @@ public sealed class MechSim
     {
         Shots.Clear();
         Locomotion.Step(input, h);
+        if (Locomotion.JetsBurning) Weapons.Heat += Chassis.JumpHeat * h;
         if (!IsOut) Weapons.Step(input, Locomotion, h, Shots);
     }
 

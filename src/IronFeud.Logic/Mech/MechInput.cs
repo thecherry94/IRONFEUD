@@ -23,4 +23,7 @@ public struct MechInput
 
     /// <summary>Distance along the torso aim ray where arm weapons converge, meters. 0 = default.</summary>
     public float Convergence;
+
+    /// <summary>Jump jets: burn while held (if the chassis has them and there is fuel).</summary>
+    public bool Jump;
 }

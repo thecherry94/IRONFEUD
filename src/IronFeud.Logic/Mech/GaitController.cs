@@ -103,8 +103,16 @@ public sealed class GaitController
 
     public bool Active;
 
+    /// <summary>In the air on jump jets: no gait, the legs follow <see cref="Tuck"/> instead.</summary>
+    public bool Airborne { get; private set; }
+
+    /// <summary>0..1 in the air: 1 = legs tucked up and trailing (rising), 0 = reaching down for the landing.</summary>
+    public float Tuck;
+
     public void Reset(BodyState body, MechChassis t)
     {
+        Airborne = false;
+        Tuck = 0f;
         Phase = 0f;
         F = t.FMin;
         Duty = t.Duty;
@@ -196,6 +204,85 @@ public sealed class GaitController
         }
     }
 
+    /// <summary>Feet leave the ground: every leg counts as swinging (so the hips don't crouch for them).</summary>
+    public void TakeOff()
+    {
+        Airborne = true;
+        foreach (var leg in Legs)
+        {
+            leg.From = leg.Plant;
+            leg.Swing = true;
+        }
+    }
+
+    /// <summary>
+    /// One airborne tick: the legs tuck and trail while rising, and reach down for the ground once touchdown is
+    /// less than ~0.6 s away (<paramref name="timeToGround"/>, infinity while rising).
+    /// </summary>
+    public void Air(float timeToGround, float h)
+    {
+        float tuckT = MathUtil.Smoothstep(0.15f, 0.6f, timeToGround);
+        Tuck += (tuckT - Tuck) * MathF.Min(1f, h * 5f);
+        G = MathF.Max(0f, G - h * 3f);
+        Active = false;
+    }
+
+    /// <summary>
+    /// Touchdown: both feet plant where they are (on the ground under them) and each lands a footfall scaled by the
+    /// impact speed, which drives the squat, dust, sound and shake like any step, only much harder.
+    /// </summary>
+    public void Land(BodyState body, MechChassis t, float impactSpeed, List<Footfall>? footfalls)
+    {
+        Airborne = false;
+        float k = t.Impact * MathUtil.Clamp(impactSpeed / 8f, 0.6f, 1.8f);
+        for (int i = 0; i < Legs.Length; i++)
+        {
+            var leg = Legs[i];
+            var target = AirTarget(leg, body, t); // where the foot is in the air, not the old plant
+            leg.Plant = new FootPlant(Ground.OnGround(target.Ankle), body.Psi);
+            leg.From = leg.Plant;
+            leg.Swing = false;
+            leg.StepLength = 0f;
+            leg.Duty = t.DutyAt(MathF.Abs(body.V));
+            footfalls?.Add(new Footfall
+            {
+                Leg = i,
+                Position = leg.Plant.Position + MathUtil.Forward(leg.Plant.Yaw) * (0.3f * t.Scale),
+                Yaw = leg.Plant.Yaw,
+                Strength = k,
+                SpeedFraction = MathF.Abs(body.V) / t.VMax,
+            });
+        }
+        // Restart the cycle, and give each leg the state its phase calls for: at a running duty the second leg is
+        // already in its swing, so it springs straight into the next stride instead of staying planted (and left
+        // metres behind) for a whole cycle.
+        Phase = 0f;
+        Tuck = 0f;
+        Duty = t.DutyAt(MathF.Abs(body.V));
+        F = MathF.Max(t.FMin, MathF.Abs(body.V) * Duty / (2f * AMax(t)));
+        foreach (var leg in Legs)
+        {
+            if (MathUtil.Frac(leg.PhaseOffset) < leg.Duty) continue;
+            leg.Swing = true;
+            leg.StrideScale = ChooseFoothold(leg, body, t, (1f - leg.Duty) / F);
+        }
+    }
+
+    /// <summary>
+    /// Feet in flight, relative to the body: tucked (raised 0.22 leg lengths, toes down) and trailing while rising,
+    /// stretched down under the hips, one a little ahead, as the ground comes up.
+    /// </summary>
+    private FootTarget AirTarget(LegGait leg, BodyState body, MechChassis t)
+    {
+        float L = t.LegLength, stagger = leg.Side * 0.08f * L;
+        float back = MathUtil.Lerp(-0.04f * L, 0.22f * L, Tuck) + stagger;
+        Vector3 local = HipOffset(leg, t) + new Vector3(0f, 0f, back);
+        Vector3 ankle = body.Position + MathUtil.RotateY(local, body.Psi) + new Vector3(0f, t.AnkleHeight + 0.22f * L * Tuck, 0f);
+        ankle.Y = MathF.Max(ankle.Y, Ground.HeightAt(ankle.X, ankle.Z) + t.AnkleHeight); // skim a crest, don't dig into it
+        var plant = new FootPlant(Ground.OnGround(ankle), body.Psi);
+        return new FootTarget { Ankle = ankle, Yaw = body.Psi, Pitch = 0.4f * Tuck, Landing = plant, Normal = Vector3.UnitY };
+    }
+
     private static readonly float[] StrideOptions = { 1f, 0.85f, 1.15f, 0.7f, 0.55f, 1.3f };
 
     /// <summary>
@@ -236,6 +323,7 @@ public sealed class GaitController
     public FootTarget Evaluate(int legIndex, BodyState body, MechChassis t)
     {
         var leg = Legs[legIndex];
+        if (Airborne) return AirTarget(leg, body, t);
         float lp = MathUtil.Frac(Phase + leg.PhaseOffset);
         float lift = 0f, outward = 0f, pitch, yaw;
         float s0 = t.Scale;

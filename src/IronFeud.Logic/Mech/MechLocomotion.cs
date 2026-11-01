@@ -7,10 +7,20 @@ namespace IronFeud.Logic.Mech;
 
 /// <summary>
 /// One mech's locomotion pipeline, stepped at the fixed physics rate:
-/// input → body kinematics → gait → secondary motion → pose.
+/// input → body kinematics → gait → secondary motion → pose. On jump jets the gait and ground-following step
+/// aside for a ballistic flight (<see cref="Gravity"/>, thrust while burning) until touchdown.
 /// </summary>
 public sealed class MechLocomotion
 {
+    /// <summary>
+    /// m/s². Heavier than Earth's 9.81: arcs read as heavy machines, not floaty ones (a game-feel choice; shells use
+    /// their own, lower drop).
+    /// </summary>
+    public const float Gravity = 12f;
+
+    /// <summary>Minimum charge (fraction) to light the jets from the ground: no stuttering micro-hops on an empty tank.</summary>
+    public const float JumpMinCharge = 0.25f;
+
     public readonly MechChassis Chassis;
     public readonly BodyState Body = new();
     public readonly GaitController Gait = new();
@@ -21,6 +31,16 @@ public sealed class MechLocomotion
     public readonly List<Footfall> Footfalls = new();
 
     public float Time { get; private set; }
+
+    /// <summary>Seconds of jet burn left (refills on the ground).</summary>
+    public float JumpFuel { get; private set; }
+    public float JumpCharge => Chassis.HasJumpJets ? JumpFuel / Chassis.JumpFuel : 0f;
+
+    /// <summary>The jets fired this tick (heat, flames, sound).</summary>
+    public bool JetsBurning { get; private set; }
+
+    /// <summary>Vertical speed of a touchdown during the last <see cref="Step"/>, else 0.</summary>
+    public float LandingSpeed { get; private set; }
 
     /// <summary>Terrain; null = flat ground at y = 0. Set before <see cref="Reset"/>.</summary>
     public IGround? Ground
@@ -56,7 +76,9 @@ public sealed class MechLocomotion
     {
         Body.Position = Ground.OnGround(position);
         Body.Psi = psi;
-        Body.V = Body.Acc = Body.Omega = Body.Twist = Body.Aim = Body.Slope = _groundVel = 0f;
+        Body.V = Body.Acc = Body.Omega = Body.Twist = Body.Aim = Body.Slope = Body.Vy = _groundVel = 0f;
+        Body.Airborne = false;
+        JumpFuel = Chassis.JumpFuel;
         Gait.Reset(Body, Chassis);
         Solve();
     }
@@ -68,6 +90,7 @@ public sealed class MechLocomotion
         Collapsed = true;
         CollapseTime = 0f;
         CollapseRoll = roll;
+        if (Body.Airborne) return; // it falls; the feet plant at touchdown
         for (int i = 0; i < Gait.Legs.Length; i++)
         {
             var leg = Gait.Legs[i];
@@ -82,8 +105,17 @@ public sealed class MechLocomotion
     {
         Footfalls.Clear();
         Time += h;
+        JetsBurning = false;
+        LandingSpeed = 0f;
         if (Collapsed)
         {
+            if (Body.Airborne)
+            {
+                Fly(default, h); // a wreck in the air drops
+                Secondary.Step(Body, Gait, Chassis, h);
+                Solve();
+                return;
+            }
             CollapseTime += h;
             Body.V = Body.Acc = Body.Omega = 0f;
             Gait.G = System.MathF.Max(0f, Gait.G - h);
@@ -91,6 +123,25 @@ public sealed class MechLocomotion
             Solve();
             return;
         }
+
+        if (!Body.Airborne && input.Jump && Chassis.HasJumpJets && JumpCharge >= JumpMinCharge)
+        {
+            Body.Airborne = true;
+            Body.Vy = MathF.Max(0f, _groundVel);
+            // The walking body lags its ground spring; carry that lag into the flight (fading) instead of snapping.
+            _supportLag = Ground != null ? Body.Position.Y - Support(Body.Position) : 0f;
+            Gait.TakeOff();
+        }
+        if (Body.Airborne)
+        {
+            Fly(input, h);
+            foreach (var f in Footfalls)
+                Secondary.ApplyFootfall(f, Gait.Legs[f.Leg].Side, Body.V, Chassis.Scale);
+            Secondary.Step(Body, Gait, Chassis, h);
+            Solve();
+            return;
+        }
+        if (Chassis.HasJumpJets) JumpFuel = MathF.Min(Chassis.JumpFuel, JumpFuel + h * Chassis.JumpFuel / Chassis.JumpRecharge);
 
         Body.Slope = MathUtil.Lerp(Body.Slope, MathF.Atan(Grade()), MathF.Min(1f, h * 3f));
         TerrainSpeedFactor = UphillFactor() * RoughGroundFactor();
@@ -103,6 +154,41 @@ public sealed class MechLocomotion
             Secondary.ApplyFootfall(f, Gait.Legs[f.Leg].Side, Body.V, Chassis.Scale);
         Secondary.Step(Body, Gait, Chassis, h);
         Solve();
+    }
+
+    /// <summary>
+    /// A ballistic tick: thrust beats gravity while the jets burn (and push forward a little), the legs have only a
+    /// fifth of their authority (momentum carries), and the body lands when it comes down to the ground under it.
+    /// </summary>
+    private void Fly(in MechInput input, float h)
+    {
+        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor, control: 0.2f);
+        JetsBurning = input.Jump && JumpFuel > 0f && !Collapsed;
+        if (JetsBurning)
+        {
+            JumpFuel = MathF.Max(0f, JumpFuel - h);
+            Body.Vy += (Chassis.JumpThrust - Gravity) * h;
+            Body.V = MathF.Min(Body.V + Chassis.JumpPush * h, Chassis.VMax * SpeedFactor * 1.1f);
+        }
+        else Body.Vy -= Gravity * h;
+        Body.Position.Y += Body.Vy * h;
+
+        // The ground the body rides on when walking (footprint average), so take-off and touchdown are seamless.
+        // Rising into a slope rides up it; coming down onto it is a landing.
+        _supportLag *= MathF.Exp(-h / 0.3f);
+        float ground = (Ground != null ? Support(Body.Position) : 0f) + MathF.Min(0f, _supportLag);
+        if (Body.Position.Y <= ground && Body.Vy > 0f) Body.Position.Y = ground;
+        else if (Body.Position.Y <= ground)
+        {
+            LandingSpeed = -Body.Vy;
+            Body.Position.Y = ground;
+            Body.Vy = _groundVel = 0f;
+            Body.Airborne = false;
+            Gait.Land(Body, Chassis, LandingSpeed, Footfalls); // plants both feet, wrecks included
+            return;
+        }
+        float timeToGround = Body.Vy < 0f ? (Body.Position.Y - ground) / -Body.Vy : float.PositiveInfinity;
+        Gait.Air(timeToGround, h);
     }
 
     /// <summary>Ground rise per metre along the heading over the leg's reach (+ = uphill ahead): crater lips don't count.</summary>
@@ -176,7 +262,7 @@ public sealed class MechLocomotion
         return sum / 10f;
     }
 
-    private float _groundVel;
+    private float _groundVel, _supportLag;
 
     private void Solve() => MechPoseSolver.Solve(Pose, Body, Gait, Secondary, Chassis, Time, CollapseAmount, CollapseRoll);
 }

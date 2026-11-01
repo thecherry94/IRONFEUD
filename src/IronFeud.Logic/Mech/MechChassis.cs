@@ -123,6 +123,22 @@ public sealed class MechChassis
     public float LegsHp = 70f;
     public float CockpitHp = 5f;
 
+    // Jump jets (JumpThrust 0 = none fitted)
+    /// <summary>Upward acceleration while the jets burn, m/s²; must beat <see cref="MechLocomotion.Gravity"/>. 0 = no jets.</summary>
+    public float JumpThrust;
+
+    /// <summary>Seconds of burn on a full charge; it refills over <see cref="JumpRecharge"/> seconds on the ground.</summary>
+    public float JumpFuel = 1.3f;
+    public float JumpRecharge = 6f;
+
+    /// <summary>Heat per second of burn.</summary>
+    public float JumpHeat = 0.12f;
+
+    /// <summary>Forward push while burning, m/s² along the legs' heading (the nozzles angle back): a jump carries you.</summary>
+    public float JumpPush = 4f;
+
+    public bool HasJumpJets => JumpThrust > 0f;
+
     /// <summary>
     /// Torso hits from behind do this much more damage (thin rear armour; see <see cref="Damage.HitFacing"/>).
     /// What makes a light that gets behind a slow-twisting assault dangerous rather than a nuisance.
@@ -192,6 +208,11 @@ public sealed class MechChassis
                 // Agile at speed (1.26 rad/s flat out, a 29 m circle): enough to out-turn a heavy's or an assault's
                 // legs up close and get at their rear armour.
                 c.TurnSpeedPenalty = 0.3f;
+                // Jets: ~17 m on a full burn, a hop over a crest on a tap.
+                c.JumpThrust = 24f;
+                c.JumpFuel = 1.2f;
+                c.JumpRecharge = 5f;
+                c.JumpHeat = 0.1f;
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
                 c.SetWeapons(WeaponSpec.Autocannon, WeaponSpec.PulseLaser);
@@ -205,6 +226,11 @@ public sealed class MechChassis
                 c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
                 c.RoughGroundCaution = 0.8f;
                 c.TurnSpeedPenalty = 0.5f;
+                // Jets: ~13 m on a full burn, enough to pop up over a crest, fire and drop back behind it.
+                c.JumpThrust = 21f;
+                c.JumpFuel = 1.3f;
+                c.JumpRecharge = 6f;
+                c.JumpHeat = 0.12f;
                 break;
             case ChassisClass.Heavy:
                 // Bigger and tougher, a ponderous run.

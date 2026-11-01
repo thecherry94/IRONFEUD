@@ -188,3 +188,23 @@ pitched -57°..+23°. Measured fixes, pinned by `TerrainTests.AcrossNoMansLand_P
   mound flanks 35-45°). `--map=nml|hills|flat`, T cycles.
 - Rendering: the heightfield mesh plus a flat frame outside the grid at y = 0 (a full horizon plane would cover
   every valley below zero). `T` / `--flat` toggles the hills.
+
+## Jump jets (Godot port, not in the prototype)
+Lights and mediums carry jets (`MechChassis.JumpThrust`, fuel in seconds of burn, recharge on the ground, heat per
+second); heavies and assaults don't (quirks may change that). `MechInput.Jump` burns while held; take-off needs a
+quarter charge. In the air the gait steps aside: the body flies ballistically (`MechLocomotion.Gravity` = 12 m/s²,
+heavier than Earth's so arcs read as heavy machines), thrust beats gravity while burning and pushes forward a little,
+the legs keep a fifth of their authority (momentum carries). Full burns: light ~17 m, medium ~13 m apex.
+
+Same rule as on terrain: exact IK, cheated inputs. Airborne foot targets are body-relative (`GaitController.AirTarget`):
+tucked up and trailing while rising, reaching down once touchdown is under ~0.6 s away, never below the ground under
+them. "Ground" in the air is the footprint-averaged support height the walking body rides on (plus its spring lag at
+take-off, fading over 0.3 s), so take-off and touchdown are seamless. Rising into a slope rides up it; coming down
+onto it lands. Touchdown plants both feet where they are in the air and lands two footfalls scaled by impact speed,
+which drive the squat springs, dust, sound and shake. After touchdown each leg takes the state its gait phase calls
+for, so at a running duty one foot springs straight into the next stride.
+
+Bugs found by `JumpingAcrossNoMansLand_PosesStayNatural` while building it: landing only while falling let a body
+pass through a hill and pop up meters at the apex (389 m/s pelvis); snapping to the raw ground at take-off jumped the
+pelvis by the spring lag; planting the second leg on touchdown left it 26-40 m behind for a cycle at a running duty;
+and asking the gait for foot targets after clearing the airborne flag planted both feet back at the take-off spot.

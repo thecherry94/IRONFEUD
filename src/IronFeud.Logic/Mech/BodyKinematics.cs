@@ -7,8 +7,17 @@ namespace IronFeud.Logic.Mech;
 /// <summary>Root motion of the mech: where the legs are taking the body and where the torso points.</summary>
 public sealed class BodyState
 {
-    /// <summary>Ground position under the pelvis. y follows the ground under the body and the planted feet.</summary>
+    /// <summary>
+    /// Ground position under the pelvis. y follows the ground under the body and the planted feet; in the air it is
+    /// where the ground would be for the pelvis height (pelvis = y + hip height), integrated ballistically.
+    /// </summary>
     public Vector3 Position;
+
+    /// <summary>On jump jets or falling: no feet on the ground.</summary>
+    public bool Airborne;
+
+    /// <summary>Vertical speed while airborne, m/s (+ = up).</summary>
+    public float Vy;
 
     /// <summary>Leg heading, radians about +Y (Godot Rotation.Y).</summary>
     public float Psi;
@@ -32,7 +41,8 @@ public sealed class BodyState
 public static class BodyKinematics
 {
     /// <param name="speedFactor">Forward top-speed multiplier (crippled legs).</param>
-    public static void Step(BodyState s, in MechInput input, MechChassis t, float h, float speedFactor = 1f)
+    /// <param name="control">Leg authority: 1 on the ground; in the air only the jets steer (a fraction of it).</param>
+    public static void Step(BodyState s, in MechInput input, MechChassis t, float h, float speedFactor = 1f, float control = 1f)
     {
         float throttle = MathUtil.Clamp(input.Throttle, -1f, 1f);
         float turn = MathUtil.Clamp(input.Turn, -1f, 1f);
@@ -40,12 +50,12 @@ public static class BodyKinematics
         float vT = throttle >= 0f ? throttle * t.VMax * speedFactor : throttle * t.VRev;
         float dv = vT - s.V;
         float refSign = MathF.Sign(s.V != 0f ? s.V : vT);
-        float a = MathF.Abs(vT) > MathF.Abs(s.V) && MathF.Sign(vT) == refSign ? t.Accel : t.Decel;
+        float a = (MathF.Abs(vT) > MathF.Abs(s.V) && MathF.Sign(vT) == refSign ? t.Accel : t.Decel) * control;
         float vPrev = s.V;
         s.V += MathUtil.Clamp(dv, -a * h, a * h);
         s.Acc = MathUtil.Lerp(s.Acc, (s.V - vPrev) / h, MathF.Min(1f, h * 6f));
 
-        float omegaT = turn * t.OmegaMax * (1f - t.TurnSpeedPenalty * MathF.Abs(s.V) / t.VMax);
+        float omegaT = turn * t.OmegaMax * (1f - t.TurnSpeedPenalty * MathF.Abs(s.V) / t.VMax) * MathF.Sqrt(control);
         s.Omega += MathUtil.Clamp(omegaT - s.Omega, -t.OmegaAccel * h, t.OmegaAccel * h);
         s.Psi += s.Omega * h;
         s.Position += MathUtil.Forward(s.Psi) * (s.V * h);
