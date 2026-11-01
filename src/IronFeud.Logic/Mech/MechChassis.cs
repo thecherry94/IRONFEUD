@@ -226,7 +226,10 @@ public sealed class MechChassis
                 c.JumpHeat = 0.1f;
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
-                c.SetWeapons(WeaponSpec.Autocannon, WeaponSpec.PulseLaser);
+                // Sicklefoot: machine guns and a flamethrower (heat it, then shred what the plates don't cover);
+                // Hauberk: incendiary cannon and pulse laser.
+                if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.MachineGun, WeaponSpec.Flamethrower);
+                else c.SetWeapons(WeaponSpec.IncendiaryCannon, WeaponSpec.PulseLaser);
                 c.RoughGroundCaution = 0.5f;
                 c.HeatDissipation = 0.06f;
                 c.CollapseTime = 1.1f;
@@ -234,7 +237,8 @@ public sealed class MechChassis
             case ChassisClass.Medium:
                 // Quick to reposition, and one hard-hitting gun.
                 c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
-                c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
+                if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.MachineGun);
+                else c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
                 c.RoughGroundCaution = 0.8f;
                 c.TurnSpeedPenalty = 0.5f;
                 // Jets: ~13 m on a full burn, enough to pop up over a crest, fire and drop back behind it.
@@ -249,7 +253,7 @@ public sealed class MechChassis
                 c.SetSpeed(16.5f, rev: 4.5f, accel: 4f, decel: 7f, omega: 0.8f, omegaAccel: 2f, twistRate: 1.5f, aimRate: 1f);
                 c.TurnSpeedPenalty = 0.45f;
                 c.SetArmour(140f, 60f, 95f, 6f);
-                c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.HeavyLaser);
+                c.SetWeapons(model == MechModel.Sicklefoot ? WeaponSpec.ParticleCannon : WeaponSpec.HeavyCannon, WeaponSpec.HeavyLaser);
                 c.HeatDissipation = 0.065f; // big guns need big heat sinks
                 c.CollapseTime = 1.7f;
                 break;
@@ -259,7 +263,7 @@ public sealed class MechChassis
                 c.SetSpeed(11f, rev: 3.5f, accel: 2.8f, decel: 5f, omega: 0.6f, omegaAccel: 1.5f, twistRate: 1.2f, aimRate: 0.9f);
                 c.TurnSpeedPenalty = 0.4f;
                 c.SetArmour(180f, 75f, 120f, 7f);
-                c.SetWeapons(WeaponSpec.SiegeCannon, WeaponSpec.HeavyLaser);
+                c.SetWeapons(WeaponSpec.SiegeCannon, model == MechModel.Sicklefoot ? WeaponSpec.ParticleCannon : WeaponSpec.HeavyLaser);
                 c.HeatDissipation = 0.075f;
                 c.CollapseTime = 2f;
                 break;

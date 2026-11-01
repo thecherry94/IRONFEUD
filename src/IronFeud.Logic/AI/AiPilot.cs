@@ -533,6 +533,8 @@ public sealed partial class AiPilot
                       // Something out of reach of every gun we have can wait (and we can take cover from it).
                       - (reach > 0f && d > reach ? 0.6f : 0f)
                       + SkirmisherPreference(e, d, pursued)
+                      // Machine guns shred exposed internals: a mech with a stripped section is the better target for them.
+                      + (HasWeapon(me, w => w.VsStructure > 1.2f) && b.Scan(me.Team, e) is { AnyExposed: true } ? 0.4f : 0f)
                       // A spotter looks at what its heavy is shooting at, unless something closer is on it.
                       + (_spotFor?.Ai?.Target == e && !pursued ? 0.7f : 0f);
             if (s > bestScore) { bestScore = s; best = e; }
@@ -551,7 +553,9 @@ public sealed partial class AiPilot
     /// </summary>
     private Vector3? UnderUmbrella(BattleSim b, BattleUnit me)
     {
-        bool threatened = b.TacticsOf(me.Team).HasFlag(TeamTactics.Umbrella) && (b.LockedOn(me) || b.IncomingGuided(me) > 0);
+        // Not lights: their speed (and jinking) is their defence; huddling under a turret kept flamethrower lights out
+        // of flame range ~1/4 of the time.
+        bool threatened = Role != AiRole.Skirmisher && b.TacticsOf(me.Team).HasFlag(TeamTactics.Umbrella) && (b.LockedOn(me) || b.IncomingGuided(me) > 0);
         if (threatened && Umbrella == null)
         {
             BattleUnit? best = null;
@@ -625,6 +629,12 @@ public sealed partial class AiPilot
         _post = best;
         _postUntil = _now + 5f;
         return best;
+    }
+
+    private static bool HasWeapon(BattleUnit me, Func<WeaponSpec, bool> what)
+    {
+        foreach (var m in me.Sim.Weapons.Mounts) if (!m.Offline && what(m.Spec)) return true;
+        return false;
     }
 
     /// <summary>
@@ -788,7 +798,20 @@ public sealed partial class AiPilot
                 else if (MathF.Abs(toRear) > 0.5f) _orbit = MathF.Sign(toRear) > 0 ? 1 : -1;
                 float step = MathF.Abs(toRear) > 0.5f ? MathUtil.Clamp(toRear, -0.9f, 0.9f) : _orbit * 0.6f;
                 float r = FlankRadius(me, toRear, range * 0.9f), d = MathUtil.PlanarDistance(me.Position, k.Position);
-                return map.ClampDestination(k.Position + MathUtil.Forward(here + step) * MathF.Max(r, d - 15f));
+                // A flamethrower light is a brawler: it circles heavies and assaults at flame range (their legs can't
+                // follow it there) and closes on anything else once the scan shows it running hot, to burn it into a
+                // shutdown. (Closing only on a known-hot target, it never got near enough to light anything.)
+                float close = 15f;
+                if (HasWeapon(me, w => w.Flame)
+                    && (Target!.Chassis.Class is ChassisClass.Heavy or ChassisClass.Assault || b.Scan(me.Team, Target) is { Heat: > 0.45f }))
+                {
+                    r = MathF.Min(r, 55f);
+                    close = 40f; // a brawler goes in fast (at 15 m a pick the target was gone before it arrived)
+                    // ...and mostly straight in while far out: a 0.9 rad step round a 300 m circle is ~230 m sideways,
+                    // so the "spiral" was an orbit (median 170 m from the target, in flame range 12 % of the time).
+                    if (d > 1.5f * r) step = MathUtil.Clamp(step, -0.3f, 0.3f);
+                }
+                return map.ClampDestination(k.Position + MathUtil.Forward(here + step) * MathF.Max(r, d - close));
             }
             case AiAction.Engage when k != null:
             {

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using IronFeud.Logic.Mech.Damage;
@@ -33,12 +34,33 @@ public sealed class MechSim
     public MechPose Pose => Locomotion.Pose;
     public bool IsOut => Damage.IsOut;
 
+    /// <summary>Heat at which the reactor scrams: only heat put in from outside (flamethrowers, incendiaries) or jets
+    /// can push a mech this far, its own guns lock at 1.</summary>
+    public const float ShutdownHeat = 1.2f, ShutdownTime = 3f;
+
+    /// <summary>Seconds left of a heat shutdown: no legs, no guns, the torso slack; the heat sinks keep working.</summary>
+    public float ShutdownLeft { get; private set; }
+    public bool Shutdown => ShutdownLeft > 0f;
+
+    /// <summary>Seconds left of sensor scrambling from a particle-bolt hit.</summary>
+    public float DisruptLeft { get; private set; }
+
+    public void Disrupt(float seconds) => DisruptLeft = MathF.Max(DisruptLeft, seconds);
+
     public void Step(in MechInput input, float h)
     {
         Shots.Clear();
-        Locomotion.Step(input, h);
+        DisruptLeft = MathF.Max(0f, DisruptLeft - h);
+        if (!Shutdown && !IsOut && Weapons.Heat >= ShutdownHeat) ShutdownLeft = ShutdownTime;
+        var command = input;
+        if (Shutdown)
+        {
+            ShutdownLeft = MathF.Max(0f, ShutdownLeft - h);
+            command = new MechInput { TwistTarget = Locomotion.Body.Twist, AimTarget = Locomotion.Body.Aim };
+        }
+        Locomotion.Step(command, h);
         if (Locomotion.JetsBurning) Weapons.Heat += Chassis.JumpHeat * h;
-        if (!IsOut) Weapons.Step(input, Locomotion, h, Shots);
+        if (!IsOut) Weapons.Step(command, Locomotion, h, Shots);
     }
 
     /// <summary>Nearest hit volume along a ray (unit direction).</summary>
@@ -72,7 +94,8 @@ public sealed class MechSim
     /// How well the head's sensors work, 0..1: its structure once the plate is gone (aim and detection degrade with
     /// it; the AI reads this).
     /// </summary>
-    public float SensorQuality => Damage.Exposed(MechSection.Cockpit) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Cockpit) : 1f;
+    public float SensorQuality =>
+        (Damage.Exposed(MechSection.Cockpit) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Cockpit) : 1f) * (DisruptLeft > 0f ? 0.5f : 1f);
 
     /// <summary>
     /// Maps section state onto the simulation. Destroyed: arms drop their weapons, legs cap speed, torso or cockpit =

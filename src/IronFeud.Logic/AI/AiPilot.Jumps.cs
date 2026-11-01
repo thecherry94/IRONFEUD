@@ -227,7 +227,12 @@ public sealed partial class AiPilot
         // head-on run (measured: vaults then cost lights and kills).
         foreach (var u in b.Units)
             if (u != me && u.Team == me.Team && !u.IsOut && MathUtil.PlanarDistance(u.Position, Target.Position) < 250f) return VaultArmed = false;
-        bool ok = runUp && (VaultArmed || CanJump(me, VaultMinCharge)) && MathF.Abs(toRear) > 1.8f && d is > 25f and < 160f
+        // Still possible from here: far enough out that a full burn reaches clearing height before the light gets
+        // over it at cruise speed (closer, it would arm, find it can't clear, disarm and re-arm every think).
+        float burn = 0.95f * me.Sim.Locomotion.JumpFuel, clear = ClearHeight(me), climb = 0f;
+        while (climb < 6f && HeightAt(me.Chassis, burn, climb) < clear) climb += 0.05f;
+        float nearEdge = 0.8f * me.Chassis.VMax * climb;
+        bool ok = runUp && (VaultArmed || CanJump(me, VaultMinCharge)) && MathF.Abs(toRear) > 1.8f && d > MathF.Max(25f, nearEdge) && d < 160f
                   && me.Sim.Weapons.Heat < Personality.HeatLimit - 0.15f && ClearHeight(me) <= ApexGain(me.Chassis, me.Sim.Locomotion.JumpFuel);
         if (ok && !VaultArmed) Note($"lining up a vault over {Target.Name}");
         VaultArmed = ok;

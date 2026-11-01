@@ -84,12 +84,16 @@ kept full damage at any range and beams fell to 20-25 %.
 
 | weapon | kind | dmg | heat | cooldown | optimal / max range | shell m/s | used by |
 |---|---|---|---|---|---|---|---|
-| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 180 / 280 | | light (L) |
-| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 300 / 520 | 560 | light (R) |
-| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 200 / 320 | | medium (L) |
+| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 180 / 280 | | Hauberk light (L) |
+| Autocannon | 2 barrels | 4 | .03 | 0.25 s | 300 / 520 | 560 | (tests) |
+| Incendiary cannon | 2 barrels, +0.06 target heat a round | 2.6 | .03 | 0.25 s | 260 / 460 | 520 | Hauberk light (R) |
+| Machine gun | 2 barrels, x0.15 vs armour, x1.6 vs structure | 1.5 | .004 | 0.08 s | 160 / 260 | 900 | Sicklefoot light (R), Sicklefoot medium (L) |
+| Flamethrower | 1.2 s stream, +0.5 target heat a burn | 4 | .08 | 2 s | 50 / 80 | | Sicklefoot light (L) |
+| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 200 / 320 | | Hauberk medium (L) |
 | Cannon | shell | 14 | .08 | 0.75 s | 400 / 640 | 450 | (prototype) |
-| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 240 / 380 | | heavy, assault (L) |
-| Heavy cannon | shell | 32 | .20 | 2.2 s | 360 / 600 | 330 | medium, heavy (R) |
+| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 240 / 380 | | heavy, Hauberk assault (L) |
+| Heavy cannon | shell | 32 | .20 | 2.2 s | 360 / 600 | 330 | Hauberk medium, Hauberk heavy (R) |
+| Particle cannon | bolt, no drop, ramps to full over 90 m, scrambles sensors 1.5 s | 26 | .32 | 3.2 s | 450 / 650 | 1300 | Sicklefoot medium, heavy (R), Sicklefoot assault (L) |
 | Siege cannon | shell | 75 | .36 | 4.5 s | 450 / 700 | 240 | assault (R) |
 | Rocket pod | 6 rockets, 0.05 s | 18 | .12 | 3 s | 130 / 220 | 200 | light (shoulder) |
 | Strike rack | 10 rockets, 0.06 s | 25 | .16 | 4 s | 300 / 400 | 260 | medium (shoulder) |
@@ -172,6 +176,24 @@ gun barely scratches plates and shreds exposed structure). Exposed structure deg
 what is left: legs limp (top speed down toward the crippled cap), an arm's weapon cycles slower (up to 2x), torso heat
 sinks lose capacity (dissipation down to 40 %), the head's sensors blur (AI aim error up to 2.5x, sight range down).
 The HUD shows armour/structure per section ("!" = exposed); the AI panel draws both bars.
+
+**Heat and specialist weapons** (the lights package: lights must be a real nuisance to the backline, not just
+spotters). Each model now carries its own loadout (table above): the Sicklefoot light pairs machine guns with a
+flamethrower (heat it, then shred whatever the plates no longer cover), the Hauberk light an incendiary cannon and
+a pulse laser; Sicklefoot mediums to assaults carry the particle cannon. Heat weapons add heat to the target in
+proportion to the damage they land. A mech's own guns lock at heat 1, but outside heat (and jets) can push it on: at
+1.2 the reactor scrams for 3 s (`MechSim.ShutdownHeat`): no legs, no guns, torso slack, heat sinks still working; the
+HUD and the mech tag say so and the attacker is credited (`UnitStats.ShutdownsCaused`). A particle bolt is a
+projectile, not hitscan (player call: "extremely fast, sounds scary, hits hard, lots of heat"): 400 m in ~0.31 s,
+less damage inside 90 m, and a hit halves the target's sensor quality for 1.5 s (AI aim error and sight range).
+Flamethrower lights are brawlers: they aren't assigned as spotters and don't huddle under point defense, and against
+a heavy, an assault or a target the scan shows running hot (> 0.45) they circle at 55 m and go mostly straight in
+while far out (before, the 0.9 rad flank step around a 300 m circle made the "spiral" an orbit: median 170 m from the
+target, in flame range 12 % of the time; after, 21 % and 4x the heat put in). The machine-gun AI prefers targets the
+scan shows with exposed structure. Flamer heat per burn 0.3 -> 0.5: at 0.3 lance games saw no shutdowns at all.
+Lance report (20 games): light 50 dealt / 0.30 kills / 25 % survived / 0.51 heat in / 0.05 shutdowns per game,
+medium 97 / 0.50 / 40 %, heavy 163 / 1.45 / 43 %, assault 111 / 0.33 / 35 %. Lights are still the weakest class;
+signature by size, active marking and ECM are next.
 
 **Lance tactics** (`BattleSim.Tactics` per team, `TeamTactics_HeadToHead` reports them). Radar: lancemates share
 sightings (position, not sight: firing still needs one's own eyes; a missile lock can use a teammate's). Spotters: the

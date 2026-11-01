@@ -18,6 +18,10 @@ public struct UnitStats
 
     /// <summary>Part of <see cref="DamageDealt"/> that struck a target from behind.</summary>
     public float RearDamage;
+
+    /// <summary>Heat put into enemies (flamethrowers, incendiary rounds), and heat shutdowns this unit caused.</summary>
+    public float HeatInflicted;
+    public int ShutdownsCaused;
 }
 
 /// <summary>A mech in a battle: its simulation, its side and whoever is flying it (an AI, or the player via <see cref="Input"/>).</summary>
@@ -60,6 +64,11 @@ public sealed class BattleUnit
     public BattleUnit? Locked { get; internal set; }
 
     internal float PointDefenseBudget;
+
+    /// <summary>Who last put heat into this unit, and when (credit for a shutdown).</summary>
+    internal BattleUnit? HeatedBy;
+    internal float HeatedAt = -99f;
+    internal bool WasShutdown;
 
     /// <summary>Ground velocity (legs plus jets), for leading.</summary>
     public Vector3 Velocity
@@ -241,7 +250,12 @@ public sealed class BattleSim
             if (!u.IsOut) u.Ai?.Tick(this, u, h);
         UpdateLocks(h);
 
-        foreach (var u in Units) u.Sim.Step(u.Input, h);
+        foreach (var u in Units)
+        {
+            u.Sim.Step(u.Input, h);
+            if (u.Sim.Shutdown && !u.WasShutdown && u.HeatedBy is { } heater && Time - u.HeatedAt < 5f) heater.Stats.ShutdownsCaused++;
+            u.WasShutdown = u.Sim.Shutdown;
+        }
         foreach (var u in Units)
             foreach (var s in u.Sim.Shots) Fire(u, s);
 
@@ -278,6 +292,19 @@ public sealed class BattleSim
     {
         var report = target.Sim.ApplyHit(section, amount, travel, spec);
         if (report.Ignored) return report;
+        // Heat weapons heat the target in proportion to the hit; a particle bolt scrambles its sensors.
+        if (spec is { HeatToTarget: > 0f })
+        {
+            float heat = spec.HeatToTarget * amount / spec.Damage;
+            target.Sim.Weapons.Heat += heat;
+            if (attacker != null)
+            {
+                attacker.Stats.HeatInflicted += heat;
+                target.HeatedBy = attacker;
+                target.HeatedAt = Time;
+            }
+        }
+        if (spec is { DisruptTime: > 0f }) target.Sim.Disrupt(spec.DisruptTime);
         if (attacker != null)
         {
             if (countHit) attacker.Stats.Hits++;
@@ -582,7 +609,7 @@ public sealed class BattleSim
         AnswerHelpCalls();
     }
 
-    /// <summary>Each mech with a guided weapon gets the nearest free light of its team as its spotter (one each).</summary>
+    /// <summary>Each mech with a guided weapon gets the nearest free ranged light of its team as its spotter (one each).</summary>
     private void AssignSpotters()
     {
         foreach (var u in Units)
@@ -601,6 +628,8 @@ public sealed class BattleSim
             foreach (var u in Units)
             {
                 if (u.Team != heavy.Team || u.IsOut || u.Ai == null || u.Ai.SpotFor != null || u.Chassis.Class != ChassisClass.Light) continue;
+                // A flamethrower light is a brawler, not an observer (spotting kept it 300+ m out, it never lit anything).
+                if (u.Sim.Weapons.Mounts.Exists(m => m.Spec.Flame && !m.Offline)) continue;
                 float d = PlanarDistance(u.Position, heavy.Position);
                 if (d < bestD) { bestD = d; best = u; }
             }

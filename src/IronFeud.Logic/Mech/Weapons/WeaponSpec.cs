@@ -32,6 +32,15 @@ public sealed record WeaponSpec
     public float VsArmor { get; init; } = 1f;
     public float VsStructure { get; init; } = 1f;
 
+    /// <summary>Heat put into the target by a full hit (scaled like the damage): flamethrowers and incendiary rounds.</summary>
+    public float HeatToTarget { get; init; }
+
+    /// <summary>A flame stream rather than a laser (rendering and sound).</summary>
+    public bool Flame { get; init; }
+
+    /// <summary>A particle bolt: hits scramble the target's sensors for <see cref="DisruptTime"/> seconds.</summary>
+    public float DisruptTime { get; init; }
+
     /// <summary>
     /// Burn lasers: the beam stays on this long after the trigger and deals <see cref="Damage"/> spread evenly over
     /// it, every tick along wherever the arm points then. Holding it on target is the skill; a dodging target takes
@@ -56,7 +65,10 @@ public sealed record WeaponSpec
     /// <summary>Seconds a target must stay spotted and in the aim cone to lock.</summary>
     public float LockTime { get; init; }
 
-    /// <summary>Rounds arm only past this distance from the launcher: closer impacts do no damage.</summary>
+    /// <summary>
+    /// Missiles arm only past this distance (closer impacts are duds); a particle bolt ramps up to full damage over it
+    /// (the field needs that distance to form).
+    /// </summary>
     public float MinRange { get; init; }
 
     /// <summary>Pulse lasers: the trigger fires this many instant pulses <see cref="PulseInterval"/> apart, each carrying an equal share.</summary>
@@ -79,6 +91,7 @@ public sealed record WeaponSpec
 
     public float DamageAt(float distance)
     {
+        if (Kind != WeaponKind.Missile && MinRange > 0f && distance < MinRange) return Damage * MathF.Max(0.2f, distance / MinRange);
         if (distance <= OptimalRange) return Damage;
         return Damage * MathF.Max(0f, 1f - (distance - OptimalRange) / MathF.Max(1e-3f, Range - OptimalRange));
     }
@@ -141,6 +154,57 @@ public sealed record WeaponSpec
         Range = 600f, OptimalRange = 360f, MuzzleVelocity = 330f, Gravity = 4f, MaxLifetime = 2.5f,
         Length = 3.9f, Caliber = 0.38f, Barrels = 1,
         ArmKick = 5f, ElbowKick = 6f, TorsoYawKick = 0.6f, TorsoPitchKick = 0.45f, Trauma = 0.5f,
+    };
+
+    /// <summary>
+    /// Twin machine guns: a hail of small rounds that barely scratch armour plates (15 %) but shred exposed internal
+    /// structure (160 %): ~3 damage a second against plates, ~30 against what's underneath.
+    /// </summary>
+    public static readonly WeaponSpec MachineGun = new()
+    {
+        Name = "Machine gun", Kind = WeaponKind.Projectile, Damage = 1.5f, Heat = 0.004f, Cooldown = 0.08f,
+        Range = 260f, OptimalRange = 160f, MuzzleVelocity = 900f, Gravity = 3f, MaxLifetime = 0.6f,
+        VsArmor = 0.15f, VsStructure = 1.6f,
+        Length = 1.6f, Caliber = 0.08f, Barrels = 2,
+        ArmKick = 0.08f, Trauma = 0.01f,
+    };
+
+    /// <summary>
+    /// A short-range burning stream: little damage, a lot of heat into the target (a full burn adds 0.5; at 0.3 lance
+    /// games saw no shutdowns at all). Two burns on a mech running warm shut it down.
+    /// </summary>
+    public static readonly WeaponSpec Flamethrower = new()
+    {
+        Name = "Flamethrower", Kind = WeaponKind.Beam, Damage = 4f, Heat = 0.08f, Cooldown = 2f, BurnTime = 1.2f,
+        Range = 80f, OptimalRange = 50f, HeatToTarget = 0.5f, Flame = true,
+        Length = 1.3f, Caliber = 0.8f, Barrels = 1,
+        Trauma = 0.02f,
+    };
+
+    /// <summary>
+    /// An autocannon firing incendiary rounds: a third of its damage traded for heat in the target, ~0.2 a second
+    /// on target (at 0.03 a round the target's heat sinks kept up with it).
+    /// </summary>
+    public static readonly WeaponSpec IncendiaryCannon = new()
+    {
+        Name = "Incendiary cannon", Kind = WeaponKind.Projectile, Damage = 2.6f, Heat = 0.03f, Cooldown = 0.25f,
+        Range = 460f, OptimalRange = 260f, MuzzleVelocity = 520f, Gravity = 4f, MaxLifetime = 1.5f, HeatToTarget = 0.06f,
+        Length = 2.6f, Caliber = 0.12f, Barrels = 2,
+        ArmKick = 0.8f, ElbowKick = 1f, TorsoYawKick = 0.06f, TorsoPitchKick = 0.05f, Trauma = 0.05f,
+    };
+
+    /// <summary>
+    /// A bolt of charged particles: a projectile so fast it is nearly instant at mid range (1300 m/s, no drop), hitting
+    /// hard and running very hot. It needs 90 m to form (less damage inside that) and its hit scrambles the target's
+    /// sensors for a moment.
+    /// </summary>
+    public static readonly WeaponSpec ParticleCannon = new()
+    {
+        Name = "Particle cannon", Kind = WeaponKind.Projectile, Damage = 26f, Heat = 0.32f, Cooldown = 3.2f,
+        Range = 650f, OptimalRange = 450f, MinRange = 90f, MuzzleVelocity = 1300f, Gravity = 0f, MaxLifetime = 0.8f,
+        DisruptTime = 1.5f,
+        Length = 2.4f, Caliber = 0.42f, Barrels = 1,
+        ArmKick = 2.2f, ElbowKick = 2.5f, TorsoYawKick = 0.3f, TorsoPitchKick = 0.2f, Trauma = 0.35f,
     };
 
     /// <summary>Short-range unguided rocket salvo: six rounds in a wide cone, a shotgun up close.</summary>
