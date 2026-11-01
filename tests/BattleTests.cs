@@ -260,6 +260,42 @@ public class BattleTests
         Assert.True(onTheLight > 0.7f * checks, $"only {onTheLight}/{checks}");
     }
 
+    /// <summary>
+    /// Player rule: a mech must lock a target to scan its internals before deciding on them, and the scan is shared
+    /// across the lance. Nothing is known before a lock; the lock's scan is the target's real state and every
+    /// teammate reads it; it goes stale 10 s after the lock is lost.
+    /// </summary>
+    [Fact]
+    public void TargetIntel_ComesFromALock_AndIsSharedAcrossTheLance()
+    {
+        var b = Open();
+        var scanner = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f);
+        var mate = b.AddUnit("B", 0, MechChassis.Medium(), new Vector3(40, 0, 0), 0f);
+        var enemyChassis = MechChassis.Medium();
+        var hurt = MechDamage.Create(enemyChassis);
+        hurt.Armor[(int)MechSection.Torso] = 0f;
+        var enemy = b.AddUnit("E", 1, enemyChassis, new Vector3(0, 0, -200), MathF.PI, damage: hurt);
+        b.Step(H);
+        Assert.Null(b.Scan(0, enemy));
+
+        float twist = 0f, aim = 0f;
+        for (int i = 0; i < 120 * 3; i++)
+        {
+            AimSolver.Track(scanner.Sim.Pose, scanner.Sim.Locomotion.Body, scanner.Chassis, enemy.Volume(MechSection.Torso).Center, ref twist, ref aim);
+            scanner.Input = new MechInput { TwistTarget = twist, AimTarget = aim };
+            scanner.LockCandidate = enemy;
+            b.Step(H);
+        }
+        var scan = b.Scan(mate.Team, enemy); // read through the teammate's team: one shared picture
+        Assert.NotNull(scan);
+        Assert.Equal(AiPilot.HealthFactor(enemy), scan!.Health, 3);
+        Assert.True(scan.AnyExposed, "the scan shows the stripped torso");
+
+        scanner.LockCandidate = null;
+        for (int i = 0; i < 120 * 11; i++) b.Step(H);
+        Assert.Null(b.Scan(0, enemy)); // stale without a lock
+    }
+
     [Fact]
     public void Blocks_StopShells()
     {

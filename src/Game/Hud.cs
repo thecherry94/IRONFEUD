@@ -206,7 +206,12 @@ public partial class Hud : CanvasLayer
         {
             var td = hit.Mech.Sim.Damage;
             string status = td.Status switch { MechStatus.PilotKilled => " · PILOT KILLED", MechStatus.Destroyed => " · DESTROYED", _ => "" };
-            _target.Text = $"{hit.Mech.Name} · {hit.Distance:0} m · on {SectionNames[hit.Section].ToUpperInvariant()}{status}\n{SectionLine(td)}";
+            // Its internals show only once the lance has scanned it (a sensor lock, shared across the team).
+            var self = Mech!.Unit;
+            string internals = Battlefield?.Battle.Scan(self.Team, hit.Mech.Unit) != null ? SectionLine(td)
+                : self.LockCandidate == hit.Mech.Unit ? $"SCANNING {Mathf.RoundToInt(100f * self.LockProgress / IronFeud.Logic.Battle.BattleSim.SensorLockTime)}%"
+                : "NOT SCANNED";
+            _target.Text = $"{hit.Mech.Name} · {hit.Distance:0} m · on {SectionNames[hit.Section].ToUpperInvariant()}{status}\n{internals}";
         }
         else _target.Text = "";
     }

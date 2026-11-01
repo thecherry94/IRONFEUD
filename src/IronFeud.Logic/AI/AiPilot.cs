@@ -520,7 +520,7 @@ public sealed partial class AiPilot
             // an assault pressed a 1 % enemy out of sight 288 m off while a light took it apart from 139 m.
             float opportunity = k.Visible && (reach <= 0f || d <= reach) ? 1f : 0.3f;
             float s = (k.Visible ? 0.6f : 0f) - d / 500f + (focus == e ? 0.5f * opportunity : 0f)
-                      + (1f - e.Sim.Damage.Fraction(MechSection.Torso)) * 0.4f * opportunity - age * 0.03f + (e == Target ? 0.15f : 0f)
+                      + (1f - KnownHealth(b, me, e)) * 0.4f * opportunity - age * 0.03f + (e == Target ? 0.15f : 0f)
                       + 1.2f * danger
                       // Whatever is at my back, or just shot me there, comes first.
                       + (d < 200f ? 0.6f * HitFacing.RearWeight(me.Sim.TorsoFacing, me.Position - k.Position) : 0f)
@@ -627,6 +627,12 @@ public sealed partial class AiPilot
         return best;
     }
 
+    /// <summary>
+    /// An enemy's health as the lance knows it: from a sensor lock's scan (shared across the team, fresh within 10 s),
+    /// otherwise assumed healthy. The AI never reads an enemy's true damage.
+    /// </summary>
+    private static float KnownHealth(BattleSim b, BattleUnit me, BattleUnit e) => b.Scan(me.Team, e)?.Health ?? 1f;
+
     /// <summary>Preferred fighting range: the personality's, closed to 60 % while pressing an advantage.</summary>
     private float Range => Personality.Range * (Pressing ? 0.6f : 1f);
 
@@ -653,10 +659,10 @@ public sealed partial class AiPilot
         int allies = 0, enemies = 0;
         foreach (var u in b.Units)
             if (!u.IsOut) { if (u.Team == me.Team) allies++; else enemies++; }
-        Advantage = hp - HealthFactor(t) + 0.3f * (allies - enemies);
+        Advantage = hp - KnownHealth(b, me, t) + 0.3f * (allies - enemies);
         // Hysteresis: start well ahead (0.5) with the target under 60 % and ourselves over 60 %, stop below 0.25, and
         // never while someone else is hurting us.
-        float theirs = HealthFactor(t);
+        float theirs = KnownHealth(b, me, t);
         bool hurtByOther = false;
         foreach (var (e, dmg) in _damageBy) if (e != t && dmg > 5f) hurtByOther = true;
         bool press = !hurtByOther && (Pressing ? Advantage > 0.25f : Advantage > 0.5f && theirs < 0.6f && hp > 0.6f);

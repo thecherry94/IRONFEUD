@@ -190,6 +190,14 @@ on it 5 of 23 times. Now anything within 150 m scores as a threat by being there
 0.075/pt (cap 1.2), the kill on offer (focus, its damage) counts fully only for a target in sight and reach, pressing
 stops while another enemy is hurting the pilot, and a close hit triggers an immediate re-think: 1 of 19.
 
+**Scans** (player rule: "the mechs first have to get a lock on the target and analyze its internals before making
+decisions; this is shared information across a lance"). Every mech now locks its pilot's candidate (spotted by the
+team, within 20° of the torso aim, in 600 m, for 1.5 s; guided launchers use their own lock). While a lock holds it
+writes a `ScanReport` (health, heat, any exposed section) into the team's intel (`BattleSim.Scan`), stale 10 s
+after the lock is lost. The AI reads enemy state only from there (`KnownHealth`: unscanned enemies count as healthy):
+target choice, pressing an advantage and the coordinator's focus fire. The player's HUD shows a target's sections
+only once the lance has scanned it ("SCANNING n%" while locking, "NOT SCANNED" otherwise).
+
 **Pressing and falling back** (player feedback: "is the AI aware it has an advantage?", "in retreat they sit in their
 hidey hole ~20 s doing nothing"). Advantage = own health - the target's (its damage shows) + 0.3 per fighter the
 sides differ by (the opposing roster minus confirmed kills; counting only current contacts made everyone feel ahead

@@ -88,6 +88,20 @@ public sealed class Shell
 [Flags]
 public enum TeamTactics { None = 0, Radar = 1, Spotters = 2, Umbrella = 4, All = Radar | Spotters | Umbrella }
 
+/// <summary>
+/// What a lance knows about an enemy's state: a sensor lock scans its internals (armour, structure, exposed
+/// sections, heat). Shared across the team; stale after <see cref="BattleSim.IntelLifetime"/> without a lock.
+/// </summary>
+public sealed class ScanReport
+{
+    public float Time;
+
+    /// <summary>Like <see cref="AiPilot.HealthFactor"/>: torso integrity weighted by working weapons.</summary>
+    public float Health = 1f;
+    public float Heat;
+    public bool AnyExposed;
+}
+
 /// <summary>A missile in flight: boosts to cruise speed, homes on <see cref="Target"/> if guided (after a 0.5 s climb).</summary>
 public sealed class Missile
 {
@@ -164,6 +178,16 @@ public sealed class BattleSim
     }
 
     public TeamTactics TacticsOf(int team) => Tactics[Math.Clamp(team, 0, Tactics.Length - 1)];
+
+    /// <summary>Per team: scans of enemies (see <see cref="ScanReport"/>).</summary>
+    public readonly Dictionary<BattleUnit, ScanReport>[] Intel = { new(), new() };
+
+    /// <summary>A sensor lock (any mech, on its pilot's candidate) takes this long; guided weapons use their own lock time.</summary>
+    public const float SensorLockTime = 1.5f, SensorLockRange = 600f, IntelLifetime = 10f;
+
+    /// <summary>The team's current scan of <paramref name="e"/>, or null if nobody has locked it in the last 10 s.</summary>
+    public ScanReport? Scan(int team, BattleUnit e) =>
+        Intel[Math.Clamp(team, 0, Intel.Length - 1)].TryGetValue(e, out var r) && Time - r.Time < IntelLifetime ? r : null;
 
     /// <summary>Which jump-jet tactics AI pilots use (all by default). Switched off only to measure what each changes.</summary>
     public JumpTactics JumpTactics = JumpTactics.All;
@@ -445,9 +469,10 @@ public sealed class BattleSim
     }
 
     /// <summary>
-    /// Missile locks: a unit with a working guided weapon locks its pilot's candidate once it has stayed spotted (any
-    /// teammate can see it, the launcher included) within 20° of the torso aim and in range for the lock time.
-    /// Losing either bleeds the lock off twice as fast.
+    /// Sensor locks: every mech locks its pilot's candidate once it has stayed spotted (any teammate can see it, the
+    /// locker included) within 20° of the torso aim and in range for the lock time (a guided weapon's own, else 1.5 s);
+    /// losing either bleeds the lock off twice as fast. A lock scans the target's internals into the team's intel
+    /// every tick it holds, and is what guided missiles home on.
     /// </summary>
     private void UpdateLocks(float h)
     {
@@ -458,7 +483,7 @@ public sealed class BattleSim
                 foreach (var m in u.Sim.Weapons.Mounts)
                     if (m.Spec.Guided && !m.Offline) guided = m.Spec;
             var c = u.LockCandidate;
-            if (guided == null || c == null || c.IsOut || c.Team == u.Team)
+            if (u.IsOut || c == null || c.IsOut || c.Team == u.Team)
             {
                 u.LockProgress = 0f;
                 u.Locked = null;
@@ -467,12 +492,21 @@ public sealed class BattleSim
             if (u.Locked != null && u.Locked != c) { u.Locked = null; u.LockProgress = 0f; }
             var pose = u.Sim.Pose;
             Vector3 to = c.Volume(MechSection.Torso).Center - pose.AimOrigin;
-            float d = to.Length();
-            bool inCone = d < guided.Range && Vector3.Dot(pose.AimDirection, to / MathF.Max(1e-3f, d)) > MathF.Cos(0.35f);
+            float d = to.Length(), lockTime = guided?.LockTime ?? SensorLockTime, range = guided?.Range ?? SensorLockRange;
+            bool inCone = d < range && Vector3.Dot(pose.AimDirection, to / MathF.Max(1e-3f, d)) > MathF.Cos(0.35f);
             u.LockProgress = inCone && Spotted(u.Team, c)
-                ? MathF.Min(guided.LockTime, u.LockProgress + h)
+                ? MathF.Min(lockTime, u.LockProgress + h)
                 : MathF.Max(0f, u.LockProgress - 2f * h);
-            u.Locked = u.LockProgress >= guided.LockTime ? c : null;
+            u.Locked = u.LockProgress >= lockTime ? c : null;
+            if (u.Locked == null) continue;
+            var intel = Intel[Math.Clamp(u.Team, 0, Intel.Length - 1)];
+            if (!intel.TryGetValue(c, out var scan)) intel[c] = scan = new ScanReport();
+            scan.Time = Time;
+            scan.Health = AiPilot.HealthFactor(c);
+            scan.Heat = c.Sim.Weapons.Heat;
+            scan.AnyExposed = false;
+            foreach (var s in Enum.GetValues<MechSection>())
+                if (c.Sim.Damage.Exposed(s) && !c.Sim.Damage.IsDestroyed(s)) scan.AnyExposed = true;
         }
     }
 
@@ -534,7 +568,8 @@ public sealed class BattleSim
             foreach (var e in Units)
             {
                 if (e.Team == team || e.IsOut) continue;
-                float s = (1f - e.Sim.Damage.Fraction(MechSection.Torso)) * 1.5f;
+                // What the team knows (a scan), not the truth: unscanned enemies count as healthy.
+                float s = (1f - (Scan(team, e)?.Health ?? 1f)) * 1.5f;
                 foreach (var a in Units)
                     if (a.Team == team && !a.IsOut && a.Ai?.Contacts.GetValueOrDefault(e) is { } k)
                         s += k.Visible ? 1f : 0.3f;
