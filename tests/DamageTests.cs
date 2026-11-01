@@ -77,13 +77,14 @@ public class DamageTests
     }
 
     [Fact]
-    public void LaserPastFalloff_NeedsTwoCockpitHits()
+    public void LaserBurn_MustBeHeldOnTheCockpit()
     {
-        // One laser hit kills a 5 HP cockpit only inside ~253 m (damage >= 5); at 280 m it does 3.
+        // At 280 m (past falloff) the whole burn does ~6.7, enough for a 5 HP cockpit; a 0.25 s glance is not.
+        float full = WeaponSpec.Laser.DamageAt(280f), glance = full * 0.25f / WeaponSpec.Laser.BurnTime;
         var sim = NewSim();
-        sim.ApplyHit(MechSection.Cockpit, WeaponSpec.Laser.DamageAt(280f));
+        sim.ApplyHit(MechSection.Cockpit, glance);
         Assert.False(sim.IsOut);
-        sim.ApplyHit(MechSection.Cockpit, WeaponSpec.Laser.DamageAt(280f));
+        sim.ApplyHit(MechSection.Cockpit, full - glance);
         Assert.True(sim.IsOut);
     }
 

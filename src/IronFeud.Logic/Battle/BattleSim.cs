@@ -59,8 +59,10 @@ public sealed class Shell
 public enum BattleEventKind { ShellFired, Beam, Impact }
 
 /// <summary>
-/// Something the renderer should show this tick. <see cref="Impact"/> is a shell or beam end hitting something;
-/// <see cref="Target"/> and <see cref="Report"/> are set when it hit a mech.
+/// Something the renderer should show this tick. <see cref="Impact"/> is a shell or single beam hitting something;
+/// <see cref="Target"/> and <see cref="Report"/> are set when it hit a mech. A burning beam sends a
+/// <see cref="BattleEventKind.Beam"/> every tick instead (phase Start, then Hold) with <see cref="Hit"/> and
+/// <see cref="Target"/> set, and no Impact: the renderer keeps it lit while the events keep coming.
 /// </summary>
 public struct BattleEvent
 {
@@ -68,6 +70,7 @@ public struct BattleEvent
     public BattleUnit Shooter;
     public ShotFired Shot;
     public Vector3 From, Point;
+    public bool Hit;
     public BattleUnit? Target;
     public DamageReport Report;
 }
@@ -111,6 +114,7 @@ public sealed class BattleSim
 
     private readonly uint _seed;
     private int _nextShellId;
+    private readonly HashSet<int> _burnScored = new();
 
     public BattleSim(ArenaMap map, uint seed = 1)
     {
@@ -168,13 +172,15 @@ public sealed class BattleSim
         return found;
     }
 
-    public DamageReport ApplyHit(BattleUnit target, MechSection section, float amount, Vector3 point, BattleUnit? attacker)
+    /// <param name="countHit">False for the later ticks of a burn that already scored: a burn is one hit.</param>
+    public DamageReport ApplyHit(BattleUnit target, MechSection section, float amount, Vector3 point, BattleUnit? attacker,
+        bool countHit = true)
     {
         var report = target.Sim.ApplyHit(section, amount);
         if (report.Ignored) return report;
         if (attacker != null)
         {
-            attacker.Stats.Hits++;
+            if (countHit) attacker.Stats.Hits++;
             attacker.Stats.DamageDealt += amount;
         }
         target.Ai?.NotifyHit(attacker, amount);
@@ -184,7 +190,7 @@ public sealed class BattleSim
 
     private void Fire(BattleUnit u, in ShotFired shot)
     {
-        u.Stats.Shots++;
+        if (shot.Phase != ShotPhase.Hold) u.Stats.Shots++;
         switch (shot.Spec.Kind)
         {
             case WeaponKind.Projectile:
@@ -195,8 +201,14 @@ public sealed class BattleSim
             case WeaponKind.Beam:
             {
                 bool hit = Raycast(shot.Origin, shot.Direction, shot.Spec.Range, u, out var bh);
-                Events.Add(new BattleEvent { Kind = BattleEventKind.Beam, Shooter = u, Shot = shot, From = shot.Origin, Point = bh.Point });
-                if (hit) Impact(u, shot, bh, shot.Spec.DamageAt(bh.Distance));
+                Events.Add(new BattleEvent
+                {
+                    Kind = BattleEventKind.Beam, Shooter = u, Shot = shot, From = shot.Origin, Point = bh.Point, Hit = hit, Target = bh.Unit,
+                });
+                if (!hit) break;
+                float damage = shot.Spec.DamageAt(bh.Distance) * shot.DamageFraction;
+                if (shot.Phase == ShotPhase.Single) Impact(u, shot, bh, damage);
+                else Burn(u, shot, bh, damage);
                 break;
             }
         }
@@ -222,6 +234,15 @@ public sealed class BattleSim
         var e = new BattleEvent { Kind = BattleEventKind.Impact, Shooter = shooter, Shot = shot, From = shot.Origin, Point = hit.Point, Target = hit.Unit };
         if (hit.Unit != null) e.Report = ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter);
         Events.Add(e);
+    }
+
+    /// <summary>One tick of a burning beam on whatever it touches now. Counts as a hit once per burn.</summary>
+    private void Burn(BattleUnit shooter, in ShotFired shot, in BattleRayHit hit, float damage)
+    {
+        int key = shooter.Id * 8 + shot.Weapon;
+        if (shot.Phase == ShotPhase.Start) _burnScored.Remove(key);
+        if (hit.Unit == null) return;
+        ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, countHit: _burnScored.Add(key));
     }
 
     /// <summary>Mechs push each other apart (wrecks don't move) and are pushed out of blocks.</summary>

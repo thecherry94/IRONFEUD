@@ -127,10 +127,11 @@ public class WeaponTests
     public void Laser_FallsOffLinearlyBeyond200m()
     {
         var l = WeaponSpec.Laser;
-        Assert.Equal(9f, l.DamageAt(100f));
-        Assert.Equal(9f, l.DamageAt(200f));
-        Assert.Equal(4.5f, l.DamageAt(260f), 3);
-        Assert.Equal(9f * 0.2f, l.DamageAt(320f), 3);
+        float full = l.Damage;
+        Assert.Equal(full, l.DamageAt(100f));
+        Assert.Equal(full, l.DamageAt(200f));
+        Assert.Equal(full * 0.5f, l.DamageAt(260f), 3);
+        Assert.Equal(full * 0.2f, l.DamageAt(320f), 3);
         Assert.Equal(14f, WeaponSpec.Cannon.DamageAt(600f));
     }
 }

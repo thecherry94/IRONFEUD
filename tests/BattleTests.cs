@@ -5,6 +5,7 @@ using IronFeud.Logic.AI;
 using IronFeud.Logic.Battle;
 using IronFeud.Logic.Mech;
 using IronFeud.Logic.Mech.Damage;
+using IronFeud.Logic.Mech.Weapons;
 using Vector2 = System.Numerics.Vector2;
 using Xunit.Abstractions;
 
@@ -74,22 +75,64 @@ public class BattleTests
 
     private static BattleSim Open() => new(new ArenaMap()) { TrackOutcome = false };
 
-    [Fact]
-    public void Laser_HitsAMechInFront_AndCreditsTheShooter()
+    /// <summary>Shooter tracks a target 60 m ahead and pulls the left trigger once at t = 2 s.</summary>
+    private (BattleUnit Shooter, BattleUnit Target) TrackAndFire(MechChassis shooterChassis, float seconds, Action<BattleSim, int>? during = null)
     {
         var b = Open();
-        var shooter = b.AddUnit("A", 0, MechChassis.Medium(), Vector3.Zero, 0f);
+        var shooter = b.AddUnit("A", 0, shooterChassis, Vector3.Zero, 0f);
         var target = b.AddUnit("B", 1, MechChassis.Medium(), new Vector3(0, 0, -60), MathF.PI);
         float twist = 0, aim = 0;
-        for (int i = 0; i < 120 * 3; i++)
+        for (int i = 0; i < (int)(120 * seconds); i++)
         {
             AimSolver.Track(shooter.Sim.Pose, shooter.Sim.Locomotion.Body, shooter.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
             shooter.Input = new MechInput { TwistTarget = twist, AimTarget = aim, FireMask = i == 240 ? 0b10u : 0u, Convergence = 60f };
+            during?.Invoke(b, i);
             b.Step(H);
         }
+        return (shooter, target);
+    }
+
+    [Fact]
+    public void LaserBurn_HeldOnTarget_DeliversItsFullDamage_AsOneHit()
+    {
+        var (shooter, target) = TrackAndFire(MechChassis.Medium(), 4f);
         Assert.Equal(1, shooter.Stats.Shots);
         Assert.Equal(1, shooter.Stats.Hits);
-        Assert.Equal(target.Chassis.TorsoHp - 9f, target.Sim.Damage[MechSection.Torso], 3);
+        Assert.Equal(target.Chassis.TorsoHp - WeaponSpec.Laser.Damage, target.Sim.Damage[MechSection.Torso], 2);
+    }
+
+    [Fact]
+    public void LaserBurn_IsSpreadOverItsBurnTime()
+    {
+        float atHalf = 0f;
+        var (_, target) = TrackAndFire(MechChassis.Medium(), 4f, (b, i) =>
+        {
+            if (i == 240 + (int)(120 * WeaponSpec.Laser.BurnTime / 2)) atHalf = b.Units[1].Chassis.TorsoHp - b.Units[1].Sim.Damage[MechSection.Torso];
+        });
+        Assert.InRange(atHalf / WeaponSpec.Laser.Damage, 0.4f, 0.6f);
+    }
+
+    [Fact]
+    public void LaserBurn_StopsWhenItsArmIsDestroyed()
+    {
+        var (shooter, target) = TrackAndFire(MechChassis.Medium(), 4f, (b, i) =>
+        {
+            if (i == 240 + 60) b.ApplyHit(b.Units[0], MechSection.ArmLeft, 1000f, Vector3.Zero, null);
+        });
+        float dealt = target.Chassis.TorsoHp - target.Sim.Damage[MechSection.Torso];
+        Assert.InRange(dealt / WeaponSpec.Laser.Damage, 0.3f, 0.5f);
+        Assert.True(shooter.Sim.Weapons.Mounts[1].Offline);
+    }
+
+    [Fact]
+    public void PulseLaser_FiresABurst_ThatAddsUpToItsDamage()
+    {
+        var light = MechChassis.Light(); // pulse laser on the left arm
+        Assert.Equal(WeaponSpec.PulseLaser, light.LeftArmWeapon);
+        var (shooter, target) = TrackAndFire(light, 3f);
+        Assert.Equal(WeaponSpec.PulseLaser.Pulses, shooter.Stats.Shots);
+        Assert.Equal(WeaponSpec.PulseLaser.Pulses, shooter.Stats.Hits);
+        Assert.Equal(target.Chassis.TorsoHp - WeaponSpec.PulseLaser.Damage, target.Sim.Damage[MechSection.Torso], 2);
     }
 
     [Fact]

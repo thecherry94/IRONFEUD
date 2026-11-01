@@ -24,6 +24,17 @@ public sealed record WeaponSpec
     public float MinDamageFraction { get; init; } = 1f;
     public float BeamVisualTime { get; init; } = 0.22f;
 
+    /// <summary>
+    /// Burn lasers: the beam stays on this long after the trigger and deals <see cref="Damage"/> spread evenly over
+    /// it, every tick along wherever the arm points then. Holding it on target is the skill; a dodging target takes
+    /// a fraction, smeared across sections. 0 = the whole damage in one instant ray. Cooldown counts from the trigger.
+    /// </summary>
+    public float BurnTime { get; init; }
+
+    /// <summary>Pulse lasers: the trigger fires this many instant pulses <see cref="PulseInterval"/> apart, each carrying an equal share.</summary>
+    public int Pulses { get; init; } = 1;
+    public float PulseInterval { get; init; }
+
     // Looks, in the rig's medium-size units: how far the muzzle sits ahead of the arm's weapon mount, the barrel
     // radius (or emitter size for beams) and the number of barrels (or lenses). Also sizes muzzle flash and impacts.
     public float Length { get; init; } = 3f;
@@ -48,11 +59,12 @@ public sealed record WeaponSpec
     // The roster, light to heavy. Projectile damage is the same at any range; beams fall off past FalloffStart.
     // Heavier guns hit far harder but cycle slowly, run hot and fire slower shells: a running light can dodge them.
 
-    /// <summary>Light beam: chip damage at a high rate, cheap on heat.</summary>
+    /// <summary>Light beam: a quick burst of three pulses, the damage up front instead of held on target.</summary>
     public static readonly WeaponSpec PulseLaser = new()
     {
-        Name = "Pulse laser", Kind = WeaponKind.Beam, Damage = 5f, Heat = 0.05f, Cooldown = 0.5f,
-        Range = 280f, FalloffStart = 180f, MinDamageFraction = 0.2f, BeamVisualTime = 0.12f,
+        Name = "Pulse laser", Kind = WeaponKind.Beam, Damage = 9f, Heat = 0.09f, Cooldown = 0.9f,
+        Pulses = 3, PulseInterval = 0.09f,
+        Range = 280f, FalloffStart = 180f, MinDamageFraction = 0.2f, BeamVisualTime = 0.06f,
         Length = 1.1f, Caliber = 0.6f, Barrels = 1,
         ArmKick = 0.3f, TorsoYawKick = 0.05f, Trauma = 0.03f,
     };
@@ -66,9 +78,10 @@ public sealed record WeaponSpec
         ArmKick = 0.8f, ElbowKick = 1f, TorsoYawKick = 0.06f, TorsoPitchKick = 0.05f, Trauma = 0.05f,
     };
 
+    /// <summary>A 1.25 s burn; same damage per second as the old instant 9-point laser if it is held on target.</summary>
     public static readonly WeaponSpec Laser = new()
     {
-        Name = "Laser", Kind = WeaponKind.Beam, Damage = 9f, Heat = 0.11f, Cooldown = 1.0f,
+        Name = "Laser", Kind = WeaponKind.Beam, Damage = 20f, Heat = 0.24f, Cooldown = 2.25f, BurnTime = 1.25f,
         Range = 320f, FalloffStart = 200f, MinDamageFraction = 0.2f,
         Length = 1.5f, Caliber = 1f, Barrels = 3,
         ArmKick = 0.8f, TorsoYawKick = 0.12f, Trauma = 0.08f,
@@ -83,9 +96,10 @@ public sealed record WeaponSpec
         ArmKick = 3.4f, ElbowKick = 4f, TorsoYawKick = 0.35f, TorsoPitchKick = 0.25f, Trauma = 0.3f,
     };
 
+    /// <summary>A 2 s burn: devastating held on a slow target, mostly smeared across a fast one.</summary>
     public static readonly WeaponSpec HeavyLaser = new()
     {
-        Name = "Heavy laser", Kind = WeaponKind.Beam, Damage = 22f, Heat = 0.24f, Cooldown = 2.4f,
+        Name = "Heavy laser", Kind = WeaponKind.Beam, Damage = 32f, Heat = 0.35f, Cooldown = 3.5f, BurnTime = 2f,
         Range = 380f, FalloffStart = 240f, MinDamageFraction = 0.25f, BeamVisualTime = 0.35f,
         Length = 2f, Caliber = 1.4f, Barrels = 3,
         ArmKick = 1.5f, TorsoYawKick = 0.2f, Trauma = 0.15f,

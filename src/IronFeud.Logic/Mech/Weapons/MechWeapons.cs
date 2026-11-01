@@ -17,6 +17,15 @@ public sealed class WeaponMount
     /// <summary>The arm carrying it is destroyed.</summary>
     public bool Offline;
 
+    /// <summary>Seconds left of the current burn (burn lasers).</summary>
+    public float BurnLeft;
+
+    /// <summary>Pulses still to come in the current burst, and the time to the next one (pulse lasers).</summary>
+    public int PulsesLeft;
+    public float PulseTimer;
+
+    public bool Burning => BurnLeft > 0f;
+
     public WeaponMount(WeaponSpec spec, int arm, Vector3 offset)
     {
         Spec = spec;
@@ -27,6 +36,9 @@ public sealed class WeaponMount
     public int Side => Arm == 0 ? +1 : -1;
 }
 
+/// <summary>Single: one shell, instant beam or pulse. Start / Hold: the first and every later tick of a burn.</summary>
+public enum ShotPhase { Single, Start, Hold }
+
 /// <summary>A shot leaving a muzzle this tick. The world (Godot or a headless resolver) decides what it hits.</summary>
 public struct ShotFired
 {
@@ -36,6 +48,13 @@ public struct ShotFired
 
     /// <summary>Unit direction from the muzzle toward the convergence point.</summary>
     public Vector3 Direction;
+
+    public ShotPhase Phase;
+
+    /// <summary>Fraction of <see cref="WeaponSpec.Damage"/> this shot carries (a pulse, or one tick of a burn); 0 = all of it.</summary>
+    public float Share;
+
+    public float DamageFraction => Share > 0f ? Share : 1f;
 }
 
 /// <summary>Cooldowns, heat and firing. Weapons converge on the torso aim ray at the pilot's convergence distance.</summary>
@@ -83,25 +102,64 @@ public sealed class MechWeapons
         {
             var m = Mounts[i];
             m.Cooldown = MathF.Max(0f, m.Cooldown - h);
+            if (m.Offline) m.BurnLeft = m.PulsesLeft = 0;
+
+            // A burn started on an earlier tick keeps firing along the current aim; a burst fires its next pulse.
+            if (m.Burning)
+            {
+                float dt = MathF.Min(h, m.BurnLeft);
+                m.BurnLeft -= dt;
+                shots.Add(Shot(i, pose, target, ShotPhase.Hold, dt / m.Spec.BurnTime));
+            }
+            if (m.PulsesLeft > 0 && (m.PulseTimer -= h) <= 0f)
+            {
+                m.PulsesLeft--;
+                m.PulseTimer += m.Spec.PulseInterval;
+                shots.Add(Shot(i, pose, target, ShotPhase.Single, 1f / m.Spec.Pulses));
+                Recoil(loco.Secondary, m, 0.6f);
+            }
+
             if ((input.FireMask & (1u << i)) == 0 || !CanFire(i)) continue;
 
             m.Cooldown = m.Spec.Cooldown;
             Heat += m.Spec.Heat;
-            Vector3 muzzle = MuzzlePosition(i, pose);
-            shots.Add(new ShotFired
+            if (m.Spec.BurnTime > 0f)
             {
-                Weapon = i,
-                Spec = m.Spec,
-                Origin = muzzle,
-                Direction = Vector3.Normalize(target - muzzle),
-            });
-
-            var sec = loco.Secondary;
-            sec.Arms[m.Arm].V -= m.Spec.ArmKick;
-            sec.Elbows[m.Arm].V -= m.Spec.ElbowKick;
-            sec.TorsoYaw.V += m.Side * m.Spec.TorsoYawKick;
-            sec.TorsoPitch.V -= m.Spec.TorsoPitchKick;
-            sec.AddTrauma(m.Spec.Trauma);
+                float dt = MathF.Min(h, m.Spec.BurnTime);
+                m.BurnLeft = m.Spec.BurnTime - dt;
+                shots.Add(Shot(i, pose, target, ShotPhase.Start, dt / m.Spec.BurnTime));
+            }
+            else if (m.Spec.Pulses > 1)
+            {
+                m.PulsesLeft = m.Spec.Pulses - 1;
+                m.PulseTimer = m.Spec.PulseInterval;
+                shots.Add(Shot(i, pose, target, ShotPhase.Single, 1f / m.Spec.Pulses));
+            }
+            else shots.Add(Shot(i, pose, target, ShotPhase.Single, 1f));
+            Recoil(loco.Secondary, m, 1f);
         }
+    }
+
+    private ShotFired Shot(int i, MechPose pose, Vector3 target, ShotPhase phase, float share)
+    {
+        Vector3 muzzle = MuzzlePosition(i, pose);
+        return new ShotFired
+        {
+            Weapon = i,
+            Spec = Mounts[i].Spec,
+            Origin = muzzle,
+            Direction = Vector3.Normalize(target - muzzle),
+            Phase = phase,
+            Share = share,
+        };
+    }
+
+    private static void Recoil(SecondaryMotion sec, WeaponMount m, float k)
+    {
+        sec.Arms[m.Arm].V -= m.Spec.ArmKick * k;
+        sec.Elbows[m.Arm].V -= m.Spec.ElbowKick * k;
+        sec.TorsoYaw.V += m.Side * m.Spec.TorsoYawKick * k;
+        sec.TorsoPitch.V -= m.Spec.TorsoPitchKick * k;
+        sec.AddTrauma(m.Spec.Trauma * k);
     }
 }

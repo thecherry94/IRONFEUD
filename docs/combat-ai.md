@@ -82,13 +82,22 @@ Right arm = fire bit 0, left arm = bit 1. Projectiles do full damage at any rang
 
 | weapon | kind | dmg | heat | cooldown | range | shell m/s | used by |
 |---|---|---|---|---|---|---|---|
-| Pulse laser | beam | 5 | .05 | 0.5 s | 280 (falloff 180) | | light (L) |
+| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 280 (falloff 180) | | light (L) |
 | Autocannon | 2 barrels | 4 | .03 | 0.25 s | 520 | 560 | light (R) |
-| Laser | beam | 9 | .11 | 1.0 s | 320 (falloff 200) | | medium (L) |
+| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 320 (falloff 200) | | medium (L) |
 | Cannon | shell | 14 | .08 | 0.75 s | 640 | 450 | (prototype) |
-| Heavy laser | beam | 22 | .24 | 2.4 s | 380 (falloff 240) | | heavy, assault (L) |
+| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 380 (falloff 240) | | heavy, assault (L) |
 | Heavy cannon | shell | 32 | .20 | 2.2 s | 600 | 330 | medium, heavy (R) |
 | Siege cannon | shell | 75 | .36 | 4.5 s | 700 | 240 | assault (R) |
+
+**Lasers burn** (a deviation from the prototype's instant beams): the beam stays on for its burn time and every tick
+applies its share of the damage along wherever the arm points *then*, so holding it on target is the skill and a
+dodging light takes a fraction smeared across sections. Cooldown counts from the trigger; damage and heat per cycle
+were scaled up so damage and heat per second held on target match the old instant lasers (laser 9 → 8.9/s, heavy
+9.2 → 9.1/s, pulse 10/s). A burn counts as one shot and at most one hit. Pulse lasers fire a burst of instant pulses
+with the damage up front. Beam lasers (on while the trigger is held) fit the same model later.
+Lance report after the change (20 games): light 129 dealt / 88 taken / 0.90 kills, medium 139 / 151 / 0.55,
+heavy 149 / 188 / 0.53, assault 201 / 191 / 1.00: roles unchanged within noise.
 
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
