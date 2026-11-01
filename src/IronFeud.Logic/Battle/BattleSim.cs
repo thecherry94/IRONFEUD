@@ -341,9 +341,15 @@ public sealed class BattleSim
             Vector3 dir = Vector3.Normalize(m.Velocity);
             if (m.Target is { IsOut: false } t && m.Life > 0.5f)
             {
+                // Top attack: stay high over the target's area (aim above it by half the remaining ground distance,
+                // 20-120 m) and dive steeply only at the end. A direct line came in at ~13° and buried itself in the
+                // crest in front of hull-down targets. The dive (last 90 m) turns at twice the cruise rate.
                 Vector3 aim = t.Volume(MechSection.Torso).Center;
                 aim += t.Velocity * (Vector3.Distance(aim, m.Position) / speed);
-                dir = TurnToward(dir, Vector3.Normalize(aim - m.Position), m.Spec.TurnRate * h);
+                float ground = MathUtil.PlanarDistance(aim, m.Position);
+                bool diving = ground < 90f;
+                if (!diving) aim.Y += MathUtil.Clamp(0.5f * ground, 20f, 120f);
+                dir = TurnToward(dir, Vector3.Normalize(aim - m.Position), m.Spec.TurnRate * (diving ? 2f : 1f) * h);
             }
             m.Velocity = dir * speed;
             Vector3 start = m.Position;

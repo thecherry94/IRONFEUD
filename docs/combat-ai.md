@@ -170,7 +170,12 @@ Arc missiles (heavy): 10 slow guided rounds launched steeply (loft 0.9 rad) that
 0.5 s climb and dive over cover; 30, 650/800 m, duds inside 160 m. A lock needs the candidate spotted by any
 teammate (cockpit sight within 600 m) and kept within 20° of the torso aim for 1.5 s. The AI fires them on the lock
 whether or not it sees the target (indirect fire: a light spots, the heavy fires from cover); unguided salvos go
-through the normal fire discipline. Point defense: turrets (assault 1, Hauberk medium 1) each shoot down 1.5
+through the normal fire discipline. Guidance is top attack: cruise high over the target's area (aim above it by half the remaining ground distance,
+20-120 m) and dive in the last 90 m at twice the cruise turn rate; a direct line came in at ~13° and buried itself in
+crests in front of hull-down targets. Lance games: rounds hitting 37 -> 56 % (86 % of those not shot down), 22 damage
+per salvo, ~half of heavies' damage (was 11.5 per salvo and 30 %). Damage 30 -> 40 per salvo, minimum range 160 ->
+120 m. A proximity fuse was tried and dropped (the player prefers rounds that hit by flying well).
+Point defense: turrets (assault 1; a second on the Hauberk medium made every lance a two-turret screen) each shoot down 1.5
 missiles a second within 110 m that are closing on the mech or a teammate within 120 m; turrets add up. One arc
 volley shot down: 1 turret 33 %, 2 turrets 73 %, 3 turrets 100 % (design: one turret thins, stopping a volley takes
 investment, on one mech or across the lance; 5/s erased 9 of 10). Lance report after: light 122 dealt / 30 %

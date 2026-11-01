@@ -110,9 +110,12 @@ public partial class Battlefield : Node3D
                 {
                     // Size 1 = the cannon's shell, by the damage the round carried (a pulse, one missile of a salvo);
                     // beams leave smaller scorches.
+                    // Missiles land as a barrage: each round at least a third of a shell, or a salvo reads as patter.
                     float share = e.Shot.DamageFraction;
-                    Effects?.Explosion(at, Mathf.Sqrt(e.Shot.Spec.Damage * share / WeaponSpec.Cannon.Damage) * (e.Shot.Spec.Kind == WeaponKind.Beam ? 0.35f : 1f));
-                    Audio?.Impact(e.Shot.Spec, at, e.Target != null, share);
+                    float size = Mathf.Sqrt(e.Shot.Spec.Damage * share / WeaponSpec.Cannon.Damage) * (e.Shot.Spec.Kind == WeaponKind.Beam ? 0.35f : 1f);
+                    if (e.Shot.Spec.Kind == WeaponKind.Missile) size = Mathf.Max(size, 0.6f);
+                    Effects?.Explosion(at, size);
+                    Audio?.Impact(e.Shot.Spec, at, e.Target != null, Mathf.Max(share, e.Shot.Spec.Kind == WeaponKind.Missile ? 0.35f : 0f));
                     break;
                 }
                 case BattleEventKind.MissileFired:

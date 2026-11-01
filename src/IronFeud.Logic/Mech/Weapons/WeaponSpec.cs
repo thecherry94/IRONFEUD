@@ -161,13 +161,14 @@ public sealed record WeaponSpec
 
     /// <summary>
     /// Long-range guided salvo, the heavy's support weapon: ten slow rounds launched steeply that dive on a locked
-    /// target, over cover. The lock needs the target spotted by any teammate; they don't arm under 160 m.
+    /// target, over cover. The lock needs the target spotted by any teammate; they don't arm under 120 m. (30 per
+    /// salvo at 160 m minimum barely registered in lance games: 11.5 damage per salvo landed, heavies fight closer.)
     /// </summary>
     public static readonly WeaponSpec ArcMissiles = new()
     {
-        Name = "Arc missiles", Kind = WeaponKind.Missile, Damage = 30f, Heat = 0.2f, Cooldown = 5f,
+        Name = "Arc missiles", Kind = WeaponKind.Missile, Damage = 40f, Heat = 0.2f, Cooldown = 5f,
         Range = 800f, OptimalRange = 650f, Pulses = 10, PulseInterval = 0.1f,
-        MissileSpeed = 140f, Spread = 0.05f, Guided = true, TurnRate = 1.6f, Loft = 0.9f, LockTime = 1.5f, MinRange = 160f,
+        MissileSpeed = 140f, Spread = 0.05f, Guided = true, TurnRate = 1.6f, Loft = 0.9f, LockTime = 1.5f, MinRange = 120f,
         MaxLifetime = 9f,
         Length = 1.6f, Caliber = 0.7f, Barrels = 10,
         TorsoPitchKick = 0.08f, Trauma = 0.1f,

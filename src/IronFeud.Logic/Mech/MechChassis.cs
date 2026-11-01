@@ -270,8 +270,8 @@ public sealed class MechChassis
                 break;
         }
         // Shoulder racks and point defense: lights a rocket pod for in-close bursts, mediums a strike rack, heavies
-        // the guided arc missiles (their support role), assaults point defense against those; the Hauberk medium
-        // carries point defense too (an escort that screens its ward), the first per-model difference in kit.
+        // the guided arc missiles (their support role), assaults one point-defense turret. A Hauberk medium with a
+        // second turret made every default lance a two-turret screen that shot down ~3/4 of arc volleys.
         c.TorsoWeapon = cls switch
         {
             ChassisClass.Light => WeaponSpec.RocketPod,
@@ -279,7 +279,7 @@ public sealed class MechChassis
             ChassisClass.Heavy => WeaponSpec.ArcMissiles,
             _ => null,
         };
-        c.PointDefense = cls == ChassisClass.Assault || cls == ChassisClass.Medium && model == MechModel.Hauberk ? 1 : 0;
+        c.PointDefense = cls == ChassisClass.Assault ? 1 : 0;
         c.FitGaitToLegs();
         c.ApplyModelArmour(model);
         return c;
