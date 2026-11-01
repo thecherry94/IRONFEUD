@@ -33,7 +33,7 @@ public class AudioTests
         foreach (var x in new[]
                  {
                      SynthKit.Footfall(0.72f, 1), SynthKit.Footfall(1.3f, 2), SynthKit.GunReport(0.5f, 3), SynthKit.GunReport(2.3f, 4),
-                     SynthKit.Beam(0.6f, 5), SynthKit.Beam(1.6f, 6), SynthKit.Impact(0.3f, false, 7), SynthKit.Impact(3f, true, 8),
+                     SynthKit.Pulse(0.8f, 5), SynthKit.LaserBurn(1.2f, 1.25f, 6), SynthKit.LaserBurn(1.5f, 2f, 9), SynthKit.Impact(0.3f, false, 7), SynthKit.Impact(3f, true, 8),
                  })
         {
             Assert.InRange(Peak(x), 0.89f, 0.901f);
@@ -86,6 +86,26 @@ public class AudioTests
         Assert.True(new ServoSynth(0.72f).BaseHz > new ServoSynth(1.3f).BaseHz * 1.8f);
     }
 
+    /// <summary>A pulse laser's burst: <paramref name="n"/> copies <paramref name="gap"/> seconds apart, as the game mixes them.</summary>
+    private static float[] Burst(float[] pulse, int n, float gap)
+    {
+        int step = (int)(gap * SynthKit.Rate);
+        var x = new float[pulse.Length + step * (n - 1)];
+        for (int k = 0; k < n; k++)
+            for (int i = 0; i < pulse.Length; i++) x[k * step + i] += pulse[i] * 0.7f;
+        return x;
+    }
+
+    [Fact]
+    public void LaserBurn_LastsTheBurnPlusItsTail_AndStaysLowPitched()
+    {
+        var x = SynthKit.LaserBurn(1.2f, 1.25f, 1);
+        Assert.Equal((int)((1.25f + SynthKit.BurnTail) * SynthKit.Rate), x.Length);
+        Assert.True(Rms(x.AsSpan(SynthKit.Rate / 2, SynthKit.Rate / 2)) > 0.15f, "sustains through the burn");
+        // A drone, not a whistle: well under 1 kHz worth of zero crossings mid-burn.
+        Assert.True(CrossingRate(x[(SynthKit.Rate / 2)..SynthKit.Rate], SynthKit.Rate) < 1000f);
+    }
+
     /// <summary>Opt-in: IRONFEUD_AUDIO_DUMP=dir writes every synthesised sound as a WAV for listening and spectrograms.</summary>
     [Fact]
     public void DumpSounds()
@@ -110,8 +130,9 @@ public class AudioTests
         }
         foreach (var (name, w) in new[] { ("autocannon", 0.53f), ("cannon", 1f), ("heavy_cannon", 1.51f), ("siege_cannon", 2.31f) })
             Save($"gun_{name}", SynthKit.GunReport(w, 1));
-        foreach (var (name, w) in new[] { ("pulse_laser", 0.6f), ("laser", 0.8f), ("heavy_laser", 1.25f) })
-            Save($"beam_{name}", SynthKit.Beam(w, 1));
+        Save("pulse_laser_burst", Burst(SynthKit.Pulse(0.8f, 1), 3, 0.09f));
+        Save("burn_laser", SynthKit.LaserBurn(1.2f, 1.25f, 1));
+        Save("burn_heavy_laser", SynthKit.LaserBurn(1.51f, 2f, 1));
         Save("impact_ground_shell", SynthKit.Impact(1f, false, 1));
         Save("impact_mech_shell", SynthKit.Impact(1f, true, 1));
         Save("impact_mech_destroyed", SynthKit.Impact(3f, true, 1));

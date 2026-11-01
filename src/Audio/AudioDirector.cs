@@ -30,6 +30,17 @@ public partial class AudioDirector : Node3D
     private readonly DeterministicRng _rng = new(1234);
     private double _time;
 
+    /// <summary>Burning beams: the voice playing each (keyed per shooter weapon) and when its last tick arrived.</summary>
+    private readonly Dictionary<int, Burn> _burns = new();
+
+    private sealed class Burn
+    {
+        public AudioStreamPlayer3D Player = null!;
+        public AudioStream Stream = null!;
+        public double Seen;
+        public float Length;
+    }
+
     /// <summary>One-shots playing right now (debug readout).</summary>
     public int Active { get; private set; }
 
@@ -43,6 +54,17 @@ public partial class AudioDirector : Node3D
         }
         // Many overlapping blasts must not clip the mix.
         if (AudioServer.GetBusEffectCount(0) == 0) AudioServer.AddBusEffect(0, new AudioEffectHardLimiter { CeilingDb = -0.3f });
+        Prewarm();
+    }
+
+    /// <summary>Synthesises the whole roster up front (~0.5 s) so the first siege-cannon shot doesn't hitch.</summary>
+    private void Prewarm()
+    {
+        foreach (var cls in Enum.GetValues<ChassisClass>()) FootfallSet(MechChassis.Create(cls, MechModel.Hauberk));
+        foreach (var spec in new[] { WeaponSpec.PulseLaser, WeaponSpec.Autocannon, WeaponSpec.Laser, WeaponSpec.Cannon,
+                     WeaponSpec.HeavyLaser, WeaponSpec.HeavyCannon, WeaponSpec.SiegeCannon })
+            if (spec.BurnTime > 0f) BurnSet(spec);
+            else ShotSet(spec);
     }
 
     public override void _ExitTree()
@@ -56,6 +78,7 @@ public partial class AudioDirector : Node3D
             foreach (var s in set) s.Dispose();
         _sets.Clear();
         _pending.Clear();
+        _burns.Clear();
     }
 
     /// <summary>Gives a mech its servo voice. Call once per mech view.</summary>
@@ -64,18 +87,40 @@ public partial class AudioDirector : Node3D
     public void Footfall(MechNode mech, in Footfall f)
     {
         var c = mech.Sim.Chassis;
-        string set = "footfall_" + c.Class.ToString().ToLowerInvariant();
         float amp = Mathf.Clamp(0.35f + 0.65f * f.Strength, 0.2f, 1f) * (0.7f + 0.3f * f.SpeedFraction);
-        Play(Set(set, k => SynthKit.Footfall(c.Scale, k)), f.Position.ToGodot(), Mathf.LinearToDb(amp), unitSize: 14f * c.Scale);
+        Play(FootfallSet(c), f.Position.ToGodot(), Mathf.LinearToDb(amp), unitSize: 14f * c.Scale);
     }
 
+    /// <summary>A shell fired, an instant beam or one pulse of a pulse laser.</summary>
     public void Shot(WeaponSpec spec, Vector3 at)
     {
         float w = Weight(spec);
-        var streams = spec.Kind == WeaponKind.Projectile
-            ? Set("gun_" + Key(spec), k => SynthKit.GunReport(w, k))
-            : Set("beam_" + Key(spec), k => SynthKit.Beam(w, k));
-        Play(streams, at, Mathf.LinearToDb(Mathf.Clamp(0.6f + 0.25f * w, 0.5f, 1.2f)), unitSize: 30f * w, delayed: true);
+        Play(ShotSet(spec), at, Mathf.LinearToDb(Mathf.Clamp(0.6f + 0.25f * w, 0.5f, 1.2f)), unitSize: 30f * w, delayed: true);
+    }
+
+    /// <summary>
+    /// One tick of a burning beam. The start plays the whole burn sound (ignition, drone, discharge) and later ticks
+    /// keep it at the muzzle; if the ticks stop early (arm shot off, mech destroyed) it skips to the discharge.
+    /// </summary>
+    public void BeamHold(int key, WeaponSpec spec, Vector3 at, bool start)
+    {
+        if (start)
+        {
+            var streams = BurnSet(spec);
+            var p = Voice();
+            p.Stream = streams[(int)(_rng.NextUInt() % (uint)streams.Length)];
+            p.GlobalPosition = at;
+            p.VolumeDb = 0f;
+            p.UnitSize = 30f * Weight(spec);
+            p.PitchScale = _rng.Range(0.97f, 1.03f) * (float)Engine.TimeScale;
+            p.Play();
+            _burns[key] = new Burn { Player = p, Stream = p.Stream, Seen = _time, Length = spec.BurnTime };
+        }
+        else if (_burns.TryGetValue(key, out var b))
+        {
+            b.Player.GlobalPosition = at;
+            b.Seen = _time;
+        }
     }
 
     /// <param name="onMech">Struck armour rings; the ground thuds.</param>
@@ -110,6 +155,15 @@ public partial class AudioDirector : Node3D
         int active = 0;
         foreach (var p in _players) if (p.Playing) active++;
         Active = active;
+
+        foreach (var (key, b) in _burns)
+        {
+            bool alive = b.Player.Playing && b.Player.Stream == b.Stream;
+            float at = alive ? b.Player.GetPlaybackPosition() : 0f;
+            if (alive && at < b.Length - 0.05f && _time - b.Seen > 0.06) b.Player.Seek(b.Length); // cut short: discharge now
+            else if (alive && at < b.Length) continue;
+            _burns.Remove(key);
+        }
     }
 
     private void Play(AudioStream[] streams, Vector3 at, float volumeDb, float unitSize, bool delayed = false)
@@ -133,17 +187,42 @@ public partial class AudioDirector : Node3D
         else Start();
     }
 
-    /// <summary>A free player, or the one that has been playing longest.</summary>
+    /// <summary>A free player, or the one that has been playing longest (never one carrying a live burn).</summary>
     private AudioStreamPlayer3D Voice()
     {
-        int best = 0;
+        int best = -1;
         for (int i = 0; i < Voices; i++)
         {
             if (!_players[i].Playing) { best = i; break; }
-            if (_startedAt[i] < _startedAt[best]) best = i;
+            if (IsBurning(_players[i])) continue;
+            if (best < 0 || _startedAt[i] < _startedAt[best]) best = i;
         }
+        best = Math.Max(0, best);
         _startedAt[best] = _time;
         return _players[best];
+    }
+
+    private bool IsBurning(AudioStreamPlayer3D p)
+    {
+        foreach (var b in _burns.Values) if (b.Player == p) return true;
+        return false;
+    }
+
+    private AudioStream[] FootfallSet(MechChassis c) =>
+        Set("footfall_" + c.Class.ToString().ToLowerInvariant(), k => SynthKit.Footfall(c.Scale, k));
+
+    private AudioStream[] ShotSet(WeaponSpec spec)
+    {
+        float w = Weight(spec);
+        return spec.Kind == WeaponKind.Projectile
+            ? Set("gun_" + Key(spec), k => SynthKit.GunReport(w, k))
+            : Set("pulse_" + Key(spec), k => SynthKit.Pulse(w, k));
+    }
+
+    private AudioStream[] BurnSet(WeaponSpec spec)
+    {
+        float w = Weight(spec);
+        return Set("burn_" + Key(spec), k => SynthKit.LaserBurn(w, spec.BurnTime, k));
     }
 
     /// <summary>Recordings from res://assets/audio/&lt;name&gt;/ if there are any, else synthesised variants.</summary>

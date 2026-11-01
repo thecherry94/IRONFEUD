@@ -84,13 +84,19 @@ public partial class Effects : Node3D
     {
         public MeshInstance3D Core = null!, Glow = null!;
         public float T, Duration;
+
+        /// <summary>A burning beam: fully lit while refreshed every tick, gone ~50 ms after the refreshes stop.</summary>
+        public bool Held;
     }
+
+    private const float HeldFade = 0.05f;
 
     private PuffPool _dust = null!, _fire = null!, _smoke = null!;
     private readonly List<(float At, Vector3 Pos, float Size)> _delayed = new();
     private float _time;
     private readonly Decal[] _prints = new Decal[40];
-    private readonly Beam[] _beams = new Beam[6];
+    private readonly Beam[] _beams = new Beam[16];
+    private readonly Dictionary<int, Beam> _held = new();
     private OmniLight3D _flash = null!;
     private float _flashT, _flashMax = 0.1f, _flashEnergy;
     private int _nextPrint, _nextBeam;
@@ -251,7 +257,39 @@ public partial class Effects : Node3D
         b.Glow.Transform = b.Core.Transform;
         b.Core.Visible = b.Glow.Visible = true;
         b.T = b.Duration = duration;
-        Flash(from, 20f, 0.12f);
+        b.Held = false;
+        Flash(from, 20f * Mathf.Clamp(weight, 0.5f, 1.5f), 0.12f);
+    }
+
+    /// <summary>
+    /// One tick of a burning beam, keyed per shooter weapon: keeps the same beam lit and tracking the muzzle, with a
+    /// slight width flicker, and throws sparks (or dust off the ground) where it touches.
+    /// </summary>
+    public void BeamHold(int key, Vector3 from, Vector3 to, bool start, bool hitMech, bool hitGround, Color? glow = null, float weight = 1f)
+    {
+        if (start || !_held.TryGetValue(key, out var b) || !b.Held)
+        {
+            b = _beams[_nextBeam++ % _beams.Length];
+            foreach (var (k, v) in _held) if (v == b) { _held.Remove(k); break; }
+            _held[key] = b;
+            ((StandardMaterial3D)b.Glow.MaterialOverride).AlbedoColor = glow?.Lightened(0.15f) ?? new Color("ff2a1a");
+            b.Held = true;
+            if (start) Flash(from, 25f * Mathf.Clamp(weight, 0.5f, 1.5f), 0.15f);
+        }
+        var seg = GodotConv.Segment(from, to);
+        float wgt = Mathf.Clamp(weight, 0.5f, 2f) * (0.85f + 0.3f * _rng.NextFloat());
+        b.Core.Transform = new Transform3D(seg.Basis * Basis.FromScale(new Vector3(wgt, 1f, wgt)), seg.Origin);
+        b.Glow.Transform = b.Core.Transform;
+        b.Core.Visible = b.Glow.Visible = true;
+        b.T = b.Duration = HeldFade;
+
+        float rate = Engine.PhysicsTicksPerSecond;
+        if (hitMech && _rng.NextFloat() < 40f / rate)
+            _fire.Emit(to, new Vector3(_rng.NextFloat() - 0.5f, _rng.NextFloat() + 0.3f, _rng.NextFloat() - 0.5f) * 5f,
+                max: 0.15f + _rng.NextFloat() * 0.15f, size0: 0.35f * weight, grow: 0.5f, opacity: 1f, drag: 4f);
+        else if (hitGround && _rng.NextFloat() < 15f / rate)
+            _dust.Emit(to, new Vector3(_rng.NextFloat() - 0.5f, 1.2f, _rng.NextFloat() - 0.5f) * 1.5f,
+                max: 1f, size0: 0.5f * weight, grow: 2.5f, opacity: 0.4f, drag: 2f);
     }
 
     /// <summary>Intensity uses the prototype's numbers; scaled to Godot light energy here.</summary>
@@ -302,10 +340,15 @@ public partial class Effects : Node3D
         {
             if (b.T <= 0f) continue;
             b.T -= dt;
-            float o = Mathf.Max(0f, b.T / b.Duration);
+            // Held beams stay fully lit between ticks and only fade once the refreshes stop.
+            float o = b.Held ? (b.T > 0f ? 1f : 0f) : Mathf.Max(0f, b.T / b.Duration);
             b.Core.Transparency = 1f - o;
             b.Glow.Transparency = 1f - 0.8f * o;
-            if (b.T <= 0f) b.Core.Visible = b.Glow.Visible = false;
+            if (b.T <= 0f)
+            {
+                b.Core.Visible = b.Glow.Visible = false;
+                b.Held = false;
+            }
         }
 
         if (_flashT > 0f)

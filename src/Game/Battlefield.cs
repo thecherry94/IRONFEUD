@@ -93,10 +93,18 @@ public partial class Battlefield : Node3D
                     Effects?.MuzzleBlast(from, e.Shot.Direction.ToGodot(), Weight(e.Shot.Spec));
                     Audio?.Shot(e.Shot.Spec, from);
                     break;
-                case BattleEventKind.Beam:
+                case BattleEventKind.Beam when e.Shot.Phase == ShotPhase.Single:
                     Effects?.BeamShot(from, at, e.Shot.Spec.BeamVisualTime, NodeOf(e.Shooter)?.Accent, Weight(e.Shot.Spec));
                     Audio?.Shot(e.Shot.Spec, from);
                     break;
+                case BattleEventKind.Beam:
+                {
+                    int key = e.Shooter.Id * 8 + e.Shot.Weapon;
+                    bool start = e.Shot.Phase == ShotPhase.Start;
+                    Effects?.BeamHold(key, from, at, start, e.Target != null, e.Hit && e.Target == null, NodeOf(e.Shooter)?.Accent, Weight(e.Shot.Spec));
+                    Audio?.BeamHold(key, e.Shot.Spec, from, start);
+                    break;
+                }
                 case BattleEventKind.Impact:
                     // Size 1 = the cannon's shell; beams leave smaller scorches.
                     Effects?.Explosion(at, Weight(e.Shot.Spec) * (e.Shot.Spec.Kind == WeaponKind.Projectile ? 1f : 0.35f));

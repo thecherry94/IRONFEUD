@@ -21,7 +21,9 @@ public partial class Hud : CanvasLayer
     private ColorRect _heatBar = null!, _heatBack = null!;
     private Reticle _reticle = null!;
     private double _uiTimer, _time;
-    private readonly List<(double Time, string Text)> _feedLines = new();
+    // A burning beam lands a sliver of damage every tick: those merge into one line (same attacker, target and
+    // section, within 0.25 s) whose amount keeps adding up.
+    private readonly List<(double Time, string Text, string Key, float Amount)> _feedLines = new();
 
     private const float HeatBarWidth = 180f;
     private const double FeedLifetime = 8.0;
@@ -119,11 +121,16 @@ public partial class Hud : CanvasLayer
         sb.Append(IsInstanceValid(attacker) ? attacker!.Name : "?").Append(" → ").Append(mech.Name).Append(": ");
         sb.Append(SectionNames[r.Struck]);
         if (r.Applied != r.Struck) sb.Append(" (→ ").Append(SectionNames[r.Applied]).Append(')');
-        sb.Append($" −{r.Amount:0.#}");
+        string key = sb.ToString();
+        int merge = _feedLines.FindLastIndex(l => l.Key == key && _time - l.Time < 0.25);
+        float amount = r.Amount + (merge >= 0 ? _feedLines[merge].Amount : 0f);
+        sb.Append($" −{amount:0.#}");
         if (r.SectionDestroyed) sb.Append(" · ").Append(SectionNames[r.Applied].ToUpperInvariant()).Append(" DESTROYED");
         if (r.StatusAfter == MechStatus.PilotKilled) sb.Append(" · PILOT KILLED");
         else if (r.StatusAfter == MechStatus.Destroyed && r.SectionDestroyed) sb.Append(" · MECH DESTROYED");
-        _feedLines.Add((_time, sb.ToString()));
+        var line = (_time, sb.ToString(), r.SectionDestroyed ? "" : key, amount);
+        if (merge >= 0) _feedLines[merge] = line;
+        else _feedLines.Add(line);
         if (_feedLines.Count > 8) _feedLines.RemoveAt(0);
     }
 
@@ -136,7 +143,7 @@ public partial class Hud : CanvasLayer
         {
             _uiTimer = 0;
             var feed = new StringBuilder();
-            foreach (var (t, line) in _feedLines)
+            foreach (var (t, line, _, _) in _feedLines)
                 if (_time - t < FeedLifetime) feed.Append(line).Append('\n');
             _feed.Text = feed.ToString();
         }

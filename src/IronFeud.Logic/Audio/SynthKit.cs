@@ -70,33 +70,76 @@ public static class SynthKit
         return Finish(x, drive: 2.2f);
     }
 
+    /// <summary>Seconds of discharge tail after a burn ends.</summary>
+    public const float BurnTail = 0.35f;
+
     /// <summary>
-    /// A beam discharge: a falling electric tone with a sub-octave, a buzzing crackle riding on it and a short
-    /// capacitor thump. <paramref name="weight"/> 1 is the laser; heavier beams are lower and longer.
+    /// A burning laser, <paramref name="burn"/> seconds plus <see cref="BurnTail"/>: an ignition thump and a short
+    /// bright flare while the drone spins up, then a deep sustained drone (three detuned band-limited saws over a sine
+    /// sub-octave through a resonant low-pass that wobbles slightly, with a pulsing tremolo) and electric sizzle on
+    /// top; when the burn ends the pitch sags, the filter closes and the drone dies away.
+    /// Heavier lasers are lower and darker. Deliberately no fast pitch sweep: that is what makes a "pew".
     /// </summary>
-    public static float[] Beam(float weight, uint seed)
+    public static float[] LaserBurn(float weight, float burn, uint seed)
     {
         var rng = new DeterministicRng(seed);
-        float w = MathF.Max(0.3f, weight), len = 0.22f + 0.28f * MathF.Sqrt(w);
-        var x = new float[(int)((len + 0.15f) * Rate)];
-        float fTop = 1900f / MathF.Pow(w, 0.4f) * rng.Range(0.95f, 1.05f), fEnd = fTop * 0.18f;
+        float w = MathF.Max(0.3f, weight);
+        var x = new float[(int)((burn + BurnTail) * Rate)];
+        float f0 = 55f / MathF.Pow(w, 0.3f) * rng.Range(0.97f, 1.03f), bright = 1300f / MathF.Pow(w, 0.4f);
+        const float charge = 0.08f;
 
-        double ph = 0, sub = 0;
-        OnePole lp1 = new(2800f), lp2 = new(2800f);
+        double p1 = 0, p2 = 0, p3 = 0, sub = 0;
+        Svf filter = new(), fizz1 = new(), fizz2 = new();
+        float grain = 0f;
+        for (int i = 0; i < x.Length; i++)
+        {
+            float t = i / (float)Rate, after = t - burn;
+            float pitch = t < charge ? 0.6f + 0.4f * t / charge : after > 0f ? 0.65f + 0.35f * MathF.Exp(-after / 0.08f) : 1f;
+            float f = f0 * pitch * (1f + 0.008f * MathF.Sin(MathF.Tau * 2.7f * t));
+            float saw = (Saw(ref p1, f) + Saw(ref p2, f * 1.007f) + Saw(ref p3, f * 0.993f)) / 3f;
+            sub += 2 * Math.PI * f * 0.5 / Rate;
+            float drone = saw * 0.8f + (float)Math.Sin(sub) * 0.6f;
+
+            float open = t < charge ? 1f + 1.5f * (1f - t / charge) : after > 0f ? MathF.Exp(-after / 0.1f) : 1f + 0.2f * MathF.Sin(MathF.Tau * 6.5f * t);
+            float y = filter.Low(drone, 120f + bright * open, 0.35f);
+
+            // Electric sizzle: band-passed noise in crackling grains.
+            if (rng.NextFloat() < 90f / Rate) grain = rng.Range(0.3f, 1f);
+            grain *= 0.9985f;
+            float sizzle = fizz2.Band(fizz1.Band(Noise(rng), 3500f, 0.7f), 3500f, 0.7f) * grain * 0.12f;
+
+            float env = (1f - MathF.Exp(-t / 0.004f)) * (after > 0f ? MathF.Exp(-after / 0.12f) : 1f);
+            float tremolo = 1f - 0.18f * (0.5f + 0.5f * MathF.Sin(MathF.Tau * 17f * t));
+            x[i] = (y * tremolo + sizzle) * env;
+        }
+        Sweep(x, 0, 150f / MathF.Pow(w, 0.3f), 45f, 0.03f, 0.1f, 0.9f);
+        Sweep(x, (int)(burn * Rate), 90f, 40f, 0.03f, 0.08f, 0.4f);
+        return Finish(x, drive: 1.6f);
+    }
+
+    /// <summary>
+    /// One pulse of a pulse laser: a short, heavy bolt (a saw burst whose filter snaps shut, a sub thump and a crack
+    /// of sizzle). Bursts of these overlap into a "thud-thud-thud" rather than a "pew".
+    /// </summary>
+    public static float[] Pulse(float weight, uint seed)
+    {
+        var rng = new DeterministicRng(seed);
+        float w = MathF.Max(0.3f, weight);
+        var x = new float[(int)(0.25f * Rate)];
+        float f0 = 85f / MathF.Pow(w, 0.3f) * rng.Range(0.96f, 1.04f);
+        double p1 = 0, p2 = 0;
+        Svf filter = new(), fizz1 = new(), fizz2 = new();
         for (int i = 0; i < x.Length; i++)
         {
             float t = i / (float)Rate;
-            float f = fEnd + (fTop - fEnd) * MathF.Exp(-t / (len * 0.35f));
-            ph += 2 * Math.PI * f / Rate;
-            sub += Math.PI * f / Rate;
-            float env = (1f - MathF.Exp(-t / 0.002f)) * MathF.Exp(-t / (len * 0.45f));
-            float tone = (float)Math.Sin(ph + 1.2 * Math.Sin(ph * 0.5)) * 0.5f + (float)Math.Sin(sub) * 0.3f;
-            float gate = 0.5f + 0.5f * MathF.Sin(t * 2f * MathF.PI * 120f);
-            float buzz = lp2.Low(lp1.Low(Noise(rng))) * gate * gate * 1.6f;
-            x[i] = (tone + buzz) * env;
+            float f = f0 * (1f + 0.5f * MathF.Exp(-t / 0.02f));
+            float saw = (Saw(ref p1, f) + Saw(ref p2, f * 1.01f)) * 0.5f;
+            float y = filter.Low(saw, 150f + 2600f * MathF.Exp(-t / 0.035f), 0.3f);
+            float sizzle = fizz2.Band(fizz1.Band(Noise(rng), 3200f, 0.7f), 3200f, 0.7f) * MathF.Exp(-t / 0.02f) * 0.2f;
+            x[i] = (y + sizzle) * (1f - MathF.Exp(-t / 0.001f)) * MathF.Exp(-t / 0.07f);
         }
-        Sweep(x, 0, 140f, 60f, 0.02f, 0.05f, 0.6f);
-        return Finish(x, drive: 1.4f);
+        Sweep(x, 0, 160f, 55f, 0.02f, 0.06f, 0.9f);
+        return Finish(x, drive: 1.6f);
     }
 
     /// <summary>
@@ -141,6 +184,44 @@ public static class SynthKit
     }
 
     private static float Noise(DeterministicRng rng) => rng.NextFloat() * 2f - 1f;
+
+    /// <summary>State-variable filter (Chamberlin). Stable for cutoffs well under a sixth of the sample rate.</summary>
+    private struct Svf
+    {
+        private float _low, _band;
+
+        /// <param name="damping">1/Q: 0.3 rings, 1.4 is flat.</param>
+        public float Low(float x, float cutoffHz, float damping)
+        {
+            Run(x, cutoffHz, damping);
+            return _low;
+        }
+
+        public float Band(float x, float cutoffHz, float damping)
+        {
+            Run(x, cutoffHz, damping);
+            return _band;
+        }
+
+        private void Run(float x, float cutoffHz, float damping)
+        {
+            float f = 2f * MathF.Sin(MathF.PI * MathF.Min(cutoffHz, Rate / 7f) / Rate);
+            _low += f * _band;
+            _band += f * (x - _low - damping * _band);
+        }
+    }
+
+    /// <summary>Band-limited sawtooth (PolyBLEP): no aliasing hiss on low, bright drones.</summary>
+    private static float Saw(ref double phase, float hz)
+    {
+        double dt = hz / Rate;
+        phase += dt;
+        if (phase >= 1.0) phase -= 1.0;
+        float t = (float)phase, d = (float)dt, y = 2f * t - 1f;
+        if (t < d) { t /= d; y -= t + t - t * t - 1f; }
+        else if (t > 1f - d) { t = (t - 1f) / d; y -= t * t + t + t + 1f; }
+        return y;
+    }
 
     /// <summary>Adds a sine whose pitch glides from f0 to f1 (time constant <paramref name="glide"/>), with a 2 ms attack.</summary>
     private static void Sweep(float[] x, int start, float f0, float f1, float glide, float decay, float amp)
