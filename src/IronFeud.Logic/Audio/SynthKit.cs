@@ -13,8 +13,8 @@ public static class SynthKit
     public const int Rate = 44100;
 
     /// <summary>
-    /// A foot landing: a short sub-bass drop (the weight), a dull noise burst (the ground giving), a few inharmonic
-    /// metal modes slightly after the impact (the leg frame ringing) and sparse debris crackle.
+    /// A foot landing: a long sub-bass drop (the weight), a short punch an octave up, a dull two-pole noise burst (the
+    /// ground giving) and low debris settling. No tonal metal ring: struck-metal modes read as a cooking pot.
     /// Bigger mechs are lower, longer and duller.
     /// </summary>
     /// <param name="scale">Chassis scale: 0.72 light .. 1.3 assault.</param>
@@ -22,25 +22,21 @@ public static class SynthKit
     {
         var rng = new DeterministicRng(seed);
         float s = scale;
-        var x = new float[(int)((0.35f + 0.55f * s) * Rate)];
+        var x = new float[(int)((0.4f + 0.6f * s) * Rate)];
 
-        float f0 = 95f / MathF.Pow(s, 1.2f) * rng.Range(0.94f, 1.06f), f1 = f0 * 0.55f;
-        float subDecay = 0.09f * MathF.Pow(s, 1.3f);
-        Sweep(x, 0, f0, f1, 0.04f, subDecay, 1f);
+        float f0 = 72f / MathF.Pow(s, 1.2f) * rng.Range(0.94f, 1.06f);
+        Sweep(x, 0, f0, f0 * 0.5f, 0.05f, 0.13f * MathF.Pow(s, 1.3f), 1f);
+        Sweep(x, 0, f0 * 2f, f0, 0.015f, 0.04f * s, 0.45f);
 
-        var lp = new OnePole(900f / s);
+        OnePole lp1 = new(500f / s), lp2 = new(500f / s);
         for (int i = 0; i < x.Length; i++)
         {
             float t = i / (float)Rate;
-            x[i] += 0.55f * lp.Low(Noise(rng)) * MathF.Exp(-t / 0.035f) * 3f;
+            x[i] += lp2.Low(lp1.Low(Noise(rng))) * (1f - MathF.Exp(-t / 0.003f)) * MathF.Exp(-t / (0.05f * s)) * 4f;
         }
 
-        float clankAt = rng.Range(0.012f, 0.035f), mode = 180f / MathF.Pow(s, 0.7f);
-        Modes(x, rng, clankAt, mode, new[] { 1f, 1.47f, 2.09f, 2.56f, 3.9f },
-            new[] { 0.28f, 0.2f, 0.15f, 0.1f, 0.07f }, 0.22f * s);
-
-        Debris(x, rng, 0.04f, 0.35f * s, density: 60f, amp: 0.25f, cutoff: 2500f / s);
-        return Finish(x, drive: 1.6f);
+        Debris(x, rng, 0.05f, 0.4f * s, density: 40f, amp: 0.2f, cutoff: 1400f / s);
+        return Finish(x, drive: 1.8f);
     }
 
     /// <summary>

@@ -4,8 +4,9 @@ using IronFeud.Logic.Core;
 namespace IronFeud.Logic.Audio;
 
 /// <summary>
-/// The whine of a mech's joint motors, synthesised live from how fast its joints are turning: a bright motor tone
-/// whose pitch and loudness rise with load, plus gear chatter. Smaller mechs whine higher.
+/// The hum of a mech's joint drives, synthesised live from how fast its joints are turning: a soft, low motor tone
+/// (mostly fundamental, heavily low-passed) whose pitch and loudness rise with load, plus a breath of hydraulic
+/// flow noise. Smaller mechs hum higher. Bright harmonics and gated noise were tried first and were hard on the ears.
 /// Pure streaming DSP; the Godot side feeds it joint speed every tick and pulls samples for an audio generator.
 /// </summary>
 public sealed class ServoSynth
@@ -19,17 +20,17 @@ public sealed class ServoSynth
     public readonly float FullSpeed;
 
     /// <summary>Overall level, 0..1.</summary>
-    public float Gain = 0.3f;
+    public float Gain = 0.2f;
 
     private readonly DeterministicRng _rng;
-    private double _phase, _gearPhase;
-    private float _load, _lp;
+    private double _phase;
+    private float _load, _lp1, _lp2, _flow;
 
     /// <param name="scale">Chassis scale: 0.72 light .. 1.3 assault.</param>
     public ServoSynth(float scale, int rate = 22050, uint seed = 1)
     {
         Rate = rate;
-        BaseHz = 300f / MathF.Pow(scale, 1.3f);
+        BaseHz = 160f / MathF.Pow(scale, 1.3f);
         FullSpeed = 6f;
         _rng = new DeterministicRng(seed);
     }
@@ -42,7 +43,7 @@ public sealed class ServoSynth
     {
         float target = MathF.Pow(MathF.Min(1f, MathF.Max(0f, jointSpeed) / FullSpeed), 0.7f);
         float smooth = 1f - MathF.Exp(-1f / (0.06f * Rate)); // 60 ms: no zipper noise when the load steps per tick
-        float lpA = 1f - MathF.Exp(-2f * MathF.PI * 2400f / Rate);
+        float lpA = 1f - MathF.Exp(-2f * MathF.PI * 900f / Rate), flowA = 1f - MathF.Exp(-2f * MathF.PI * 400f / Rate);
 
         for (int i = 0; i < output.Length; i++)
         {
@@ -52,20 +53,17 @@ public sealed class ServoSynth
                 output[i] = 0f;
                 continue;
             }
-            float f = BaseHz * (0.55f + 0.45f * _load);
+            float f = BaseHz * (0.6f + 0.4f * _load);
             _phase = (_phase + f / Rate) % 1.0;
-            _gearPhase = (_gearPhase + f * 0.31 / Rate) % 1.0;
 
-            // Band-limited-ish saw from five harmonics: a motor, not a pure beep.
-            float ph = (float)(_phase * 2 * Math.PI), tone = 0f;
-            for (int h = 1; h <= 5; h++) tone += MathF.Sin(ph * h) / h;
+            float ph = (float)(_phase * 2 * Math.PI);
+            float tone = MathF.Sin(ph) + 0.25f * MathF.Sin(2f * ph) + 0.06f * MathF.Sin(3f * ph);
+            _flow += flowA * ((_rng.NextFloat() * 2f - 1f) - _flow);
 
-            // Gear chatter: noise gated by the gear-mesh rate.
-            float chatter = _gearPhase < 0.25 ? (_rng.NextFloat() * 2f - 1f) * 0.5f : 0f;
-
-            float y = (tone * 0.6f + chatter) * _load;
-            _lp += lpA * (y - _lp);
-            output[i] = _lp * Gain;
+            float y = (tone * 0.7f + _flow * 0.8f) * _load;
+            _lp1 += lpA * (y - _lp1);
+            _lp2 += lpA * (_lp1 - _lp2);
+            output[i] = _lp2 * Gain;
         }
     }
 }

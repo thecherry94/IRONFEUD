@@ -30,7 +30,7 @@ public partial class ServoVoice : AudioStreamPlayer3D
         Position = new Vector3(0f, c.HipHeight, 0f);
         UnitSize = 10f * c.Scale;
         MaxDistance = 250f;
-        VolumeDb = -4f;
+        VolumeDb = -10f;
         Play();
         _playback = (AudioStreamGeneratorPlayback)GetStreamPlayback();
     }
