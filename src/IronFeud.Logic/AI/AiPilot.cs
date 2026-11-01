@@ -634,7 +634,9 @@ public sealed partial class AiPilot
         float range = Personality.Range;
         float stay = Role is AiRole.Line or AiRole.Anchor ? 0.25f : _relocate ? -1f : 0.1f; // heavies hold their ground
         bool relocating = _relocate;
-        // Jump-capable mediums also like spots fully hidden from the target that a pop-up clears (8 m up).
+        // Jump-capable mediums also count spots fully hidden from the target that a pop-up clears (8 m up) as firing
+        // spots, but only within 1.1x their range and no better than a hull-down spot: rated higher, every hole in
+        // their own trench beat advancing, and they sat there popping at targets 300 m off.
         bool pops = Role == AiRole.Flex && me.Chassis.HasJumpJets;
 
         Vector3 best = me.Position;
@@ -654,9 +656,10 @@ public sealed partial class AiPilot
             bool torsoHidden = legsHidden && !map.LineClear(targetEye, c + up * (0.8f * gunHeight));
             // High ground only counts from behind a crest; on an exposed hilltop it just makes a better target.
             if (relocating && MathUtil.PlanarDistance(c, me.Position) < 30f) continue; // a new spot, not a shuffle
-            bool popSpot = pops && !shoot && torsoHidden && map.LineClear(c + up * (gunHeight + 8f), targetAim);
+            bool popSpot = pops && !shoot && torsoHidden && MathUtil.PlanarDistance(c, k.Position) < 1.1f * range
+                           && map.LineClear(c + up * (gunHeight + 8f), targetAim);
             float score = (shoot || popSpot ? 1f : -0.5f) + (legsHidden ? 0.6f : 0f) + (torsoHidden && (shoot || popSpot) ? 0.25f : 0f)
-                          + (popSpot ? 0.15f : 0f)
+                          - (popSpot ? 0.1f : 0f)
                           - MathF.Abs(MathUtil.PlanarDistance(c, k.Position) - range) / 450f
                           - MathUtil.PlanarDistance(c, me.Position) / 300f
                           + (legsHidden ? MathUtil.Clamp(c.Y - k.Position.Y, -10f, 10f) * 0.015f : 0f)

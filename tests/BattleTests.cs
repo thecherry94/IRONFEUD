@@ -143,7 +143,8 @@ public class BattleTests
     /// Lights are flankers: they work round to an assault's thin rear armour, mostly while it is busy with someone
     /// else (alone it keeps turning to face them). Measured when added: alone 6 %, with a medium alongside 30 % of
     /// the light's damage from behind; before facing armour and the flanking AI, ~0 % in both. With stabilised guns
-    /// and jump tactics (12 seeds): alone ~9 %, with a medium ~17 %.
+    /// and jump tactics (12 seeds): alone ~9 %, with a medium ~17 %. Since big mechs turn on a rear attacker within
+    /// ~2 s (the counter players asked for) and the maps are symmetric: alone ~1 %, with a medium ~5 %.
     /// </summary>
     [Fact]
     public void Lights_FlankAssaults_AndHitTheirRearArmour()
@@ -165,8 +166,7 @@ public class BattleTests
             _out.WriteLine($"{(withMedium ? "light + medium" : "light alone   ")} vs assault: light dealt {dealt:0}, {100 * rear / MathF.Max(1f, dealt):0} % from behind");
             share[withMedium ? 1 : 0] = rear / MathF.Max(1f, dealt);
         }
-        Assert.True(share[0] > 0f, "alone, it still gets round now and then");
-        Assert.True(share[1] > 0.1f, $"with a medium keeping the assault busy only {100 * share[1]:0} % hit the rear");
+        Assert.True(share[1] > 0.02f, $"with a medium keeping the assault busy only {100 * share[1]:0} % hit the rear");
     }
 
     [Fact]

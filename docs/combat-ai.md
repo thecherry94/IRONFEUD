@@ -158,6 +158,15 @@ Shoot-and-scoot: a medium relocates after every pop-up and pops at most every 5 
 Lights jink (a 0.3-0.5 s hop half the time they're hit) and bound over rough ground at speed: 0.9 -> ~6.3 jumps/min.
 Lance report after: light 202 dealt / 43 % survived, medium 128 / 30 %, heavy 139 / 28 %, assault 158 / 40 %.
 
+**Fair matches.** Battle maps are point-symmetric through the centre like the spawns (`MirrorThroughCentre`: the
+south half is the north half rotated 180°, crossfaded over ±30 m so there is no seam; mid-field features are
+generated in the north half only so mirroring doubles rather than halves them). No Man's Land has a 13 m staging berm
+between each trench and its spawn ground, so the lances form up out of sight. The watch lance fields the same lance
+on both sides. Before: on NML seed 7 (the default) the north assault's spawn was under fire from three mechs within
+1-2 s (median death 23 s), the south side won 13-18 of 24, mirrored model mixes tilted another ~59-41. After: 12-12
+and 14-10 / 7-17 on two seeds, assaults' median death 57-64 s. Pop-up spots only count within 1.1x the medium's range
+and no better than hull-down (mediums sat in their own trench popping at targets 300 m off).
+
 The siege cannon kills a light (60 torso HP) with one clean torso hit, but its 240 m/s shell needs ~0.8 s to cross
 200 m: a running light is gone by then. Weapons carry their look (length, calibre, barrels/lenses); the rig builds
 them at each model's arm mount point and flashes, beams, shells and impacts scale with damage.
