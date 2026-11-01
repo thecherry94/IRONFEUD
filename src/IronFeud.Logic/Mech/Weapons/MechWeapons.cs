@@ -9,8 +9,10 @@ public sealed class WeaponMount
 {
     public readonly WeaponSpec Spec;
 
-    /// <summary>Arm index: 0 = left, 1 = right (same order as legs and <see cref="MechPose.Elbows"/>).</summary>
+    /// <summary>Arm index: 0 = left, 1 = right (same order as legs and <see cref="MechPose.Elbows"/>); -1 = torso (shoulder rack).</summary>
     public readonly int Arm;
+
+    public bool OnTorso => Arm < 0;
     public readonly Vector3 Offset;
     public float Cooldown;
 
@@ -33,7 +35,7 @@ public sealed class WeaponMount
         Offset = offset;
     }
 
-    public int Side => Arm == 0 ? +1 : -1;
+    public int Side => Arm == 0 ? +1 : Arm == 1 ? -1 : 0;
 }
 
 /// <summary>Single: one shell, instant beam or pulse. Start / Hold: the first and every later tick of a burn.</summary>
@@ -76,12 +78,14 @@ public sealed class MechWeapons
         var w = new MechWeapons { Heat = t.HeatStart };
         w.Mounts.Add(new WeaponMount(t.RightArmWeapon, 1, t.RightArmMount - Vector3.UnitZ * (t.RightArmWeapon.Length * t.Scale)));
         w.Mounts.Add(new WeaponMount(t.LeftArmWeapon, 0, t.LeftArmMount - Vector3.UnitZ * (t.LeftArmWeapon.Length * t.Scale)));
+        if (t.TorsoWeapon is { } rack) w.Mounts.Add(new WeaponMount(rack, -1, t.TorsoMount - Vector3.UnitZ * (rack.Length * t.Scale)));
         return w;
     }
 
     public Vector3 MuzzlePosition(int weapon, MechPose pose)
     {
         var m = Mounts[weapon];
+        if (m.OnTorso) return pose.TorsoWorldPosition + Vector3.Transform(m.Offset, pose.TorsoWorldRotation);
         return pose.ElbowWorldPositions[m.Arm] + Vector3.Transform(m.Offset, pose.ElbowWorldRotations[m.Arm]);
     }
 
@@ -156,8 +160,11 @@ public sealed class MechWeapons
 
     private static void Recoil(SecondaryMotion sec, WeaponMount m, float k)
     {
-        sec.Arms[m.Arm].V -= m.Spec.ArmKick * k;
-        sec.Elbows[m.Arm].V -= m.Spec.ElbowKick * k;
+        if (!m.OnTorso)
+        {
+            sec.Arms[m.Arm].V -= m.Spec.ArmKick * k;
+            sec.Elbows[m.Arm].V -= m.Spec.ElbowKick * k;
+        }
         sec.TorsoYaw.V += m.Side * m.Spec.TorsoYawKick * k;
         sec.TorsoPitch.V -= m.Spec.TorsoPitchKick * k;
         sec.AddTrauma(m.Spec.Trauma * k);

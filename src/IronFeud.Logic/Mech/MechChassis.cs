@@ -107,6 +107,16 @@ public sealed class MechChassis
     public Vector3 RightArmMount = new(0f, 0.05f, -2f);
     public Vector3 LeftArmMount = new(0f, 0.1f, -2f);
 
+    /// <summary>A rack on the right shoulder (fire bit 2), in the torso frame; null = none. Lost only with the mech.</summary>
+    public WeaponSpec? TorsoWeapon;
+    public Vector3 TorsoMount = new(1.1f, 1.7f, 0.3f);
+
+    /// <summary>
+    /// Point-defense turrets fitted (each shoots down ~1.5 enemy missiles a second within ~110 m, also over nearby
+    /// teammates). One thins a volley; stopping one takes several, on this mech or across the lance.
+    /// </summary>
+    public int PointDefense;
+
     // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
     public Vector3 TorsoHitOffset = new(0f, 1.2f, 0f);         // torso-local
     public float TorsoHitRadius = 2.4f;
@@ -259,6 +269,17 @@ public sealed class MechChassis
                 c.CollapseTime = 2f;
                 break;
         }
+        // Shoulder racks and point defense: lights a rocket pod for in-close bursts, mediums a strike rack, heavies
+        // the guided arc missiles (their support role), assaults point defense against those; the Hauberk medium
+        // carries point defense too (an escort that screens its ward), the first per-model difference in kit.
+        c.TorsoWeapon = cls switch
+        {
+            ChassisClass.Light => WeaponSpec.RocketPod,
+            ChassisClass.Medium => WeaponSpec.StrikeRack,
+            ChassisClass.Heavy => WeaponSpec.ArcMissiles,
+            _ => null,
+        };
+        c.PointDefense = cls == ChassisClass.Assault || cls == ChassisClass.Medium && model == MechModel.Hauberk ? 1 : 0;
         c.FitGaitToLegs();
         c.ApplyModelArmour(model);
         return c;
@@ -395,6 +416,7 @@ public sealed class MechChassis
         HeadOffset *= s;
         RightArmMount *= s;
         LeftArmMount *= s;
+        TorsoMount *= s;
         TorsoHitOffset *= s;
         TorsoHitRadius *= s;
         ArmHitOffset *= s;

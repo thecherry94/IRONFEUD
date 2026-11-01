@@ -50,6 +50,27 @@ public sealed class BattleUnit
 
     public HitVolume Volume(MechSection s) => Sim.Pose.HitVolumes[(int)s];
 
+    /// <summary>The enemy this unit's pilot wants a missile lock on; set by the pilot every tick (null = none).</summary>
+    public BattleUnit? LockCandidate;
+
+    /// <summary>Seconds the candidate has stayed spotted and in the aim cone; locked at the guided weapon's lock time.</summary>
+    public float LockProgress { get; internal set; }
+
+    /// <summary>The enemy guided missiles fired now will home on.</summary>
+    public BattleUnit? Locked { get; internal set; }
+
+    internal float PointDefenseBudget;
+
+    /// <summary>Ground velocity (legs plus jets), for leading.</summary>
+    public Vector3 Velocity
+    {
+        get
+        {
+            var body = Sim.Locomotion.Body;
+            return MathUtil.Forward(body.Psi) * body.V + (body.Airborne ? Vector3.UnitY * body.Vy : Vector3.Zero);
+        }
+    }
+
     public override string ToString() => Name;
 }
 
@@ -60,7 +81,25 @@ public sealed class Shell
     public BattleUnit Owner = null!;
 }
 
-public enum BattleEventKind { ShellFired, Beam, Impact }
+/// <summary>A missile in flight: boosts to cruise speed, homes on <see cref="Target"/> if guided (after a 0.5 s climb).</summary>
+public sealed class Missile
+{
+    public int Id;
+    public BattleUnit Owner = null!;
+    public WeaponSpec Spec = null!;
+    public BattleUnit? Target;
+    public Vector3 Position, Velocity, Origin;
+    public float Life;
+
+    /// <summary>Share of the salvo's damage this round carries.</summary>
+    public float Share;
+}
+
+/// <summary>
+/// ShellFired / MissileFired: a round left a muzzle. Beam: a beam is lit (see <see cref="BattleEvent"/>). Impact: a
+/// round hit something. PointDefense: a turret on <c>Shooter</c> shot down a missile at <c>Point</c>.
+/// </summary>
+public enum BattleEventKind { ShellFired, Beam, Impact, MissileFired, PointDefense }
 
 /// <summary>
 /// Something the renderer should show this tick. <see cref="Impact"/> is a shell or single beam hitting something;
@@ -98,6 +137,7 @@ public sealed class BattleSim
     public readonly ArenaMap Map;
     public readonly List<BattleUnit> Units = new();
     public readonly List<Shell> Shells = new();
+    public readonly List<Missile> Missiles = new();
 
     /// <summary>Events of the last <see cref="Step"/>; cleared at the start of each step.</summary>
     public readonly List<BattleEvent> Events = new();
@@ -130,7 +170,10 @@ public sealed class BattleSim
     {
         Map = map;
         _seed = seed;
+        _rng = new DeterministicRng(seed * 977u + 13u);
     }
+
+    private readonly DeterministicRng _rng;
 
     public BattleUnit AddUnit(string name, int team, MechChassis chassis, Vector3 position, float heading,
         Personality? ai = null, MechDamage? damage = null)
@@ -154,12 +197,15 @@ public sealed class BattleSim
         if (MathF.Floor(Time) != MathF.Floor(Time + h) || TeamFocus.Count == 0) Coordinate();
         foreach (var u in Units)
             if (!u.IsOut) u.Ai?.Tick(this, u, h);
+        UpdateLocks(h);
 
         foreach (var u in Units) u.Sim.Step(u.Input, h);
         foreach (var u in Units)
             foreach (var s in u.Sim.Shots) Fire(u, s);
 
         StepShells(h);
+        StepMissiles(h);
+        PointDefend(h);
         Time += h;
         if (TrackOutcome) CheckOutcome();
     }
@@ -210,6 +256,27 @@ public sealed class BattleSim
                 Events.Add(new BattleEvent { Kind = BattleEventKind.ShellFired, Shooter = u, Shot = shot, From = shot.Origin, Point = shot.Origin });
                 break;
 
+            case WeaponKind.Missile:
+            {
+                var spec = shot.Spec;
+                Vector3 dir = shot.Direction;
+                if (spec.Guided)
+                {
+                    // Climb toward the target's bearing, then home (over cover).
+                    var flat = new Vector3(dir.X, 0f, dir.Z);
+                    flat = flat.LengthSquared() > 1e-6f ? Vector3.Normalize(flat) : MathUtil.Forward(u.Sim.Locomotion.Body.Psi);
+                    dir = Vector3.Normalize(flat * MathF.Cos(spec.Loft) + Vector3.UnitY * MathF.Sin(spec.Loft));
+                }
+                dir = Jitter(dir, spec.Spread);
+                Missiles.Add(new Missile
+                {
+                    Id = _nextShellId++, Owner = u, Spec = spec, Target = spec.Guided ? u.Locked : null,
+                    Position = shot.Origin, Origin = shot.Origin, Velocity = dir * (0.5f * spec.MissileSpeed), Share = shot.DamageFraction,
+                });
+                Events.Add(new BattleEvent { Kind = BattleEventKind.MissileFired, Shooter = u, Shot = shot, From = shot.Origin, Point = shot.Origin });
+                break;
+            }
+
             case WeaponKind.Beam:
             {
                 bool hit = Raycast(shot.Origin, shot.Direction, shot.Spec.Range, u, out var bh);
@@ -247,6 +314,154 @@ public sealed class BattleSim
         var e = new BattleEvent { Kind = BattleEventKind.Impact, Shooter = shooter, Shot = shot, From = shot.Origin, Point = hit.Point, Target = hit.Unit };
         if (hit.Unit != null) e.Report = ApplyHit(hit.Unit, hit.Section, damage, hit.Point, shooter, shot.Direction);
         Events.Add(e);
+    }
+
+    /// <summary>A direction scattered uniformly within a cone of half-angle <paramref name="spread"/>.</summary>
+    private Vector3 Jitter(Vector3 dir, float spread)
+    {
+        if (spread <= 0f) return dir;
+        Vector3 side = Vector3.Normalize(Vector3.Cross(dir, MathF.Abs(dir.Y) > 0.9f ? Vector3.UnitX : Vector3.UnitY));
+        Vector3 up = Vector3.Cross(side, dir);
+        float a = _rng.NextFloat() * MathF.Tau, r = spread * MathF.Sqrt(_rng.NextFloat());
+        return Vector3.Normalize(dir + side * (MathF.Cos(a) * r) + up * (MathF.Sin(a) * r));
+    }
+
+    /// <summary>
+    /// Missiles: boost to cruise speed over 0.5 s; guided ones home on their target (leading it) after a 0.5 s climb
+    /// at the spec's turn rate. A hit inside the minimum range is a dud; otherwise damage falls off with the
+    /// straight-line distance from the launcher like any weapon.
+    /// </summary>
+    private void StepMissiles(float h)
+    {
+        for (int i = Missiles.Count - 1; i >= 0; i--)
+        {
+            var m = Missiles[i];
+            m.Life += h;
+            float speed = MathF.Min(m.Spec.MissileSpeed, m.Velocity.Length() + m.Spec.MissileSpeed * h / 0.5f);
+            Vector3 dir = Vector3.Normalize(m.Velocity);
+            if (m.Target is { IsOut: false } t && m.Life > 0.5f)
+            {
+                Vector3 aim = t.Volume(MechSection.Torso).Center;
+                aim += t.Velocity * (Vector3.Distance(aim, m.Position) / speed);
+                dir = TurnToward(dir, Vector3.Normalize(aim - m.Position), m.Spec.TurnRate * h);
+            }
+            m.Velocity = dir * speed;
+            Vector3 start = m.Position;
+            m.Position += m.Velocity * h;
+            float len = Vector3.Distance(start, m.Position);
+            bool hit = Raycast(start, dir, len, m.Owner, out var bh);
+            if (hit)
+            {
+                float flown = Vector3.Distance(m.Origin, bh.Point);
+                float damage = flown < m.Spec.MinRange ? 0f : m.Spec.DamageAt(flown) * m.Share;
+                var shot = new ShotFired { Spec = m.Spec, Origin = start, Direction = dir, Share = m.Share };
+                var e = new BattleEvent { Kind = BattleEventKind.Impact, Shooter = m.Owner, Shot = shot, From = start, Point = bh.Point, Target = bh.Unit };
+                if (bh.Unit != null && damage > 0f) e.Report = ApplyHit(bh.Unit, bh.Section, damage, bh.Point, m.Owner, dir);
+                Events.Add(e);
+            }
+            if (hit || m.Life > m.Spec.MaxLifetime) Missiles.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Is the missile closing on this mech or on a teammate within point-defense cover of it?</summary>
+    private bool ClosingOnTeam(Missile m, BattleUnit defender, Vector3 at)
+    {
+        if (Vector3.Dot(m.Velocity, at - m.Position) > 0f) return true;
+        foreach (var a in Units)
+        {
+            if (a == defender || a.Team != defender.Team || a.IsOut) continue;
+            Vector3 c = a.Volume(MechSection.Torso).Center;
+            if (Vector3.Distance(c, at) < PointDefense.Cover && Vector3.Dot(m.Velocity, c - m.Position) > 0f) return true;
+        }
+        return false;
+    }
+
+    private static Vector3 TurnToward(Vector3 dir, Vector3 want, float maxAngle)
+    {
+        float cos = Math.Clamp(Vector3.Dot(dir, want), -1f, 1f), angle = MathF.Acos(cos);
+        if (angle <= maxAngle) return want;
+        Vector3 axis = Vector3.Cross(dir, want);
+        if (axis.LengthSquared() < 1e-10f) axis = Vector3.UnitY;
+        return Vector3.Normalize(Vector3.Transform(dir, Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), maxAngle)));
+    }
+
+    /// <summary>
+    /// Point-defense turrets: each mech's turrets shoot down enemy missiles within range that are closing on it or on
+    /// a teammate within cover distance (nearest first), at a steady rate per turret (budget capped at 1.5 shots per
+    /// turret so a quiet turret can't erase the front of a salvo at once).
+    /// </summary>
+    private void PointDefend(float h)
+    {
+        if (Missiles.Count == 0) return;
+        foreach (var u in Units)
+        {
+            int turrets = u.Chassis.PointDefense;
+            if (u.IsOut || turrets <= 0) continue;
+            u.PointDefenseBudget = MathF.Min(1.5f * turrets, u.PointDefenseBudget + PointDefense.Rate * turrets * h);
+            Vector3 c = u.Volume(MechSection.Torso).Center;
+            while (u.PointDefenseBudget >= 1f)
+            {
+                int best = -1;
+                float bestD = PointDefense.Range;
+                for (int i = 0; i < Missiles.Count; i++)
+                {
+                    var m = Missiles[i];
+                    if (m.Owner.Team == u.Team) continue;
+                    float d = Vector3.Distance(m.Position, c);
+                    if (d < bestD && ClosingOnTeam(m, u, c)) { bestD = d; best = i; }
+                }
+                if (best < 0) break;
+                Events.Add(new BattleEvent { Kind = BattleEventKind.PointDefense, Shooter = u, From = c, Point = Missiles[best].Position });
+                Missiles.RemoveAt(best);
+                u.PointDefenseBudget -= 1f;
+                u.Sim.Weapons.Heat += PointDefense.HeatPerKill;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Missile locks: a unit with a working guided weapon locks its pilot's candidate once it has stayed spotted (any
+    /// teammate can see it, the launcher included) within 20° of the torso aim and in range for the lock time.
+    /// Losing either bleeds the lock off twice as fast.
+    /// </summary>
+    private void UpdateLocks(float h)
+    {
+        foreach (var u in Units)
+        {
+            WeaponSpec? guided = null;
+            if (!u.IsOut)
+                foreach (var m in u.Sim.Weapons.Mounts)
+                    if (m.Spec.Guided && !m.Offline) guided = m.Spec;
+            var c = u.LockCandidate;
+            if (guided == null || c == null || c.IsOut || c.Team == u.Team)
+            {
+                u.LockProgress = 0f;
+                u.Locked = null;
+                continue;
+            }
+            if (u.Locked != null && u.Locked != c) { u.Locked = null; u.LockProgress = 0f; }
+            var pose = u.Sim.Pose;
+            Vector3 to = c.Volume(MechSection.Torso).Center - pose.AimOrigin;
+            float d = to.Length();
+            bool inCone = d < guided.Range && Vector3.Dot(pose.AimDirection, to / MathF.Max(1e-3f, d)) > MathF.Cos(0.35f);
+            u.LockProgress = inCone && Spotted(u.Team, c)
+                ? MathF.Min(guided.LockTime, u.LockProgress + h)
+                : MathF.Max(0f, u.LockProgress - 2f * h);
+            u.Locked = u.LockProgress >= guided.LockTime ? c : null;
+        }
+    }
+
+    /// <summary>Can any mech of <paramref name="team"/> see <paramref name="e"/> (cockpit to torso, within 600 m)?</summary>
+    public bool Spotted(int team, BattleUnit e)
+    {
+        Vector3 target = e.Volume(MechSection.Torso).Center;
+        foreach (var u in Units)
+        {
+            if (u.Team != team || u.IsOut) continue;
+            Vector3 eye = u.Volume(MechSection.Cockpit).Center;
+            if (Vector3.Distance(eye, target) < 600f && Map.LineClear(eye, target)) return true;
+        }
+        return false;
     }
 
     /// <summary>One tick of a burning beam on whatever it touches now. Counts as a hit once per burn.</summary>

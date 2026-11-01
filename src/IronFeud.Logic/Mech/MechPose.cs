@@ -22,6 +22,8 @@ public sealed class MechPose
     public readonly LegPose[] Legs = { new(), new() };
 
     // World-space upper body, for weapons and aiming.
+    public Vector3 TorsoWorldPosition;
+    public Quaternion TorsoWorldRotation = Quaternion.Identity;
     public readonly Vector3[] ElbowWorldPositions = new Vector3[2];
     public readonly Quaternion[] ElbowWorldRotations = { Quaternion.Identity, Quaternion.Identity };
 

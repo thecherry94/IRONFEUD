@@ -42,7 +42,8 @@ public static class BodyKinematics
 {
     /// <param name="speedFactor">Forward top-speed multiplier (crippled legs).</param>
     /// <param name="control">Leg authority over speed: 1 on the ground; in the air only the jets push (a fraction of it).</param>
-    /// <param name="turnControl">Authority over the turn rate (default: the square root of <paramref name="control"/>).</param>
+    /// <param name="turnControl">Authority over the turn rate, given in the air (jets: no speed penalty); default: the square
+    /// root of <paramref name="control"/> with the legs' speed penalty.</param>
     public static void Step(BodyState s, in MechInput input, MechChassis t, float h, float speedFactor = 1f, float control = 1f,
         float turnControl = -1f)
     {
@@ -57,7 +58,10 @@ public static class BodyKinematics
         s.V += MathUtil.Clamp(dv, -a * h, a * h);
         s.Acc = MathUtil.Lerp(s.Acc, (s.V - vPrev) / h, MathF.Min(1f, h * 6f));
 
-        float omegaT = turn * t.OmegaMax * (1f - t.TurnSpeedPenalty * MathF.Abs(s.V) / t.VMax) * (turnControl >= 0f ? turnControl : MathF.Sqrt(control));
+        // On the ground the legs carve the turn (slower at speed); in the air the jets yaw the body, no speed penalty.
+        float omegaT = turnControl >= 0f
+            ? turn * t.OmegaMax * turnControl
+            : turn * t.OmegaMax * (1f - t.TurnSpeedPenalty * MathF.Abs(s.V) / t.VMax) * MathF.Sqrt(control);
         s.Omega += MathUtil.Clamp(omegaT - s.Omega, -t.OmegaAccel * h, t.OmegaAccel * h);
         s.Psi += s.Omega * h;
         s.Position += MathUtil.Forward(s.Psi) * (s.V * h);

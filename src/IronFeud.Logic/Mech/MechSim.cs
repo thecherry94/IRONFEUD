@@ -78,7 +78,7 @@ public sealed class MechSim
     private void ApplyDamageEffects()
     {
         foreach (var m in Weapons.Mounts)
-            m.Offline = Damage.IsDestroyed(m.Arm == 0 ? MechSection.ArmLeft : MechSection.ArmRight);
+            m.Offline = !m.OnTorso && Damage.IsDestroyed(m.Arm == 0 ? MechSection.ArmLeft : MechSection.ArmRight);
         Locomotion.SpeedFactor = Damage.IsDestroyed(MechSection.Legs) ? Chassis.CrippledSpeedFactor : 1f;
         if (IsOut) Locomotion.Collapse(Locomotion.Secondary.RandomSigned() * 0.6f);
     }

@@ -67,6 +67,8 @@ public static class MechPoseSolver
         Quaternion torsoRot = pose.PelvisRotation * pose.TorsoRotation;
         Vector3 torsoBasePos = pose.PelvisPosition + Vector3.Transform(new Vector3(0f, t.TorsoBaseY, 0f), pose.PelvisRotation);
         Vector3 torsoPos = torsoBasePos + Vector3.Transform(new Vector3(0f, t.TorsoY, 0f), torsoRot);
+        pose.TorsoWorldPosition = torsoPos;
+        pose.TorsoWorldRotation = torsoRot;
         for (int i = 0; i < 2; i++)
         {
             float side = i == 0 ? 1f : -1f;

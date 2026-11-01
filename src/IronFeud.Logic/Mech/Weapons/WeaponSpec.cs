@@ -2,7 +2,8 @@ using System;
 
 namespace IronFeud.Logic.Mech.Weapons;
 
-public enum WeaponKind { Projectile, Beam }
+/// <summary>Projectile: a shell (ballistic). Beam: hitscan. Missile: a self-propelled round, fired in salvos.</summary>
+public enum WeaponKind { Projectile, Beam, Missile }
 
 /// <summary>Static weapon data. The prototype's damage/heat/cooldown; ranges and shell speed rescaled for genre mech speeds (docs/combat-ai.md).</summary>
 public sealed record WeaponSpec
@@ -33,6 +34,26 @@ public sealed record WeaponSpec
     /// a fraction, smeared across sections. 0 = the whole damage in one instant ray. Cooldown counts from the trigger.
     /// </summary>
     public float BurnTime { get; init; }
+
+    // Missiles: a salvo of Pulses rounds, PulseInterval apart, each with an equal share of Damage.
+    /// <summary>Cruise speed, m/s (they leave the tube at half of it and reach it in 0.5 s).</summary>
+    public float MissileSpeed { get; init; }
+
+    /// <summary>Half-angle of the cone each unguided round leaves in, radians.</summary>
+    public float Spread { get; init; }
+
+    /// <summary>Guided rounds home on the launcher's lock (see <see cref="LockTime"/>) at <see cref="TurnRate"/> rad/s.</summary>
+    public bool Guided { get; init; }
+    public float TurnRate { get; init; }
+
+    /// <summary>Launch elevation, radians: guided rounds climb first and dive on the target, over cover.</summary>
+    public float Loft { get; init; }
+
+    /// <summary>Seconds a target must stay spotted and in the aim cone to lock.</summary>
+    public float LockTime { get; init; }
+
+    /// <summary>Rounds arm only past this distance from the launcher: closer impacts do no damage.</summary>
+    public float MinRange { get; init; }
 
     /// <summary>Pulse lasers: the trigger fires this many instant pulses <see cref="PulseInterval"/> apart, each carrying an equal share.</summary>
     public int Pulses { get; init; } = 1;
@@ -118,6 +139,40 @@ public sealed record WeaponSpec
         ArmKick = 5f, ElbowKick = 6f, TorsoYawKick = 0.6f, TorsoPitchKick = 0.45f, Trauma = 0.5f,
     };
 
+    /// <summary>Short-range unguided rocket salvo: six rounds in a wide cone, a shotgun up close.</summary>
+    public static readonly WeaponSpec RocketPod = new()
+    {
+        Name = "Rocket pod", Kind = WeaponKind.Missile, Damage = 18f, Heat = 0.12f, Cooldown = 3f,
+        Range = 220f, OptimalRange = 130f, Pulses = 6, PulseInterval = 0.05f,
+        MissileSpeed = 200f, Spread = 0.035f, MaxLifetime = 2f,
+        Length = 1.2f, Caliber = 0.5f, Barrels = 6,
+        TorsoPitchKick = 0.05f, Trauma = 0.06f,
+    };
+
+    /// <summary>Medium-range unguided salvo: ten fast rounds in a tight pattern. No homing: aim it.</summary>
+    public static readonly WeaponSpec StrikeRack = new()
+    {
+        Name = "Strike rack", Kind = WeaponKind.Missile, Damage = 25f, Heat = 0.16f, Cooldown = 4f,
+        Range = 400f, OptimalRange = 300f, Pulses = 10, PulseInterval = 0.06f,
+        MissileSpeed = 260f, Spread = 0.015f, MaxLifetime = 2.5f,
+        Length = 1.4f, Caliber = 0.6f, Barrels = 10,
+        TorsoPitchKick = 0.06f, Trauma = 0.08f,
+    };
+
+    /// <summary>
+    /// Long-range guided salvo, the heavy's support weapon: ten slow rounds launched steeply that dive on a locked
+    /// target, over cover. The lock needs the target spotted by any teammate; they don't arm under 160 m.
+    /// </summary>
+    public static readonly WeaponSpec ArcMissiles = new()
+    {
+        Name = "Arc missiles", Kind = WeaponKind.Missile, Damage = 30f, Heat = 0.2f, Cooldown = 5f,
+        Range = 800f, OptimalRange = 650f, Pulses = 10, PulseInterval = 0.1f,
+        MissileSpeed = 140f, Spread = 0.05f, Guided = true, TurnRate = 1.6f, Loft = 0.9f, LockTime = 1.5f, MinRange = 160f,
+        MaxLifetime = 9f,
+        Length = 1.6f, Caliber = 0.7f, Barrels = 10,
+        TorsoPitchKick = 0.08f, Trauma = 0.1f,
+    };
+
     /// <summary>
     /// The assault's gun: one clean torso hit destroys a light (75 vs 60 HP). Slow shell, long reload, very hot:
     /// it has to be aimed at something that isn't dodging.
@@ -129,4 +184,16 @@ public sealed record WeaponSpec
         Length = 4.6f, Caliber = 0.55f, Barrels = 1,
         ArmKick = 8f, ElbowKick = 9f, TorsoYawKick = 1f, TorsoPitchKick = 0.8f, Trauma = 0.8f,
     };
+}
+
+/// <summary>
+/// Point defense: each turret shoots down enemy missiles within <see cref="Range"/> that are closing on its mech or on
+/// a teammate within <see cref="Cover"/> of it, up to <see cref="Rate"/> a second, each kill costing
+/// <see cref="HeatPerKill"/>. Turrets add up, on one mech or across a lance moving together.
+/// </summary>
+public static class PointDefense
+{
+    // One turret should thin a volley, not erase it (design: stopping one takes investment, several turrets or several
+    // equipped mechs). At 5 a second one shot down 9 of 10 slow arc missiles (they spend ~0.8 s inside 110 m).
+    public const float Range = 110f, Cover = 120f, Rate = 1.5f, HeatPerKill = 0.01f;
 }
