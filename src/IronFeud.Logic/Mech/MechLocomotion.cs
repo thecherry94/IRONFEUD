@@ -52,6 +52,12 @@ public sealed class MechLocomotion
     /// <summary>Forward top-speed multiplier; MechSim lowers it when the legs are destroyed.</summary>
     public float SpeedFactor = 1f;
 
+    /// <summary>Top-speed multiplier from running hot (MechSim sets it from heat every tick; ground movement only).</summary>
+    public float HeatSpeedFactor = 1f;
+
+    /// <summary>Share of the aim stabilisation still working (MechSim lowers it when running hot): 1 = the chassis'.</summary>
+    public float AimSteadiness = 1f;
+
     /// <summary>Top-speed multiplier from the ground this tick (climbs, steep descents, rough ground ahead).</summary>
     public float TerrainSpeedFactor { get; private set; } = 1f;
 
@@ -146,7 +152,7 @@ public sealed class MechLocomotion
 
         Body.Slope = MathUtil.Lerp(Body.Slope, MathF.Atan(Grade()), MathF.Min(1f, h * 3f));
         TerrainSpeedFactor = UphillFactor() * RoughGroundFactor();
-        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor * TerrainSpeedFactor);
+        BodyKinematics.Step(Body, input, Chassis, h, SpeedFactor * HeatSpeedFactor * TerrainSpeedFactor);
         // Shorter strides (and so quicker steps) on slopes keep footholds up and down the hill within reach.
         Gait.ReachScale = 1f / (1f + 1.5f * MathF.Abs(MathF.Tan(Body.Slope)));
         Gait.Step(Body, Chassis, h, Footfalls);
@@ -276,5 +282,5 @@ public sealed class MechLocomotion
     private float _groundVel, _supportLag;
     private Vector3 _airVel;
 
-    private void Solve() => MechPoseSolver.Solve(Pose, Body, Gait, Secondary, Chassis, Time, CollapseAmount, CollapseRoll);
+    private void Solve() => MechPoseSolver.Solve(Pose, Body, Gait, Secondary, Chassis, Time, CollapseAmount, CollapseRoll, AimSteadiness);
 }

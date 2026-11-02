@@ -46,6 +46,17 @@ public sealed class MechSim
     /// </summary>
     public const float RestartHeat = 0.6f, CoolantFlushTime = 4f;
 
+    /// <summary>
+    /// Running hot: from <see cref="HotHeat"/> up to the weapon lock at 1 the legs lose up to <see cref="HotSpeedLoss"/>
+    /// of their top speed and the gyro steadies the guns less (up to <see cref="HotAimLoss"/> of its stabilisation gone,
+    /// so the aim sways with the body). A visible, physical slope before the cliff (the genre's heat scales penalise
+    /// movement and aim long before shutdown; hidden penalties like an extra heat charge per volley were resented).
+    /// </summary>
+    public const float HotHeat = 0.6f, HotSpeedLoss = 0.15f, HotAimLoss = 0.5f;
+
+    /// <summary>0 below <see cref="HotHeat"/>, 1 at the weapon lock: how far into the running-hot band the mech is.</summary>
+    public float Hot => Core.MathUtil.Smoothstep(HotHeat, 1f, Weapons.Heat);
+
     /// <summary>Seconds left of a heat shutdown: no legs, no guns, the torso slack; the heat sinks keep working.</summary>
     public float ShutdownLeft { get; private set; }
     public bool Shutdown => ShutdownLeft > 0f;
@@ -72,6 +83,9 @@ public sealed class MechSim
         DisruptLeft = MathF.Max(0f, DisruptLeft - h);
         FlushLeft = MathF.Max(0f, FlushLeft - h);
         if (!Shutdown && !IsOut && Weapons.Heat >= ShutdownHeat) ShutdownLeft = ShutdownTime;
+        float hot = Hot;
+        Locomotion.HeatSpeedFactor = 1f - HotSpeedLoss * hot;
+        Locomotion.AimSteadiness = 1f - HotAimLoss * hot;
         var command = input;
         if (Shutdown)
         {

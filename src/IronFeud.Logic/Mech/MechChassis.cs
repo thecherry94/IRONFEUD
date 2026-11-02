@@ -308,6 +308,9 @@ public sealed class MechChassis
                 // Arms ride high under the shoulder bar: when its eyes clear a crest, so do its guns, with little torso
                 // showing. Particle cannon and autocannon (the hull-down shooter's long, fast guns).
                 c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.Autocannon);
+                // Its particle cannon runs hot: better sinks keep it out of the running-hot band (without them a
+                // brawling Brigandine lost the shipped 1v1 28-12 once running hot cost speed and aim).
+                c.HeatDissipation += 0.0025f;
                 break;
             case MechModel.Harrow:
                 // Slow, narrow twist (lights inside its arc are safe), quick off the mark, a heavy front. Later: cover

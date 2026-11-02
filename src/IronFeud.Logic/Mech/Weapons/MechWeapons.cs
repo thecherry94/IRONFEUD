@@ -72,6 +72,13 @@ public sealed class MechWeapons
 
     public bool HeatLocked => Heat >= 1f;
 
+    /// <summary>
+    /// The most a mech's own guns can heat it: under the shutdown line (<see cref="MechSim.ShutdownHeat"/>), so only
+    /// outside heat and jets scram a reactor. A heavy shot fired at 0.99 (a particle bolt adds 0.32) used to shut its
+    /// own mech down.
+    /// </summary>
+    public const float OwnHeatCap = MechSim.ShutdownHeat - 0.05f;
+
     /// <summary>Heat sink capacity left after damage to the torso's internals (1 = intact, down to 0.4).</summary>
     public float DissipationFactor = 1f;
 
@@ -132,7 +139,7 @@ public sealed class MechWeapons
             if ((input.FireMask & (1u << i)) == 0 || !CanFire(i)) continue;
 
             m.Cooldown = m.Spec.Cooldown * m.CycleFactor;
-            Heat += m.Spec.Heat;
+            Heat = MathF.Max(Heat, MathF.Min(Heat + m.Spec.Heat, OwnHeatCap));
             if (m.Spec.BurnTime > 0f)
             {
                 float dt = MathF.Min(h, m.Spec.BurnTime);

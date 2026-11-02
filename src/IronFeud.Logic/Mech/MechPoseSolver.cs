@@ -13,7 +13,7 @@ public static class MechPoseSolver
 {
     /// <param name="collapse">0..1 slump of a mech that is out (pelvis drops and pitches, arms hang).</param>
     public static void Solve(MechPose pose, BodyState body, GaitController gait, SecondaryMotion sec, MechChassis t, float time,
-        float collapse = 0f, float collapseRoll = 0f)
+        float collapse = 0f, float collapseRoll = 0f, float aimSteadiness = 1f)
     {
         float p = gait.Phase, g = gait.G;
         float jn = sec.Jank(time, t);
@@ -87,7 +87,7 @@ public static class MechPoseSolver
         // Aim ray: the pilot's commanded line (legs + twist, aim pitch) plus what the stabilised weapon mounts don't
         // cancel of the torso's actual motion (sway, springs, kicks). Weapons converge on it.
         Vector3 torsoFwd = Vector3.Transform(-Vector3.UnitZ, torsoRot);
-        float residual = 1f - t.AimStabilization;
+        float residual = 1f - t.AimStabilization * aimSteadiness;
         float aimYaw = body.Psi + body.Twist + residual * MathUtil.WrapAngle(MathF.Atan2(-torsoFwd.X, -torsoFwd.Z) - body.Psi - body.Twist);
         float aimPitch = body.Aim - residual * 0.25f * sec.TorsoPitch.X;
         pose.AimOrigin = torsoPos + Vector3.Transform(new Vector3(0f, t.AimOriginY, 0f), torsoRot);
