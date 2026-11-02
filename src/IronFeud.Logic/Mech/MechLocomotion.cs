@@ -68,7 +68,7 @@ public sealed class MechLocomotion
     public MechLocomotion(MechChassis chassis, uint seed = 1)
     {
         Chassis = chassis;
-        Secondary = new SecondaryMotion(seed);
+        Secondary = new SecondaryMotion(seed, chassis.Scale);
         Reset(Vector3.Zero, 0f);
     }
 

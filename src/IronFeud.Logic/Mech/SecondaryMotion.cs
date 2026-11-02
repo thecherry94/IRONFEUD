@@ -10,21 +10,30 @@ namespace IronFeud.Logic.Mech;
 /// </summary>
 public sealed class SecondaryMotion
 {
-    public readonly Spring BounceY = new(3.0f, 0.22f);
-    public readonly Spring TorsoYaw = new(1.4f, 0.35f);
-    public readonly Spring TorsoRoll = new(1.5f, 0.30f);
-    public readonly Spring TorsoPitch = new(1.7f, 0.28f);
+    public readonly Spring BounceY, TorsoYaw, TorsoRoll, TorsoPitch;
 
     /// <summary>Shoulder pitch springs, index 0 = left, 1 = right (same order as legs).</summary>
-    public readonly Spring[] Arms = { new(1.1f, 0.25f), new(1.1f, 0.25f) };
-    public readonly Spring[] Elbows = { new(2.3f, 0.18f), new(2.3f, 0.18f) };
+    public readonly Spring[] Arms, Elbows;
 
     /// <summary>0..1, decays 1.6/s. Drives the high-frequency shake.</summary>
     public float Trauma;
 
     private readonly DeterministicRng _rng;
 
-    public SecondaryMotion(uint seed) => _rng = new DeterministicRng(seed);
+    /// <param name="size">The machine's size relative to the medium reference (<see cref="MechChassis.Scale"/>). The
+    /// frequencies are the medium's, times 1/sqrt(size): a pendulum's, so an assault sways slower and a light quicker.
+    /// The running cadence scales the same way (Froude), so no class runs its torso spring at resonance.</param>
+    public SecondaryMotion(uint seed, float size = 1f)
+    {
+        _rng = new DeterministicRng(seed);
+        float k = 1f / MathF.Sqrt(size);
+        BounceY = new Spring(3.0f * k, 0.22f);
+        TorsoYaw = new Spring(1.4f * k, 0.35f);
+        TorsoRoll = new Spring(1.5f * k, 0.30f);
+        TorsoPitch = new Spring(1.7f * k, 0.28f);
+        Arms = new[] { new Spring(1.1f * k, 0.25f), new Spring(1.1f * k, 0.25f) };
+        Elbows = new[] { new Spring(2.3f * k, 0.18f), new Spring(2.3f * k, 0.18f) };
+    }
 
     public void Step(BodyState body, GaitController gait, MechChassis t, float h)
     {
