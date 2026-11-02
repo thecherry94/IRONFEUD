@@ -326,7 +326,11 @@ public partial class Effects : Node3D
         switch (r.Applied)
         {
             case MechSection.ArmLeft or MechSection.ArmRight: Explosion(at, 2f); break;
-            case MechSection.Legs: Explosion(at, 1.5f); break;
+            case MechSection.TorsoLeft or MechSection.TorsoRight:
+                Explosion(at, 2.5f);
+                if (r.ArmLost is { } arm) _delayed.Add((_time + 0.15f, mech.Sim.Pose.HitVolumes[(int)arm].Center.ToGodot(), 1.6f));
+                break;
+            case MechSection.LegLeft or MechSection.LegRight: Explosion(at, 1.5f); break;
             case MechSection.Cockpit: Explosion(at, 0.3f); break; // canopy burst; the frame stays intact
             case MechSection.Torso:
                 Explosion(torso, 3f);

@@ -55,7 +55,7 @@ public class NewWeaponTests
         _out.WriteLine($"3 s of machine gun at 100 m: {onArmour:0.0} damage through armour, {onStructure:0.0} into exposed structure ({(bare.IsOut ? "destroyed" : "standing")})");
         Assert.True(onArmour < 15f, "machine guns barely scratch plates");
         Assert.True(bare.IsOut, "and shred what is underneath: the exposed torso goes in 3 s");
-        Assert.True(onStructure > 3f * onArmour);
+        Assert.Equal(bare.Sim.Damage.MaxStructure[torso], onStructure, 3); // all of it, against a few points of plate
     }
 
     /// <summary>A target already running hot is pushed past the shutdown point by a flamethrower: it stops dead.</summary>

@@ -153,6 +153,9 @@ public sealed class MechSim
         if (!IsOut) Weapons.Step(command, Locomotion, h, Shots);
     }
 
+    /// <summary>Heat sink capacity each destroyed side torso takes with it.</summary>
+    public const float LostSideTorsoSinks = 0.15f;
+
     /// <summary>Nearest hit volume or cover plate along a ray (unit direction); a destroyed arm's plates are gone.</summary>
     public bool Raycast(Vector3 origin, Vector3 dir, float maxDistance, out RayHit hit)
     {
@@ -194,24 +197,33 @@ public sealed class MechSim
         (Damage.Exposed(MechSection.Cockpit) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Cockpit) : 1f) * (DisruptLeft > 0f ? 0.5f : 1f);
 
     /// <summary>
-    /// Maps section state onto the simulation. Destroyed: arms drop their weapons, legs cap speed, torso or cockpit =
-    /// out (collapse). Exposed structure degrades a section in proportion to what is left of it: legs limp (top speed
-    /// down toward the crippled cap), an arm's weapon cycles slower (up to twice as long), torso heat sinks lose
-    /// capacity (dissipation down to 40 %), the head's sensors blur (<see cref="SensorQuality"/>).
+    /// Maps section state onto the simulation. Destroyed: a section's weapons go offline (a side torso takes its arm
+    /// and the rack sitting in it), one leg caps speed at the crippled limit, the centre torso, the cockpit or both
+    /// legs = out (collapse). Exposed structure degrades a section in proportion to what is left of it: a leg limps (top
+    /// speed down toward the crippled cap, the worse leg counts), an arm's weapon cycles slower (up to twice as long),
+    /// centre torso heat sinks lose capacity (dissipation down to 40 %) and each lost side torso takes another 15 %,
+    /// the head's sensors blur (<see cref="SensorQuality"/>).
     /// </summary>
     private void ApplyDamageEffects()
     {
         foreach (var m in Weapons.Mounts)
         {
-            if (m.OnTorso) continue;
-            var arm = m.Arm == 0 ? MechSection.ArmLeft : MechSection.ArmRight;
-            m.Offline = Damage.IsDestroyed(arm);
-            m.CycleFactor = Damage.Exposed(arm) ? 2f - Damage.StructureFraction(arm) : 1f;
+            m.Offline = Damage.IsDestroyed(m.Section);
+            if (!m.OnTorso) m.CycleFactor = Damage.Exposed(m.Section) ? 2f - Damage.StructureFraction(m.Section) : 1f;
         }
-        Locomotion.SpeedFactor = Damage.IsDestroyed(MechSection.Legs) ? Chassis.CrippledSpeedFactor
-            : Damage.Exposed(MechSection.Legs) ? Core.MathUtil.Lerp(Chassis.CrippledSpeedFactor, 1f, Damage.StructureFraction(MechSection.Legs))
-            : 1f;
-        Weapons.DissipationFactor = Damage.Exposed(MechSection.Torso) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Torso) : 1f;
+        float legs = 1f;
+        foreach (var leg in new[] { MechSection.LegLeft, MechSection.LegRight })
+        {
+            float f = Damage.IsDestroyed(leg) ? Chassis.CrippledSpeedFactor
+                : Damage.Exposed(leg) ? Core.MathUtil.Lerp(Chassis.CrippledSpeedFactor, 1f, Damage.StructureFraction(leg))
+                : 1f;
+            legs = MathF.Min(legs, f);
+        }
+        Locomotion.SpeedFactor = legs;
+        float sinks = Damage.Exposed(MechSection.Torso) ? 0.4f + 0.6f * Damage.StructureFraction(MechSection.Torso) : 1f;
+        foreach (var side in new[] { MechSection.TorsoLeft, MechSection.TorsoRight })
+            if (Damage.IsDestroyed(side)) sinks -= LostSideTorsoSinks;
+        Weapons.DissipationFactor = MathF.Max(0.1f, sinks);
         if (IsOut) Locomotion.Collapse(Locomotion.Secondary.RandomSigned() * 0.6f);
     }
 }

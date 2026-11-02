@@ -158,11 +158,12 @@ public sealed class MechChassis
     public bool Ecm;
 
     // Hit volumes (spheres). Torso/arms/legs from the prototype; the cockpit is a tiny sphere on the canopy glass.
+    // The torso sphere is the envelope the centre and side torso spheres are derived from (MechPoseSolver); the legs'
+    // radius covered both legs and now sizes one sphere per leg.
     public Vector3 TorsoHitOffset = new(0f, 1.2f, 0f);         // torso-local
     public float TorsoHitRadius = 2.4f;
     public Vector3 ArmHitOffset = new(0f, 0f, -1.7f);           // elbow-local (forearm)
     public float ArmHitRadius = 1.4f;
-    public float LegsHitDrop = 2.4f;                           // below the pelvis
     public float LegsHitRadius = 2.0f;
     public Vector3 CockpitHitOffset = new(0f, 0.05f, -0.7f);  // head-local, just in front of the torso sphere
     public float CockpitHitRadius = 0.09f; // was 0.12, which only passed the cockpit test through a ray-sphere precision error
@@ -475,7 +476,6 @@ public sealed class MechChassis
         TorsoHitRadius = 2.2f,
         ArmHitOffset = new Vector3(0f, 0f, -1.3f),
         ArmHitRadius = 1.15f,
-        LegsHitDrop = 2.6f,
         CockpitHitOffset = new Vector3(0f, 0.1f, -0.8f),
         CockpitHitRadius = 0.08f, // its head juts out of the torso sphere: no shield round the canopy, so a smaller window
         ShoulderCover = System.Array.Empty<ShoulderPlate>(), // weapon pods on bare pylons: nothing screens the hull
@@ -515,7 +515,6 @@ public sealed class MechChassis
         TorsoHitRadius = 1.95f,
         ArmHitOffset = new Vector3(0f, 0f, -1.4f),
         ArmHitRadius = 1.0f,
-        LegsHitDrop = 2.6f,
         LegsHitRadius = 1.8f,
         CockpitHitOffset = new Vector3(0f, 0.05f, -0.6f),
         CockpitHitRadius = 0.09f,
@@ -588,7 +587,6 @@ public sealed class MechChassis
         TorsoHitRadius = 2.6f,
         ArmHitOffset = new Vector3(0f, 0.1f, -1.5f),
         ArmHitRadius = 1.55f,
-        LegsHitDrop = 2.0f,
         LegsHitRadius = 2.1f,
         CockpitHitOffset = new Vector3(0f, 0f, -0.55f),
         CockpitHitRadius = 0.1f,
@@ -631,7 +629,6 @@ public sealed class MechChassis
         TorsoHitRadius = 2.75f,
         ArmHitOffset = new Vector3(0f, 0f, -1.7f),
         ArmHitRadius = 1.5f,
-        LegsHitDrop = 2.0f,
         LegsHitRadius = 2.2f,
         CockpitHitOffset = new Vector3(0f, 0f, -0.45f),
         CockpitHitRadius = 0.09f,
@@ -742,7 +739,6 @@ public sealed class MechChassis
         TorsoHitRadius *= s;
         ArmHitOffset *= s;
         ArmHitRadius *= s;
-        LegsHitDrop *= s;
         LegsHitRadius *= s;
         CockpitHitOffset *= s;
         CockpitHitRadius *= s;

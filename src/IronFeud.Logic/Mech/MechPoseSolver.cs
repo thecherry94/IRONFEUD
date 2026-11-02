@@ -95,10 +95,16 @@ public static class MechPoseSolver
 
         Quaternion headRot = torsoRot * pose.HeadRotation;
         Vector3 headPos = torsoPos + Vector3.Transform(t.HeadOffset, torsoRot);
-        pose.HitVolumes[(int)MechSection.Torso] = Sphere(MechSection.Torso, torsoPos + Vector3.Transform(t.TorsoHitOffset, torsoRot), t.TorsoHitRadius);
+        // The torso as three spheres across it: the centre one and a side torso either side (left = -x), sized from the
+        // chassis' torso sphere until the redesigned bodies bring their own.
+        float r = t.TorsoHitRadius;
+        pose.HitVolumes[(int)MechSection.Torso] = Sphere(MechSection.Torso, torsoPos + Vector3.Transform(t.TorsoHitOffset, torsoRot), CentreTorsoRadius * r);
+        pose.HitVolumes[(int)MechSection.TorsoLeft] = Sphere(MechSection.TorsoLeft,
+            torsoPos + Vector3.Transform(t.TorsoHitOffset - new Vector3(SideTorsoOffset * r, 0f, 0f), torsoRot), SideTorsoRadius * r);
+        pose.HitVolumes[(int)MechSection.TorsoRight] = Sphere(MechSection.TorsoRight,
+            torsoPos + Vector3.Transform(t.TorsoHitOffset + new Vector3(SideTorsoOffset * r, 0f, 0f), torsoRot), SideTorsoRadius * r);
         pose.HitVolumes[(int)MechSection.ArmLeft] = Sphere(MechSection.ArmLeft, Elbow(pose, 0, t.ArmHitOffset), t.ArmHitRadius);
         pose.HitVolumes[(int)MechSection.ArmRight] = Sphere(MechSection.ArmRight, Elbow(pose, 1, t.ArmHitOffset), t.ArmHitRadius);
-        pose.HitVolumes[(int)MechSection.Legs] = Sphere(MechSection.Legs, pose.PelvisPosition - new Vector3(0f, t.LegsHitDrop, 0f), t.LegsHitRadius);
         pose.HitVolumes[(int)MechSection.Cockpit] = Sphere(MechSection.Cockpit, headPos + Vector3.Transform(t.CockpitHitOffset, headRot), t.CockpitHitRadius);
 
         // Cover plates ride on the shoulders (left as defined, right mirrored) and belong to that arm.
@@ -169,8 +175,19 @@ public static class MechPoseSolver
                 lp.HockWorld = lp.AnkleWorld;
             }
             lp.FootWorld = footWorld;
+
+            // One sphere per leg around the middle of hip, knee and ankle (leg 0 = left).
+            var section = i == 0 ? MechSection.LegLeft : MechSection.LegRight;
+            pose.HitVolumes[(int)section] = Sphere(section, (lp.HipWorld + lp.KneeWorld + lp.AnkleWorld) / 3f, LegRadius * t.LegsHitRadius);
         }
     }
+
+    /// <summary>Torso spheres as fractions of <see cref="MechChassis.TorsoHitRadius"/>: the centre's radius, the side
+    /// torsos' radius and their sideways offset from the centre.</summary>
+    public const float CentreTorsoRadius = 0.8f, SideTorsoRadius = 0.6f, SideTorsoOffset = 0.6f; // 91 % of the old sphere's frontal area
+
+    /// <summary>Each leg's sphere as a fraction of <see cref="MechChassis.LegsHitRadius"/> (which covered both legs).</summary>
+    public const float LegRadius = 0.6f;
 
     /// <summary>
     /// The deliberate cheat: keep the IK's input well-posed instead of trusting it with anything. In the hip-root

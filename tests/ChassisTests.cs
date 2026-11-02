@@ -17,7 +17,8 @@ public class ChassisTests
         Assert.Equal(4.2f, c.VMax);
         Assert.Equal(5.75f, c.HipHeight);
         Assert.Equal(0.62f, c.DutyAt(c.VMax), 4);
-        Assert.Equal(100f, MechDamage.Create(c)[MechSection.Torso]);
+        Assert.Equal(100f, c.TorsoHp);
+        Assert.Equal(MechDamage.CentreShare * 100f, MechDamage.Create(c)[MechSection.Torso]);
     }
 
     [Theory]

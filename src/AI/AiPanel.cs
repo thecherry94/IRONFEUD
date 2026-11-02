@@ -103,7 +103,8 @@ public partial class AiPanel : CanvasLayer
         float heat = sim.Weapons.Heat;
         float limit = ai?.Personality.HeatLimit ?? 1f;
         sb.Append($"[code]HEAT    [color={(heat > limit ? "#ff3a2a" : "#ff8a2a")}]{Bar(heat, 14)}[/color] {heat * 100f:0}%[/code]{(ai != null ? $"  limit {limit * 100f:0}%" : "")}\n");
-        foreach (var (name, s) in new[] { ("TORSO", MechSection.Torso), ("ARM L", MechSection.ArmLeft), ("ARM R", MechSection.ArmRight), ("LEGS", MechSection.Legs), ("CKPT", MechSection.Cockpit) })
+        foreach (var (name, s) in new[] { ("CKPT", MechSection.Cockpit), ("TORSO L", MechSection.TorsoLeft), ("TORSO C", MechSection.Torso), ("TORSO R", MechSection.TorsoRight),
+                     ("ARM L", MechSection.ArmLeft), ("ARM R", MechSection.ArmRight), ("LEG L", MechSection.LegLeft), ("LEG R", MechSection.LegRight) })
         {
             // Two bars: armour (grey-blue) and the fragile structure under it (green / amber / red once exposed).
             int i = (int)s;

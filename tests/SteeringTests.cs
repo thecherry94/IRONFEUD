@@ -29,7 +29,7 @@ public class SteeringTests
     private static MechDamage Tough(MechChassis c)
     {
         var d = MechDamage.Create(c);
-        foreach (var s in new[] { MechSection.Torso, MechSection.Legs, MechSection.ArmLeft, MechSection.ArmRight, MechSection.Cockpit })
+        foreach (var s in Enum.GetValues<MechSection>())
             d.Set(s, d.MaxArmor[(int)s], 1e6f);
         return d;
     }
@@ -154,7 +154,7 @@ public class SteeringTests
     }
 
     /// <summary>The watch-mode lance (Main.SpawnTeams, light and medium alternating by seed) on No Man's Land or the hills arena.</summary>
-    private static BattleSim WatchLance(uint seed, bool hills)
+    internal static BattleSim WatchLance(uint seed, bool hills)
     {
         var b = new BattleSim(hills ? ArenaMap.Arena(seed) : ArenaMap.NoMansLand(seed), seed * 31u + 1u) { TrackOutcome = false };
         foreach (var (team, sign) in new[] { (0, 1f), (1, -1f) })

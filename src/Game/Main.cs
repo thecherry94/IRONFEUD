@@ -280,7 +280,7 @@ public partial class Main : Node3D
         }
     }
 
-    /// <summary>Scripted shooting for captures: cockpit kill, torso kill, arm and legs off.</summary>
+    /// <summary>Scripted shooting for captures: cockpit kill, torso kill, arm and a leg off.</summary>
     private void AddRangeDemo()
     {
         var t = _battlefield.Mechs;
@@ -288,7 +288,7 @@ public partial class Main : Node3D
         demo.Tasks.Add((t[1], MechSection.Cockpit, 0b01u));
         demo.Tasks.Add((t[2], MechSection.Torso, 0b11u));
         demo.Tasks.Add((t[3], MechSection.ArmLeft, 0b10u));
-        demo.Tasks.Add((t[3], MechSection.Legs, 0b01u));
+        demo.Tasks.Add((t[3], MechSection.LegLeft, 0b01u));
         _session!.AddChild(demo);
     }
 

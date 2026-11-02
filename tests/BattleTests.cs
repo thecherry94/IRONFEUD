@@ -121,7 +121,7 @@ public class BattleTests
         var (shooter, target) = TrackAndFire(MechChassis.Medium(), 4f);
         Assert.Equal(1, shooter.Stats.Shots);
         Assert.Equal(1, shooter.Stats.Hits);
-        Assert.Equal(target.Chassis.TorsoHp - WeaponSpec.Laser.Damage, target.Sim.Damage[MechSection.Torso], 2);
+        Assert.Equal(target.Sim.Damage.Max(MechSection.Torso) - WeaponSpec.Laser.Damage, target.Sim.Damage[MechSection.Torso], 2);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class BattleTests
         float atHalf = 0f;
         var (_, target) = TrackAndFire(MechChassis.Medium(), 4f, (b, i) =>
         {
-            if (i == 240 + (int)(120 * WeaponSpec.Laser.BurnTime / 2)) atHalf = b.Units[1].Chassis.TorsoHp - b.Units[1].Sim.Damage[MechSection.Torso];
+            if (i == 240 + (int)(120 * WeaponSpec.Laser.BurnTime / 2)) atHalf = b.Units[1].Sim.Damage.Max(MechSection.Torso) - b.Units[1].Sim.Damage[MechSection.Torso];
         });
         Assert.InRange(atHalf / WeaponSpec.Laser.Damage, 0.4f, 0.6f);
     }
@@ -142,7 +142,7 @@ public class BattleTests
         {
             if (i == 240 + 60) b.ApplyHit(b.Units[0], MechSection.ArmLeft, 1000f, Vector3.Zero, null);
         });
-        float dealt = target.Chassis.TorsoHp - target.Sim.Damage[MechSection.Torso];
+        float dealt = target.Sim.Damage.Max(MechSection.Torso) - target.Sim.Damage[MechSection.Torso];
         Assert.InRange(dealt / WeaponSpec.Laser.Damage, 0.3f, 0.5f);
         Assert.True(shooter.Sim.Weapons.Mounts[1].Offline);
     }
@@ -155,7 +155,7 @@ public class BattleTests
         var (shooter, target) = TrackAndFire(light, 3f);
         Assert.Equal(WeaponSpec.PulseLaser.Pulses, shooter.Stats.Shots);
         Assert.Equal(WeaponSpec.PulseLaser.Pulses, shooter.Stats.Hits);
-        Assert.Equal(target.Chassis.TorsoHp - WeaponSpec.PulseLaser.Damage, target.Sim.Damage[MechSection.Torso], 2);
+        Assert.Equal(target.Sim.Damage.Max(MechSection.Torso) - WeaponSpec.PulseLaser.Damage, target.Sim.Damage[MechSection.Torso], 2);
     }
 
     /// <summary>
@@ -209,7 +209,8 @@ public class BattleTests
         Vector3 dir = Vector3.Normalize(aim + Vector3.UnitY * (0.5f * spec.Gravity * t * t) - from);
         b.Shells.Add(new Shell { Id = 1, State = Projectile.From(new ShotFired { Spec = spec, Origin = from, Direction = dir }), Owner = gunner });
         for (int i = 0; i < 120 * 3; i++) b.Step(H);
-        float taken = target.Chassis.TorsoHp - target.Sim.Damage[MechSection.Torso];
+        float taken = 0f; // a shot from the side strikes the side torso
+        foreach (var s in Enum.GetValues<MechSection>()) taken += target.Sim.Damage.Max(s) - target.Sim.Damage[s];
         Assert.Equal(spec.Damage * fraction, taken, 0);
     }
 
@@ -262,7 +263,7 @@ public class BattleTests
             var dying = MechChassis.Medium(MechModel.Sicklefoot);
             var dyingDamage = MechDamage.Create(dying);
             dyingDamage.Set(MechSection.Torso, 0f, 0.1f * dying.TorsoHp); // plates gone, a sliver of structure left
-            dyingDamage.RearArmor = 0f;
+            dyingDamage.RearArmor[(int)MechSection.Torso] = 0f;
             b.AddUnit("M", 1, dying, new Vector3(0, 0, -230), MathF.PI, Personality.Sniper, dyingDamage);
             var light = b.AddUnit("L", 1, MechChassis.Light(), new Vector3(30, 0, 330), MathF.PI, Personality.Brawler);
             for (int i = 0; i < 120 * 20 && !heavy.IsOut && !light.IsOut; i++)
@@ -351,7 +352,7 @@ public class BattleTests
         for (int i = 0; i < 120 * 2; i++) b.Step(H);
         Assert.True(shooter.Stats.Shots >= 2);
         Assert.Equal(0, shooter.Stats.Hits);
-        Assert.Equal(target.Chassis.TorsoHp, target.Sim.Damage[MechSection.Torso]);
+        Assert.Equal(target.Sim.Damage.Max(MechSection.Torso), target.Sim.Damage[MechSection.Torso]);
     }
 
     [Fact]

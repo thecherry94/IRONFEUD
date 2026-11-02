@@ -25,7 +25,7 @@ public class JumpAiTests
     private static MechDamage Tough(MechChassis c)
     {
         var d = MechDamage.Create(c);
-        foreach (var s in new[] { MechSection.Torso, MechSection.Legs, MechSection.ArmLeft, MechSection.ArmRight, MechSection.Cockpit })
+        foreach (var s in Enum.GetValues<MechSection>())
             d.Set(s, d.MaxArmor[(int)s], 1e6f);
         return d;
     }
@@ -122,8 +122,8 @@ public class JumpAiTests
             b.Step(H);
             dodged |= m.Ai!.Jump == JumpPlan.Dodge;
         }
-        _out.WriteLine($"dodge {dodged}, torso {m.Sim.Damage[MechSection.Torso]:0}/{m.Chassis.TorsoHp:0}");
+        _out.WriteLine($"dodge {dodged}, torso {m.Sim.Damage[MechSection.Torso]:0}/{m.Sim.Damage.Max(MechSection.Torso):0}");
         Assert.True(dodged, "it should hop");
-        Assert.Equal(m.Chassis.TorsoHp, m.Sim.Damage[MechSection.Torso]);
+        Assert.Equal(m.Sim.Damage.Max(MechSection.Torso), m.Sim.Damage[MechSection.Torso]);
     }
 }

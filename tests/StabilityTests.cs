@@ -18,7 +18,7 @@ public class StabilityTests
     private static MechSim Tough(MechChassis c)
     {
         var d = MechDamage.Create(c);
-        foreach (var s in new[] { MechSection.Torso, MechSection.Legs, MechSection.ArmLeft, MechSection.ArmRight, MechSection.Cockpit })
+        foreach (var s in Enum.GetValues<MechSection>())
             d.Set(s, d.MaxArmor[(int)s], 1e6f);
         return new MechSim(c, damage: d);
     }

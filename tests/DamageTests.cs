@@ -130,7 +130,7 @@ public class DamageTests
     public void FrontalShots_HitTheExpectedSections()
     {
         var sim = NewSim();
-        foreach (var s in new[] { MechSection.Torso, MechSection.ArmLeft, MechSection.ArmRight, MechSection.Legs })
+        foreach (var s in new[] { MechSection.Torso, MechSection.ArmLeft, MechSection.ArmRight, MechSection.LegLeft, MechSection.LegRight })
         {
             var v = Volume(sim, s);
             Assert.True(sim.Raycast(v.Center + new Vector3(0, 0, -100), Vector3.UnitZ, 200f, out var hit));
@@ -148,7 +148,7 @@ public class DamageTests
         Assert.True(r.SectionDestroyed);
         Assert.Equal(MechStatus.PilotKilled, r.StatusAfter);
         Assert.True(sim.IsOut);
-        Assert.Equal(100f, sim.Damage[MechSection.Torso]); // the frame is intact: salvageable
+        Assert.Equal(sim.Damage.Max(MechSection.Torso), sim.Damage[MechSection.Torso]); // the frame is intact: salvageable
         Assert.True(sim.ApplyHit(MechSection.Torso, 50f).Ignored);
     }
 
@@ -165,7 +165,7 @@ public class DamageTests
     }
 
     [Fact]
-    public void DestroyedArm_TakesItsWeaponOffline_AndPassesDamageToTorso()
+    public void DestroyedArm_TakesItsWeaponOffline_AndPassesDamageToItsSideTorso()
     {
         var sim = NewSim();
         var r = sim.ApplyHit(MechSection.ArmRight, 45f);
@@ -177,15 +177,17 @@ public class DamageTests
         Assert.Equal("Laser", Assert.Single(sim.Shots).Spec.Name);
 
         r = sim.ApplyHit(MechSection.ArmRight, 10f);
-        Assert.Equal(MechSection.Torso, r.Applied);
-        Assert.Equal(90f, sim.Damage[MechSection.Torso]);
+        Assert.Equal(MechSection.TorsoRight, r.Applied);
+        Assert.Equal(sim.Damage.Max(MechSection.TorsoRight) - 10f, sim.Damage[MechSection.TorsoRight], 3);
+        Assert.Equal(sim.Damage.Max(MechSection.Torso), sim.Damage[MechSection.Torso]);
     }
 
     [Fact]
-    public void DestroyedLegs_CapSpeed()
+    public void ADestroyedLeg_CapsSpeed_ButDoesNotKill()
     {
         var sim = NewSim();
-        sim.ApplyHit(MechSection.Legs, 70f);
+        Assert.True(sim.ApplyHit(MechSection.LegLeft, 70f).SectionDestroyed);
+        Assert.False(sim.IsOut);
         Run(sim, new MechInput { Throttle = 1f }, 6f);
         Assert.Equal(4.2f * 0.45f, sim.Locomotion.Body.V, 3);
     }
@@ -222,7 +224,7 @@ public class DamageTests
 
         var sim = NewSim(damage);
         Assert.True(sim.Weapons.Mounts[1].Offline); // laser, left arm
-        Assert.Equal(chassis.TorsoHp - 30f, sim.Damage[MechSection.Torso]);
+        Assert.Equal(MechDamage.CentreShare * chassis.TorsoHp - 30f, sim.Damage[MechSection.Torso], 3);
         Assert.False(sim.IsOut);
     }
 
@@ -231,7 +233,8 @@ public class DamageTests
     {
         // The mech faces -Z: a shot travelling -Z came from behind, +Z from the front, ±X from a side.
         var d0 = MechDamage.Create(new MechChassis());
-        Assert.True(d0.MaxRearArmor < 0.35f * d0.MaxArmor[(int)MechSection.Torso], "the rear plate is thin");
+        foreach (var s in new[] { MechSection.Torso, MechSection.TorsoLeft, MechSection.TorsoRight })
+            Assert.True(d0.MaxRearArmor[(int)s] > 0f && d0.MaxRearArmor[(int)s] < 0.35f * d0.MaxArmor[(int)s], $"{s}: the rear plate is thin");
         DamageReport Hit(Vector3 travel, MechSection s = MechSection.Torso) => NewSim().ApplyHit(s, 20f, travel);
         var rear = Hit(-Vector3.UnitZ);
         Assert.Equal(Facing.Rear, rear.Facing);
@@ -261,12 +264,12 @@ public class DamageTests
     {
         var sim = NewSim();
         var d = sim.Damage;
-        float legArmor = d.Armor[(int)MechSection.Legs];
-        var r = sim.ApplyHit(MechSection.Legs, legArmor - 1f);
+        float legArmor = d.Armor[(int)MechSection.LegLeft];
+        var r = sim.ApplyHit(MechSection.LegLeft, legArmor - 1f);
         Assert.Equal(0f, r.ToStructure);
         Assert.Equal(1f, sim.Locomotion.SpeedFactor); // armour gone almost entirely, legs still fine
-        sim.ApplyHit(MechSection.Legs, 1f + 0.5f * d.MaxStructure[(int)MechSection.Legs]);
-        Assert.True(d.Exposed(MechSection.Legs));
+        sim.ApplyHit(MechSection.LegLeft, 1f + 0.5f * d.MaxStructure[(int)MechSection.LegLeft]);
+        Assert.True(d.Exposed(MechSection.LegLeft));
         Assert.InRange(sim.Locomotion.SpeedFactor, sim.Chassis.CrippledSpeedFactor + 0.01f, 0.99f); // limping
 
         sim.ApplyHit(MechSection.ArmRight, d.Armor[(int)MechSection.ArmRight] + 0.5f * d.MaxStructure[(int)MechSection.ArmRight]);

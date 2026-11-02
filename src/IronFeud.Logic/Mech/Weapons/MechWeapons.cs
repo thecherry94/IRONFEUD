@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using IronFeud.Logic.Mech.Damage;
 
 namespace IronFeud.Logic.Mech.Weapons;
 
@@ -13,10 +14,14 @@ public sealed class WeaponMount
     public readonly int Arm;
 
     public bool OnTorso => Arm < 0;
+
+    /// <summary>The damage section carrying it: its arm, or the torso section the rack sits in.</summary>
+    public readonly MechSection Section;
+
     public readonly Vector3 Offset;
     public float Cooldown;
 
-    /// <summary>The arm carrying it is destroyed.</summary>
+    /// <summary>The section carrying it is destroyed.</summary>
     public bool Offline;
 
     /// <summary>Seconds left of the current burn (burn lasers).</summary>
@@ -31,11 +36,13 @@ public sealed class WeaponMount
     /// <summary>Cooldown multiplier from damage to the arm's internals (1 = intact, up to 2).</summary>
     public float CycleFactor = 1f;
 
-    public WeaponMount(WeaponSpec spec, int arm, Vector3 offset)
+    /// <param name="section">For torso mounts (arm -1): the torso section it sits in; arms always use their arm.</param>
+    public WeaponMount(WeaponSpec spec, int arm, Vector3 offset, MechSection section = MechSection.Torso)
     {
         Spec = spec;
         Arm = arm;
         Offset = offset;
+        Section = arm == 0 ? MechSection.ArmLeft : arm == 1 ? MechSection.ArmRight : section;
     }
 
     public int Side => Arm == 0 ? +1 : Arm == 1 ? -1 : 0;
@@ -91,9 +98,14 @@ public sealed class MechWeapons
         var w = new MechWeapons { Heat = t.HeatStart };
         w.Mounts.Add(new WeaponMount(t.RightArmWeapon, 1, t.RightArmMount - Vector3.UnitZ * (t.RightArmWeapon.Length * t.Scale)));
         w.Mounts.Add(new WeaponMount(t.LeftArmWeapon, 0, t.LeftArmMount - Vector3.UnitZ * (t.LeftArmWeapon.Length * t.Scale)));
-        if (t.TorsoWeapon is { } rack) w.Mounts.Add(new WeaponMount(rack, -1, t.TorsoMount - Vector3.UnitZ * (rack.Length * t.Scale)));
+        if (t.TorsoWeapon is { } rack)
+            w.Mounts.Add(new WeaponMount(rack, -1, t.TorsoMount - Vector3.UnitZ * (rack.Length * t.Scale), TorsoSectionAt(t.TorsoMount.X, t.Scale)));
         return w;
     }
+
+    /// <summary>The torso section a torso-local x falls in: a side torso unless within 0.3 m (medium size) of the middle; left = -x.</summary>
+    public static MechSection TorsoSectionAt(float x, float scale) =>
+        x < -0.3f * scale ? MechSection.TorsoLeft : x > 0.3f * scale ? MechSection.TorsoRight : MechSection.Torso;
 
     public Vector3 MuzzlePosition(int weapon, MechPose pose)
     {
