@@ -8,10 +8,13 @@ namespace IronFeud.Game;
 
 /// <summary>
 /// Keyboard/mouse pilot. Writes only <see cref="MechInput"/>, exactly like an AI pilot will.
-/// W/S ramp a held throttle, X zeroes it, A/D turn the legs, the mouse position sets twist and aim.
+/// W/S ramp a held throttle, X zeroes it, A/D turn the legs.
+/// Aiming (the genre's scheme): the mouse turns the pilot's aim direction (relative motion, captured cursor); the chase
+/// and cockpit cameras look exactly along it, so the aim point stays at the centre of the screen and never jumps. The
+/// torso and arms then turn toward the point it lands on at their own rates; the HUD shows where the guns really point.
+/// The aim stays fixed in the world while the legs turn under it, and can't swing past what twist plus the arm cone reach.
 /// Weapon groups: 1-6 (LMB / RMB / MMB = 1 / 2 / 3) hold a group's trigger; [ ] pick a weapon, Shift+N puts it in or
-/// takes it out of group N, Ctrl+N switches group N between alpha and chain fire. Weapons converge where the torso aim
-/// ray hits the world.
+/// takes it out of group N, Ctrl+N switches group N between alpha and chain fire.
 /// </summary>
 public partial class PlayerMechController : Node
 {
@@ -21,6 +24,14 @@ public partial class PlayerMechController : Node
 
     private float _throttle, _twistTarget, _aimTarget;
 
+    /// <summary>The pilot's aim: world yaw (+ = left) and pitch (+ = up), radians; NaN until the first tick.</summary>
+    private float _aimYaw = float.NaN, _aimPitch;
+
+    /// <summary>Distance to the aim point, smoothed (a ray sliding off a mech onto far ground doesn't snap the guns).</summary>
+    private float _aimDistance = 200f;
+
+    private const float MouseRadPerPixel = 0.0022f;
+
     /// <summary>The pilot's weapon groups (defaults from the loadout).</summary>
     public WeaponGroups Groups { get; private set; } = new();
 
@@ -29,40 +40,43 @@ public partial class PlayerMechController : Node
 
     private const float MaxConvergence = 800f, MinConvergence = 15f;
 
-    /// <summary>Where the torso aim ray meets the world this tick (the torso weapons' reticle).</summary>
-    public Vector3 AimPoint => AimHit.Point;
-
-    /// <summary>What the torso aim ray is on: geometry, or a mech section.</summary>
+    /// <summary>What the pilot's aim is on (centre of the screen): geometry, or a mech section.</summary>
     public BattleHit AimHit { get; private set; }
 
-    /// <summary>Where the arms' aim ray meets the world (the arm weapons' reticle, and the convergence distance).</summary>
-    public BattleHit ArmAimHit { get; private set; }
+    /// <summary>The pilot's aim direction (world): the cameras look along it.</summary>
+    public Vector3 AimDirection => Dir(float.IsNaN(_aimYaw) ? 0f : _aimYaw, _aimPitch);
+
+    /// <summary>The pilot's aim point (smoothed distance): the centre of the screen in the chase and cockpit views.</summary>
+    public Vector3 PilotAimPoint { get; private set; }
+
+    /// <summary>Where the torso weapons point (on their ray, at the aim distance): the torso reticle.</summary>
+    public Vector3 TorsoAimPoint { get; private set; }
+
+    /// <summary>Where the arm weapons point: the arm reticle.</summary>
+    public Vector3 ArmAimPoint { get; private set; }
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;
         ProcessPhysicsPriority = -100;
         GameInput.Ensure();
-        Input.MouseMode = Input.MouseModeEnum.Confined;
+        Input.MouseMode = Input.MouseModeEnum.Captured;
         if (Mech != null) Groups = WeaponGroups.Default(Mech.Sim.Weapons);
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e is InputEventMouseMotion motion && FlyingView && Input.MouseMode == Input.MouseModeEnum.Confined)
+        if (e is InputEventMouseMotion motion && FlyingView && Input.MouseMode == Input.MouseModeEnum.Captured && !float.IsNaN(_aimYaw) && !_autopilot)
         {
-            // Absolute mouse position maps to twist/aim targets, as in the prototype.
-            var t = Mech?.Locomotion.Chassis;
-            if (t == null) return;
-            Vector2 size = GetViewport().GetVisibleRect().Size;
-            float nx = motion.Position.X / size.X * 2f - 1f, ny = motion.Position.Y / size.Y * 2f - 1f;
-            _twistTarget = Mathf.Clamp(-(Mathf.Abs(nx) < 0.04f ? 0f : nx) * t.TwistMax * 1.1f, -t.TwistMax, t.TwistMax);
-            _aimTarget = Mathf.Clamp(-ny * 0.55f + 0.05f, t.AimMin, t.AimMax);
+            // Capturing the cursor can report one huge jump (the pointer warped to the window centre): not a hand.
+            if (motion.Relative.LengthSquared() > 250f * 250f) return;
+            _aimYaw -= motion.Relative.X * MouseRadPerPixel;
+            _aimPitch -= motion.Relative.Y * MouseRadPerPixel;
             return;
         }
-        if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Confined)
+        if (e is InputEventMouseButton { Pressed: true } && Input.MouseMode != Input.MouseModeEnum.Captured)
         {
-            Input.MouseMode = Input.MouseModeEnum.Confined;
+            Input.MouseMode = Input.MouseModeEnum.Captured;
             return;
         }
         if (!e.IsPressed() || e.IsEcho()) return;
@@ -79,7 +93,7 @@ public partial class PlayerMechController : Node
         if (e.IsAction("weapon_next") && weapons > 0) SelectedWeapon = (SelectedWeapon + 1) % weapons;
         else if (e.IsAction("weapon_prev") && weapons > 0) SelectedWeapon = (SelectedWeapon + weapons - 1) % weapons;
         else if (e.IsAction("full_stop")) _throttle = 0f;
-        else if (e.IsAction("center_torso")) _twistTarget = 0f;
+        else if (e.IsAction("center_torso") && Mech != null) _aimYaw = Mech.Locomotion.Body.Psi;
         else if (e.IsAction("release_mouse")) Input.MouseMode = Input.MouseModeEnum.Visible;
     }
 
@@ -92,10 +106,20 @@ public partial class PlayerMechController : Node
         if (Input.IsActionPressed("throttle_up")) _throttle = Mathf.Min(1f, _throttle + 0.8f * h);
         if (Input.IsActionPressed("throttle_down")) _throttle = Mathf.Max(-1f, _throttle - 0.8f * h);
         float turn = Input.GetAxis("turn_right", "turn_left");
-        _twistTarget = Mathf.Clamp(_twistTarget + Input.GetAxis("twist_right", "twist_left") * 1.4f * h, -t.TwistMax, t.TwistMax);
-        _aimTarget = Mathf.Clamp(_aimTarget + Input.GetAxis("aim_down", "aim_up") * 0.5f * h, t.AimMin, t.AimMax);
+        var body = Mech.Locomotion.Body;
+        if (float.IsNaN(_aimYaw))
+        {
+            _aimYaw = body.Psi + body.Twist;
+            _aimPitch = body.Aim;
+        }
+        _aimYaw += Input.GetAxis("twist_right", "twist_left") * 1.4f * h;
+        _aimPitch += Input.GetAxis("aim_down", "aim_up") * 0.5f * h;
+        // The aim can't swing past what the torso twist plus the arm cone reach; past that it rides along with the legs.
+        float reach = t.TwistMax + t.ArmYawMax, rel = Mathf.Wrap(_aimYaw - body.Psi, -Mathf.Pi, Mathf.Pi);
+        if (Mathf.Abs(rel) > reach) _aimYaw = body.Psi + Mathf.Sign(rel) * reach;
+        _aimPitch = Mathf.Clamp(_aimPitch, t.AimMin - t.ArmPitchMax, t.AimMax + t.ArmPitchMax);
 
-        bool triggersLive = FlyingView && Input.MouseMode == Input.MouseModeEnum.Confined;
+        bool triggersLive = FlyingView && Input.MouseMode == Input.MouseModeEnum.Captured;
         bool jump = Input.IsActionPressed("jump");
         // Held group triggers (not while Shift or Ctrl edits the groups).
         uint held = 0;
@@ -116,13 +140,25 @@ public partial class PlayerMechController : Node
             jump = _autopilotTime is > 2f and < 2.4f or > 7f and < 7.7f or > 12f and < 13.2f;
         }
 
-        // Converge on whatever the arms' aim ray hits (where the pilot is pointing; the torso follows), mechs included
-        // (last tick's pose; one tick of lag is invisible). The torso ray gets its own reticle.
+        // The aim point: along the pilot's aim from the camera when it is flying this mech (so it sits at the centre of
+        // the screen), else from the mech's aim origin. Mechs included; last tick's pose (one tick of lag is invisible).
         var pose = Mech.Sim.Pose;
-        Vector3 from = pose.AimOrigin.ToGodot();
-        AimHit = Cast(from, pose.AimDirection.ToGodot());
-        var aim = ArmAimHit = Cast(from, pose.ArmAimDirection.ToGodot());
-        float convergence = Mathf.Max(MinConvergence, aim.Distance);
+        Vector3 origin = pose.AimOrigin.ToGodot();
+        Vector3 eye = FlyingView && Camera != null ? Camera.GlobalPosition : origin, dir = AimDirection;
+        var aim = AimHit = Cast(eye, dir);
+        _aimDistance = Mathf.Lerp(_aimDistance, aim.Distance, 1f - Mathf.Exp(-8f * h));
+        Vector3 aimPoint = eye + dir * _aimDistance, toAim = aimPoint - origin;
+        PilotAimPoint = aimPoint;
+        float convergence = Mathf.Clamp(toAim.Length(), MinConvergence, MaxConvergence);
+        if (!_autopilot)
+        {
+            // Torso and arms turn toward the aim point (the targets may lie past the torso's twist: the arms reach on).
+            Vector3 want = toAim.Normalized();
+            _twistTarget = Mathf.Wrap(Mathf.Atan2(-want.X, -want.Z) - body.Psi, -Mathf.Pi, Mathf.Pi);
+            _aimTarget = Mathf.Asin(Mathf.Clamp(want.Y, -1f, 1f));
+        }
+        TorsoAimPoint = origin + pose.AimDirection.ToGodot() * convergence;
+        ArmAimPoint = origin + pose.ArmAimDirection.ToGodot() * convergence;
 
         Mech.PilotInput = new MechInput
         {
@@ -144,6 +180,9 @@ public partial class PlayerMechController : Node
         else if ((_lockSeen += h) > 2f) _lockCandidate = null;
         Mech.Unit.LockCandidate = _lockCandidate?.Unit;
     }
+
+    private static Vector3 Dir(float yaw, float pitch) =>
+        new Vector3(-Mathf.Sin(yaw), 0f, -Mathf.Cos(yaw)) * Mathf.Cos(pitch) + Vector3.Up * Mathf.Sin(pitch);
 
     private BattleHit Cast(Vector3 from, Vector3 dir)
     {

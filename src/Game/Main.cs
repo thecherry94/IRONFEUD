@@ -200,6 +200,7 @@ public partial class Main : Node3D
         if (_player != null)
         {
             pilot = new PlayerMechController { Name = "Pilot", Mech = _player, Camera = _camera, Battlefield = _battlefield };
+            _camera.Pilot = pilot;
             _session.AddChild(pilot);
         }
         else Input.MouseMode = Input.MouseModeEnum.Visible;

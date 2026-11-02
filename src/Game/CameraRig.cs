@@ -17,6 +17,9 @@ public partial class CameraRig : Camera3D
 {
     public CameraMode Mode { get; private set; } = CameraMode.Chase;
 
+    /// <summary>The player's pilot: chase and cockpit views of its mech look exactly along its aim.</summary>
+    public PlayerMechController? Pilot;
+
     /// <summary>Mechs the overview frames.</summary>
     public IReadOnlyList<MechNode>? Mechs;
 
@@ -126,6 +129,30 @@ public partial class CameraRig : Camera3D
                 var c = new Vector3(pelvis.X, body.Position.Y + 5.2f * k, pelvis.Z);
                 var offset = new Vector3(Mathf.Sin(_phi) * Mathf.Sin(_theta), Mathf.Cos(_phi), Mathf.Sin(_phi) * Mathf.Cos(_theta));
                 LookAtFromPosition(c + offset * (_radius * k), c, Vector3.Up);
+                break;
+            }
+            case CameraMode.Chase when Pilot?.Mech == _target:
+            {
+                // Over the shoulder, looking exactly along the pilot's aim: the aim point is the centre of the screen.
+                // Only the position is smoothed; the view direction is the aim itself.
+                Vector3 look = Pilot.AimDirection, flat = new Vector3(look.X, 0f, look.Z).Normalized();
+                Vector3 side = flat.Cross(Vector3.Up);
+                Vector3 wantPos = new Vector3(pelvis.X, body.Position.Y, pelvis.Z) + (-flat * 21f + side * 3.5f + Vector3.Up * (13f - look.Y * 6f)) * k;
+                if (!_chaseInit)
+                {
+                    _chasePos = wantPos;
+                    _chaseInit = true;
+                }
+                _chasePos = _chasePos.Lerp(wantPos, 1f - Mathf.Exp(-dt * 6f));
+                Vector3 at = _chasePos + Vector3.Up * (0.35f * pose.Jank);
+                LookAtFromPosition(at, at + look, Vector3.Up);
+                RotateObjectLocal(Vector3.Back, 0.006f * pose.Jank);
+                break;
+            }
+            case CameraMode.Cockpit when Pilot?.Mech == _target:
+            {
+                Vector3 at = _target.Rig.CamMount.GlobalPosition;
+                LookAtFromPosition(at, at + Pilot.AimDirection, Vector3.Up);
                 break;
             }
             case CameraMode.Chase:

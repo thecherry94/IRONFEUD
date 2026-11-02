@@ -76,10 +76,11 @@ public static class BodyKinematics
         float aimT = MathUtil.Clamp(input.AimTarget, t.AimMin, t.AimMax);
         s.Twist += MathUtil.Clamp(twistT - s.Twist, -t.TwistRate * h, t.TwistRate * h);
         s.Aim += MathUtil.Clamp(aimT - s.Aim, -t.AimRate * h, t.AimRate * h);
-        // The arms make up what the torso hasn't yet, within their cone, at their own (faster) rate.
+        // The arms make up what the torso hasn't yet, within their cone, at their own (faster) rate; past the torso's
+        // twist and pitch limits they reach on toward an unclamped target.
         float armRate = t.ArmRate * h;
-        float armYawT = MathUtil.Clamp(twistT - s.Twist, -t.ArmYawMax, t.ArmYawMax);
-        float armPitchT = MathUtil.Clamp(aimT - s.Aim, -t.ArmPitchMax, t.ArmPitchMax);
+        float armYawT = MathUtil.Clamp(input.TwistTarget - s.Twist, -t.ArmYawMax, t.ArmYawMax);
+        float armPitchT = MathUtil.Clamp(input.AimTarget - s.Aim, -t.ArmPitchMax, t.ArmPitchMax);
         s.ArmYaw += MathUtil.Clamp(armYawT - s.ArmYaw, -armRate, armRate);
         s.ArmPitch += MathUtil.Clamp(armPitchT - s.ArmPitch, -armRate, armRate);
     }

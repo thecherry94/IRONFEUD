@@ -22,7 +22,7 @@ public partial class Hud : CanvasLayer
     private ColorRect _jetBack = null!, _jetBar = null!;
     private static readonly Color JetColor = new("5ad8ff"), JetLowColor = new("2a6a80");
     private const float JetBarWidth = 70f;
-    private Reticle _reticle = null!, _torsoReticle = null!;
+    private Reticle _reticle = null!, _torsoReticle = null!, _aimDot = null!;
     private RichTextLabel _weapons = null!;
     private double _uiTimer, _time;
     // A burning beam lands a sliver of damage every tick: those merge into one line (same attacker, target and
@@ -42,11 +42,11 @@ public partial class Hud : CanvasLayer
         [MechSection.LegLeft] = "left leg", [MechSection.LegRight] = "right leg", [MechSection.Cockpit] = "cockpit",
     };
 
-    /// <summary>A circle with a dot (the arm weapons' aim), or a cross (the torso's).</summary>
+    /// <summary>A circle with a dot (the arm weapons' aim), a cross (the torso's), or a small dot (the pilot's aim point).</summary>
     private partial class Reticle : Control
     {
         private bool _hot;
-        public bool Cross;
+        public bool Cross, Dot;
 
         public bool Hot
         {
@@ -57,6 +57,12 @@ public partial class Hud : CanvasLayer
         public override void _Draw()
         {
             var c = _hot ? new Color(1f, 0.35f, 0.23f, 0.9f) : new Color(0.49f, 1f, 0.69f, 0.85f);
+            if (Dot)
+            {
+                DrawCircle(Vector2.Zero, 2.5f, new Color(1f, 1f, 1f, 0.85f));
+                DrawArc(Vector2.Zero, 4.5f, 0f, Mathf.Tau, 16, new Color(0f, 0f, 0f, 0.5f), 1.5f, true);
+                return;
+            }
             if (Cross)
             {
                 foreach (var d in new[] { Vector2.Right, Vector2.Left, Vector2.Up, Vector2.Down })
@@ -122,6 +128,8 @@ public partial class Hud : CanvasLayer
         AddChild(_reticle);
         _torsoReticle = new Reticle { MouseFilter = Control.MouseFilterEnum.Ignore, Cross = true };
         AddChild(_torsoReticle);
+        _aimDot = new Reticle { MouseFilter = Control.MouseFilterEnum.Ignore, Dot = true };
+        AddChild(_aimDot);
 
         // Weapon panel, bottom right: each weapon with its groups, rounds and state; the groups' fire modes under it.
         _weapons = new RichTextLabel
@@ -190,12 +198,12 @@ public partial class Hud : CanvasLayer
                 if (_time - t < FeedLifetime) feed.Append(line).Append('\n');
             _feed.Text = feed.ToString();
         }
-        _reticle.Visible = _torsoReticle.Visible = false;
+        _reticle.Visible = _torsoReticle.Visible = _aimDot.Visible = false;
         if (Camera == null || Pilot == null || !IsInstanceValid(Mech) || Mech!.Sim is not { } sim) return;
         var weapons = sim.Weapons;
 
         bool flying = Camera.Mode is CameraMode.Chase or CameraMode.Cockpit && Camera.Target == Mech && !sim.IsOut;
-        foreach (var (reticle, point) in new[] { (_reticle, Pilot.ArmAimHit.Point), (_torsoReticle, Pilot.AimPoint) })
+        foreach (var (reticle, point) in new[] { (_reticle, Pilot.ArmAimPoint), (_torsoReticle, Pilot.TorsoAimPoint), (_aimDot, Pilot.PilotAimPoint) })
         {
             reticle.Visible = flying && !Camera.IsPositionBehind(point);
             if (reticle.Visible) reticle.Position = Camera.UnprojectPosition(point);
