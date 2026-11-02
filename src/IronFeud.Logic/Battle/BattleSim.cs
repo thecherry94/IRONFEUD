@@ -310,9 +310,8 @@ public sealed class BattleSim
         // Heat weapons heat the target in proportion to the hit; a particle bolt scrambles its sensors.
         if (spec is { HeatToTarget: > 0f })
         {
-            float heat = spec.HeatToTarget * amount / spec.Damage;
-            target.Sim.Weapons.Heat += heat;
-            if (attacker != null)
+            float heat = target.Sim.AddOutsideHeat(spec.HeatToTarget * amount / spec.Damage);
+            if (attacker != null && heat > 0f)
             {
                 attacker.Stats.HeatInflicted += heat;
                 target.HeatedBy = attacker;

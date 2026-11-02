@@ -38,9 +38,28 @@ public sealed class MechSim
     /// can push a mech this far, its own guns lock at 1.</summary>
     public const float ShutdownHeat = 1.2f, ShutdownTime = 3f;
 
+    /// <summary>
+    /// The restart flushes the coolant: heat drops to <see cref="RestartHeat"/> and for <see cref="CoolantFlushTime"/>
+    /// seconds outside heat doesn't stick. A flamer shuts a mech down but can't hold it down: the 3 s shutdown bled only
+    /// ~0.17 heat, the mech restarted above the line and scrammed again on the spot (half of all shutdowns in lance
+    /// games, chains of up to 15 s).
+    /// </summary>
+    public const float RestartHeat = 0.6f, CoolantFlushTime = 4f;
+
     /// <summary>Seconds left of a heat shutdown: no legs, no guns, the torso slack; the heat sinks keep working.</summary>
     public float ShutdownLeft { get; private set; }
     public bool Shutdown => ShutdownLeft > 0f;
+
+    /// <summary>Seconds left of the coolant flush after a restart (outside heat doesn't stick).</summary>
+    public float FlushLeft { get; private set; }
+
+    /// <summary>Heat put in from outside (flamethrowers, incendiary rounds); returns what stuck (none while flushing).</summary>
+    public float AddOutsideHeat(float heat)
+    {
+        if (FlushLeft > 0f) return 0f;
+        Weapons.Heat += heat;
+        return heat;
+    }
 
     /// <summary>Seconds left of sensor scrambling from a particle-bolt hit.</summary>
     public float DisruptLeft { get; private set; }
@@ -51,12 +70,18 @@ public sealed class MechSim
     {
         Shots.Clear();
         DisruptLeft = MathF.Max(0f, DisruptLeft - h);
+        FlushLeft = MathF.Max(0f, FlushLeft - h);
         if (!Shutdown && !IsOut && Weapons.Heat >= ShutdownHeat) ShutdownLeft = ShutdownTime;
         var command = input;
         if (Shutdown)
         {
             ShutdownLeft = MathF.Max(0f, ShutdownLeft - h);
             command = new MechInput { TwistTarget = Locomotion.Body.Twist, AimTarget = Locomotion.Body.Aim };
+            if (ShutdownLeft <= 0f)
+            {
+                Weapons.Heat = MathF.Min(Weapons.Heat, RestartHeat);
+                FlushLeft = CoolantFlushTime;
+            }
         }
         Locomotion.Step(command, h);
         if (Locomotion.JetsBurning) Weapons.Heat += Chassis.JumpHeat * h;

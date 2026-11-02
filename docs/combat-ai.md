@@ -183,7 +183,13 @@ flamethrower (heat it, then shred whatever the plates no longer cover), the Haub
 a pulse laser; Sicklefoot mediums to assaults carry the particle cannon. Heat weapons add heat to the target in
 proportion to the damage they land. A mech's own guns lock at heat 1, but outside heat (and jets) can push it on: at
 1.2 the reactor scrams for 3 s (`MechSim.ShutdownHeat`): no legs, no guns, torso slack, heat sinks still working; the
-HUD and the mech tag say so and the attacker is credited (`UnitStats.ShutdownsCaused`). A particle bolt is a
+HUD and the mech tag say so and the attacker is credited (`UnitStats.ShutdownsCaused`). The restart flushes the
+coolant (`MechSim.RestartHeat` 0.6) and outside heat doesn't stick for 4 s after (`CoolantFlushTime`, HUD "COOLANT
+FLUSH"). Player call "flamethrowers are a little too OP": a shutdown bled only ~0.17 heat, so the victim restarted
+above the line and scrammed again on the spot, half of all shutdowns in 40 watch lances were such re-shuts (chains up
+to 15.6 s, 7 deaths while shut down). After: 33 -> 15 shutdowns, none chained, longest 3 s, 3 deaths while shut down;
+lance report light 110 dealt / 0.75 kills / 38 % survived / 0.20 shutdowns per game (was 108 / 0.68 / 40 % / 0.50).
+A particle bolt is a
 projectile, not hitscan (player call: "extremely fast, sounds scary, hits hard, lots of heat"): 400 m in ~0.31 s,
 less damage inside 90 m, and a hit halves the target's sensor quality for 1.5 s (AI aim error and sight range).
 Flamethrower lights are brawlers: they aren't assigned as spotters and don't huddle under point defense, and against

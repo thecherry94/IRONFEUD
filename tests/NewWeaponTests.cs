@@ -86,6 +86,41 @@ public class NewWeaponTests
         Assert.True(speedDuring < 2f, "a shut-down mech stops");
     }
 
+    /// <summary>
+    /// A flamer kept on a mech shuts it down, but can't hold it down: the restart flushes the coolant (heat down to a
+    /// working level) and outside heat doesn't stick for a few seconds after. Before, a shutdown bled only ~0.17 heat,
+    /// the mech restarted above the line and scrammed again on the spot: half the shutdowns in lance games were such
+    /// re-shuts, chains of up to 15 s with the victim helpless, 7 of 212 deaths while shut down.
+    /// </summary>
+    [Fact]
+    public void Flamethrowers_CannotHoldAMechDown()
+    {
+        var (shooter, target, b) = Range(WeaponSpec.Flamethrower, 40f);
+        shooter.Sim.Chassis.HeatDissipation = 10f; // the flamer never runs out of heat budget
+        target.Sim.Weapons.Heat = 0.75f;
+        float twist = 0f, aim = 0f, restartedAt = -1f, shortestUp = float.MaxValue, heatAtRestart = 0f;
+        int shutdowns = 0;
+        bool was = false;
+        for (int i = 0; i < 120 * 20; i++)
+        {
+            AimSolver.Track(shooter.Sim.Pose, shooter.Sim.Locomotion.Body, shooter.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
+            shooter.Input = new MechInput { TwistTarget = twist, AimTarget = aim, FireMask = 1u };
+            b.Step(H); // the target holds fire: a particle bolt fired at heat 0.99 can scram a mech on its own
+            bool sd = target.Sim.Shutdown;
+            if (sd && !was)
+            {
+                shutdowns++;
+                if (restartedAt >= 0f) shortestUp = MathF.Min(shortestUp, b.Time - restartedAt);
+            }
+            if (!sd && was) { restartedAt = b.Time; heatAtRestart = MathF.Max(heatAtRestart, target.Sim.Weapons.Heat); }
+            was = sd;
+        }
+        _out.WriteLine($"20 s under a flamer: {shutdowns} shutdowns, shortest time up between them {shortestUp:0.0} s, hottest restart {heatAtRestart:0.00}");
+        Assert.True(shutdowns >= 1, "the flamer still shuts it down");
+        Assert.True(heatAtRestart <= MechSim.RestartHeat + 0.01f, $"restarted at heat {heatAtRestart:0.00}");
+        Assert.True(shortestUp >= MechSim.CoolantFlushTime, $"shut down again {shortestUp:0.0} s after restarting");
+    }
+
     [Fact]
     public void IncendiaryRounds_BuildHeatInTheTarget()
     {

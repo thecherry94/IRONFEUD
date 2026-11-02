@@ -111,8 +111,9 @@ sensor-lock scans shared per lance (the AI decides on enemy state only from scan
 incendiary cannon / particle cannon with per-model loadouts, heat shutdowns, signature by size, designator marks
 (lights) and ECM (Sicklefoot light), a tiny recessed cockpit, Hauberk shoulder cover plates, arc missiles steering on
 a 1 s lock track (a weaving light shakes them) with missile evasion, steering that sees low/sunken blocks and wrecks
-and keeps to one detour side (no more mechs stuck on block corners). Open items: a flamethrower can chain heat
-shutdowns until its victim dies (re-shuts while heat stays above 1.2), the hills medium duel favours the Hauberk ~60-40, chassis `.tres` for editor tuning,
+and keeps to one detour side (no more mechs stuck on block corners). A restart after a heat shutdown flushes the
+coolant (no more flamer stun-locks). Open items: own guns can overshoot heat 1 into a shutdown (a 0.32 bolt fired at
+0.99), the hills medium duel favours the Hauberk ~60-40, chassis `.tres` for editor tuning,
 spring frequencies don't scale with size, heavy/assault are scaled copies of the medium body, heavies still lead
 kills in lances (0.7-1.1/game vs 0.35-0.55), the siege cannon is the top killer of flamer lights, light counterplay
 at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover independently),
