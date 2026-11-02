@@ -165,7 +165,7 @@ public sealed class MechChassis
     public float LegsHitDrop = 2.4f;                           // below the pelvis
     public float LegsHitRadius = 2.0f;
     public Vector3 CockpitHitOffset = new(0f, 0.05f, -0.7f);  // head-local, just in front of the torso sphere
-    public float CockpitHitRadius = 0.12f;
+    public float CockpitHitRadius = 0.09f; // was 0.12, which only passed the cockpit test through a ray-sphere precision error
 
     /// <summary>
     /// Cover plates on the left shoulder (shoulder-local, the right one mirrored), part of that arm: hits on them strike

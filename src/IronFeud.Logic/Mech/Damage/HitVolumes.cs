@@ -31,16 +31,21 @@ public struct RayHit
 
 public static class HitTest
 {
-    /// <summary>Entry distance of a ray (unit <paramref name="dir"/>) into a sphere; 0 if the origin is inside.</summary>
+    /// <summary>
+    /// Entry distance of a ray (unit <paramref name="dir"/>) into a sphere; 0 if the origin is inside. The miss test
+    /// uses the ray's perpendicular distance from the centre: the textbook b² - c cancels catastrophically in floats
+    /// at range (at 300 m its error is ~0.01 m², so every 0.1 m cockpit was a ~0.1 m target whatever its radius).
+    /// </summary>
     public static bool RaySphere(Vector3 origin, Vector3 dir, Vector3 center, float radius, out float t)
     {
         Vector3 oc = origin - center;
         float b = Vector3.Dot(oc, dir);
-        float c = oc.LengthSquared() - radius * radius;
+        float r2 = radius * radius;
         t = 0f;
-        if (c <= 0f) return true;
+        if (oc.LengthSquared() <= r2) return true;
         if (b > 0f) return false;
-        float disc = b * b - c;
+        Vector3 perp = oc - b * dir;
+        float disc = r2 - perp.LengthSquared();
         if (disc < 0f) return false;
         t = -b - MathF.Sqrt(disc);
         return true;

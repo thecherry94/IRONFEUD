@@ -30,6 +30,19 @@ public class DamageTests
     }
 
     [Fact]
+    public void RaySphere_StaysExact_ForTinySpheresAtRange()
+    {
+        // A 0.1 m sphere seen from 300 m and 600 m: rays passing 0.12 m off its centre miss, 0.08 m off hit.
+        var c = new Vector3(0.3f, 7.2f, -1.4f);
+        foreach (float range in new[] { 300f, 600f })
+        foreach (float off in new[] { 0.12f, 0.08f })
+        {
+            var origin = c + new Vector3(off, 0f, -range);
+            Assert.Equal(off < 0.1f, HitTest.RaySphere(origin, Vector3.UnitZ, c, 0.1f, out _));
+        }
+    }
+
+    [Fact]
     public void Cockpit_IsTiny_AndOnlyExposedFromTheFront()
     {
         var sim = NewSim();
