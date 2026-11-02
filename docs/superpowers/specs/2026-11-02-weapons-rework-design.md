@@ -47,3 +47,18 @@ rates, per-weapon alignment); all existing tests ported; lance report (80 games)
 
 ## Left to the builder
 Exact ammunition counts, anchor positions per body, default group rules, the HUD panel's look.
+
+## Built (2026-11-02)
+- Commits: mount list refactor (fingerprint identical), ammunition and cook-off, weapon groups + HUD panel, arm aiming,
+  loadouts.
+- Loadouts: lights 5 (two arm weapons, rack, a pulse laser and a small laser on the chest), mediums 5 (+ small laser
+  and machine gun), heavies 5 (+ laser and machine gun), assaults 6 (+ two chest lasers, a strike rack, a small laser
+  on the left arm); the Brigandine keeps particle cannon + autocannon. Armour on every class x1.2 to keep the time to
+  kill (mean lance battle 91 s before the loadouts, 74 s with them, 86-88 s with the armour).
+- Lance report (80 games): kills/game light 0.38, medium 0.69, heavy 0.97, assault 0.66; survival 32-33 % for every
+  class. Lights deal ~15 % of the damage and land few killing blows (0.6-0.7 before the rework): a second small laser,
+  then a pulse laser, barely moved it. Left open for missions and scouting (the research's answer for lights' jobs).
+- Medium duels after the armour change: 18-22, 16-24, 23-17, 23-17.
+- Ammunition rarely runs dry in ~90 s arena fights (under 0.05 weapons a game): the wall it makes waits for longer
+  missions; cook-offs (0.13-0.23 a game) are what makes rounds matter now.
+- Deviation: lights got 5 weapons, not 4.

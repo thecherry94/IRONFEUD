@@ -140,8 +140,8 @@ public sealed class MechChassis
     public Vector3 RightArmMount = new(0f, 0.05f, -2f);
     public Vector3 LeftArmMount = new(0f, 0.1f, -2f);
     public Vector3 TorsoMount = new(1.1f, 1.7f, 0.3f);
-    public Vector3 ChestMountLeft = new(-0.9f, 1.0f, -1.2f);
-    public Vector3 ChestMountRight = new(0.9f, 1.0f, -1.2f);
+    public Vector3 ChestMountLeft = new(-1.3f, 0.55f, -1.4f);
+    public Vector3 ChestMountRight = new(1.3f, 0.55f, -1.4f);
 
     /// <summary>
     /// Point-defense turrets fitted (each shoots down ~1.5 enemy missiles a second within ~110 m, also over nearby
@@ -410,6 +410,10 @@ public sealed class MechChassis
                 c.CollapseTime = 2f;
                 break;
         }
+        // 4-6 weapons a mech (the loadouts below) cut the mean lance battle from 91 to 74 s: armour up 20 % to match.
+        c.TorsoHp *= LoadoutArmour;
+        c.ArmHp *= LoadoutArmour;
+        c.LegsHp *= LoadoutArmour;
         c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
         c.StabilityMax = cls switch { ChassisClass.Light => 40f, ChassisClass.Medium => 70f, ChassisClass.Heavy => 100f, _ => 135f };
         // Torso twist range narrows with weight (the genre's numbers: assaults +-62-90 deg, lights far wider), so a light
@@ -442,7 +446,7 @@ public sealed class MechChassis
                 break;
         }
         // Shoulder racks and point defense: lights a rocket pod for in-close bursts, mediums a strike rack, heavies
-        // the guided arc missiles (their support role), assaults one point-defense turret. A Bascinet medium with a
+        // the guided arc missiles (their support role), assaults one point-defense turret (and a strike rack, below). A Bascinet medium with a
         // second turret made every default lance a two-turret screen that shot down ~3/4 of arc volleys.
         WeaponSpec? rack = cls switch
         {
@@ -452,6 +456,19 @@ public sealed class MechChassis
             _ => null,
         };
         if (rack != null) c.Loadout = [.. c.Loadout, new MountDef(rack, Hardpoint.Rack)];
+        // Chest guns and second arm weapons: lights, mediums and heavies 5 weapons, assaults 6, every mech mixing
+        // weapon families (energy pays in heat, guns and racks in rounds).
+        MountDef[] extra = cls switch
+        {
+            // Lights: a pulse laser and a small laser (one small laser left them out-gunned: kills 0.69 -> 0.45 a game
+            // when everyone else armed up; two small lasers, once armour rose 20 %, 0.36).
+            ChassisClass.Light => [new(WeaponSpec.PulseLaser, Hardpoint.ChestLeft), new(WeaponSpec.SmallLaser, Hardpoint.ChestRight)],
+            ChassisClass.Medium => [new(WeaponSpec.SmallLaser, Hardpoint.ChestLeft), new(WeaponSpec.MachineGun, Hardpoint.ChestRight)],
+            ChassisClass.Heavy => [new(WeaponSpec.Laser, Hardpoint.ChestLeft), new(WeaponSpec.MachineGun, Hardpoint.ChestRight)],
+            _ => [new(WeaponSpec.Laser, Hardpoint.ChestLeft), new(WeaponSpec.Laser, Hardpoint.ChestRight),
+                  new(WeaponSpec.StrikeRack, Hardpoint.Rack), new(WeaponSpec.SmallLaser, Hardpoint.LeftArm)],
+        };
+        c.Loadout = [.. c.Loadout, .. extra];
         c.PointDefense = cls == ChassisClass.Assault ? 1 : 0;
         c.Designator = cls == ChassisClass.Light;
         c.Ecm = cls == ChassisClass.Light && sf;
@@ -486,6 +503,8 @@ public sealed class MechChassis
         RightArmMount = new Vector3(0f, 0f, -2.4f),
         LeftArmMount = new Vector3(0f, 0.05f, -1.9f),
 
+        ChestMountLeft = new Vector3(-0.9f, 0.45f, -2.55f),
+        ChestMountRight = new Vector3(0.9f, 0.45f, -2.55f),
         TorsoHitOffset = new Vector3(0f, 0.9f, -0.4f),
         TorsoHitRadius = 2.2f,
         ArmHitOffset = new Vector3(0f, 0f, -1.3f),
@@ -525,6 +544,8 @@ public sealed class MechChassis
         LeftArmMount = new Vector3(0f, 0f, -1.9f),
         TorsoMount = new Vector3(0.95f, 2.25f, 0.4f),
 
+        ChestMountLeft = new Vector3(-0.75f, 0.45f, -1.4f),
+        ChestMountRight = new Vector3(0.75f, 0.45f, -1.4f),
         TorsoHitOffset = new Vector3(0f, 1.0f, 0f),
         TorsoHitRadius = 1.95f,
         ArmHitOffset = new Vector3(0f, 0f, -1.4f),
@@ -558,6 +579,8 @@ public sealed class MechChassis
         TorsoMount = new Vector3(-1.4f, 3.3f, 0.5f),
         PointDefenseMount = new Vector3(1.4f, 3.2f, 0.6f),
 
+        ChestMountLeft = new Vector3(-1.0f, 0.6f, -1.3f),
+        ChestMountRight = new Vector3(1.0f, 0.6f, -1.3f),
         TorsoHitOffset = new Vector3(0f, 1.25f, 0f),
         TorsoHitRadius = 2.3f,
         ArmHitOffset = new Vector3(0f, 0f, -1.6f),
@@ -597,6 +620,8 @@ public sealed class MechChassis
         TorsoMount = new Vector3(0f, 2.3f, 1.3f),
         PointDefenseMount = new Vector3(0f, 2.2f, 0.9f),
 
+        ChestMountLeft = new Vector3(-1.4f, 0.5f, -1.55f),
+        ChestMountRight = new Vector3(1.4f, 0.5f, -1.55f),
         TorsoHitOffset = new Vector3(0f, 1.1f, 0f),
         TorsoHitRadius = 2.6f,
         ArmHitOffset = new Vector3(0f, 0.1f, -1.5f),
@@ -639,6 +664,8 @@ public sealed class MechChassis
         TorsoMount = new Vector3(1.4f, 3.4f, 0.3f),
         PointDefenseMount = new Vector3(-1.5f, 3.35f, 0.4f),
 
+        ChestMountLeft = new Vector3(-1.7f, 0.9f, -1.75f),
+        ChestMountRight = new Vector3(1.7f, 0.9f, -1.75f),
         TorsoHitOffset = new Vector3(0f, 1.5f, 0f),
         TorsoHitRadius = 2.75f,
         ArmHitOffset = new Vector3(0f, 0f, -1.7f),
@@ -681,6 +708,9 @@ public sealed class MechChassis
     };
 
     private const float BascinetArmour = 1.3f;
+
+    /// <summary>Armour on every class since the loadouts grew to 4-6 weapons (time to kill kept near the old).</summary>
+    private const float LoadoutArmour = 1.2f;
 
     private void ApplyModelArmour(MechModel model)
     {

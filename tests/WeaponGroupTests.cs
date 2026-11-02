@@ -11,11 +11,11 @@ public class WeaponGroupTests
     [Fact]
     public void Defaults_LongRange_ShortRange_Missiles()
     {
-        var sim = new MechSim(MechChassis.Medium()); // heavy cannon, laser, strike rack
+        var sim = new MechSim(MechChassis.Medium()); // heavy cannon, laser, strike rack, small laser, machine gun
         var g = WeaponGroups.Default(sim.Weapons);
-        Assert.Equal(0b001u, g.Members[0]);
-        Assert.Equal(0b010u, g.Members[1]);
-        Assert.Equal(0b100u, g.Members[2]);
+        Assert.Equal(0b00001u, g.Members[0]);
+        Assert.Equal(0b11010u, g.Members[1]);
+        Assert.Equal(0b00100u, g.Members[2]);
     }
 
     [Fact]

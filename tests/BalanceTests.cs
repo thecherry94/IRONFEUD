@@ -105,6 +105,7 @@ public class BalanceTests
         var stats = Enum.GetValues<ChassisClass>().ToDictionary(c => c, _ => new RoleStats());
         var personas = new[] { Personality.Balanced, Personality.Balanced, Personality.Balanced, Personality.Sniper };
         int unfinished = 0;
+        float length = 0f;
         foreach (string map in new[] { "nml", "hills" })
         for (uint seed = 1; seed <= LanceSeeds; seed++)
         {
@@ -149,6 +150,7 @@ public class BalanceTests
                 }
             }
             if (!b.Over) unfinished++;
+            length += b.Time;
             foreach (var u in b.Units)
             {
                 var st = stats[u.Chassis.Class];
@@ -165,7 +167,7 @@ public class BalanceTests
         _out.WriteLine("class   | dealt/game | taken/game | kills/game | hit % | survived | fast % | moving % | hull-down % | rear dealt % | rear taken % | heat in/game | shutdowns/game | staggered/game | ran dry/game | cook-offs/game");
         foreach (var (cls, st) in stats)
             _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%    | {st.Heat / st.Games,8:0.00}    | {st.Shutdowns / st.Games,8:0.00}      | {st.Staggered / st.Games,8:0.00}      | {st.Dry / st.Games,8:0.00}    | {st.CookOffs / st.Games,8:0.00}");
-        _out.WriteLine($"unfinished battles: {unfinished}/{2 * LanceSeeds}");
+        _out.WriteLine($"unfinished battles: {unfinished}/{2 * LanceSeeds} · mean battle length {length / (2 * LanceSeeds):0} s");
         Assert.True(unfinished <= 2, $"{unfinished} lance battles didn't finish in 400 s");
     }
 

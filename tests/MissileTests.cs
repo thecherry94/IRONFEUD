@@ -53,7 +53,9 @@ public class MissileTests
         Assert.Equal(WeaponSpec.RocketPod, new MechSim(MechChassis.Light()).Weapons.Mounts[2].Spec);
         Assert.Equal(WeaponSpec.StrikeRack, new MechSim(MechChassis.Medium()).Weapons.Mounts[2].Spec);
         Assert.Equal(WeaponSpec.ArcMissiles, new MechSim(MechChassis.Heavy()).Weapons.Mounts[2].Spec);
-        Assert.Equal(2, new MechSim(MechChassis.Assault()).Weapons.Mounts.Count);
+        var assault = new MechSim(MechChassis.Assault()).Weapons.Mounts;
+        Assert.Equal(6, assault.Count);
+        Assert.Contains(assault, m => m.Spec == WeaponSpec.StrikeRack);
         Assert.Equal(1, MechChassis.Assault().PointDefense);
     }
 

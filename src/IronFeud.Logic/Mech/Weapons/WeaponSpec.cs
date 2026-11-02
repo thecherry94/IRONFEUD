@@ -118,6 +118,15 @@ public sealed record WeaponSpec
     // The roster, light to heavy.
     // Heavier guns hit far harder but cycle slowly, run hot and fire slower shells: a running light can dodge them.
 
+    /// <summary>The filler beam: short reach, a short burn, little heat. Lights' extra gun, bigger mechs' secondaries.</summary>
+    public static readonly WeaponSpec SmallLaser = new()
+    {
+        Name = "Small laser", Kind = WeaponKind.Beam, Damage = 7f, Heat = 0.07f, Cooldown = 1.5f, BurnTime = 0.6f,
+        Range = 220f, OptimalRange = 130f,
+        Length = 1f, Caliber = 0.6f, Barrels = 1,
+        ArmKick = 0.2f, TorsoYawKick = 0.03f, Trauma = 0.02f,
+    };
+
     /// <summary>Light beam: a quick burst of three pulses, the damage up front instead of held on target.</summary>
     public static readonly WeaponSpec PulseLaser = new()
     {
