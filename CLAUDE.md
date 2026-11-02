@@ -123,7 +123,8 @@ docs/superpowers/specs/2026-11-02-weapons-rework-design.md): loadouts as hardpoi
 ammunition with cook-off, weapon groups (alpha/chain) and a HUD weapon panel, arm weapons aiming in a cone faster than
 the torso. Genre gaps still open: docs/research/mech-genre/gap-audit.md. Next: player instruments (zoom, radar,
 target readout), a richer shape kit for the rig, then a visual redesign one chassis at a time with Philipp
-(docs/research/mech-genre/notes/visual_design_language.md). Open items: lights land few kills since the loadout rework
+(docs/research/mech-genre/notes/visual_design_language.md). Open items: AI pilot skill levels (Philipp: "novice,
+cadet, soldier, specialist, veteran, or something like that"; the AI currently out-shoots a human player), lights land few kills since the loadout rework
 (0.38/game; missions and scouting should give them jobs), ammunition rarely runs dry in arena fights, falls, melee and stumble steps (capture point), lancemate orders,
 chassis data files / `.tres` for editor tuning, heavies still lead kills in lances (80 games: ~1.0/game vs
 0.4-0.7), the siege cannon is the top killer of flamer lights, light counterplay
