@@ -116,6 +116,7 @@ public partial class MechNode : Node3D
             MechStatus.Destroyed => "DESTROYED",
             MechStatus.PilotKilled => "PILOT KILLED",
             _ when Sim.Shutdown => "SHUTDOWN",
+            _ when Sim.Staggered => "STAGGERED",
             _ => Unit.Ai is { } a ? AiPilot.Name(a.Action) + (a.TwistingAway ? " · twist-away" : "") : "",
         };
         int bars = Mathf.CeilToInt(d.Fraction(MechSection.Torso) * 10f);

@@ -179,6 +179,12 @@ public sealed class MechChassis
         new() { Center = new Vector3(0.17f, 1.0f, -0.75f), Size = new Vector3(0.24f, 1.0f, 2.3f) },  // flange, swept forward to the canopy
     };
 
+    /// <summary>
+    /// Stability budget in impact points (a shell drains its damage, see <see cref="WeaponSpec.Impact"/>): grows with
+    /// mass and stance. Drained, the aim wavers; emptied, the mech staggers (<see cref="MechSim.Stability"/>).
+    /// </summary>
+    public float StabilityMax = 70f;
+
     // Armour (section hit points)
     public float TorsoHp = 100f;
     public float ArmHp = 45f;
@@ -303,6 +309,7 @@ public sealed class MechChassis
                 c.JumpThrust = 26f;
                 c.LegsHp *= 0.85f;
                 c.HeatDissipation -= 0.006f;
+                c.StabilityMax *= 0.9f; // tall and light on its feet
                 break;
             case MechModel.Brigandine:
                 // Arms ride high under the shoulder bar: when its eyes clear a crest, so do its guns, with little torso
@@ -313,20 +320,22 @@ public sealed class MechChassis
                 c.HeatDissipation += 0.0025f;
                 break;
             case MechModel.Harrow:
-                // Slow, narrow twist (lights inside its arc are safe), quick off the mark, a heavy front. Later: cover
-                // breaking, shoves, high stability, thin rear plate.
+                // Slow, narrow twist (lights inside its arc are safe), quick off the mark, a heavy front, hard to stagger.
+                // Later: cover breaking, shoves, thin rear plate.
                 c.TwistMax = 1.25f;
                 c.TwistRate = 1.3f;
                 c.Accel *= 1.3f;
                 c.TorsoHp *= 1.1f;
+                c.StabilityMax *= 1.25f; // low and wide: hard to rock
                 break;
             case MechModel.Barbican:
-                // The slowest, narrowest twist in the roster and the most armour; a cowled visor. Later: bracing, high
-                // stability, logistics cost, short sensors.
+                // The slowest, narrowest twist in the roster, the most armour, the steadiest; a cowled visor. Later:
+                // bracing, logistics cost, short sensors.
                 c.TwistMax = 1.05f;
                 c.TwistRate = 1.1f;
                 c.TorsoHp *= 1.1f;
                 c.ArmHp *= 1.1f;
+                c.StabilityMax *= 1.25f; // huge feet, low centre of mass
                 break;
         }
     }
@@ -388,6 +397,7 @@ public sealed class MechChassis
                 break;
         }
         c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
+        c.StabilityMax = cls switch { ChassisClass.Light => 40f, ChassisClass.Medium => 70f, ChassisClass.Heavy => 100f, _ => 135f };
         // Torso twist range narrows with weight (the genre's numbers: assaults +-62-90 deg, lights far wider), so a light
         // inside an assault's arc is safe and a big mech must turn its legs to follow one. The rate already falls with
         // tonnage^-0.75 (light 3, medium 2, heavy 1.5, assault 1.2 rad/s).

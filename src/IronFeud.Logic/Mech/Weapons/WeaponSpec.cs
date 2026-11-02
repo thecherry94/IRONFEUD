@@ -42,6 +42,14 @@ public sealed record WeaponSpec
     public float DisruptTime { get; init; }
 
     /// <summary>
+    /// Stability drained per point of damage that strikes (see <see cref="MechSim.Stability"/>). Unset: by kind, shells
+    /// 1 (the push of a heavy round), missiles 0.6 (warheads, spread), beams 0.15 (heat, no momentum).
+    /// </summary>
+    public float? ImpactPerDamage { get; init; }
+
+    public float Impact => ImpactPerDamage ?? Kind switch { WeaponKind.Projectile => 1f, WeaponKind.Missile => 0.6f, _ => 0.15f };
+
+    /// <summary>
     /// Burn lasers: the beam stays on this long after the trigger and deals <see cref="Damage"/> spread evenly over
     /// it, every tick along wherever the arm points then. Holding it on target is the skill; a dodging target takes
     /// a fraction, smeared across sections. 0 = the whole damage in one instant ray. Cooldown counts from the trigger.
@@ -115,6 +123,7 @@ public sealed record WeaponSpec
     /// <summary>Light gun: twin barrels, fast shells, small rounds four times a second.</summary>
     public static readonly WeaponSpec Autocannon = new()
     {
+        ImpactPerDamage = 0.8f,
         Name = "Autocannon", Kind = WeaponKind.Projectile, Damage = 4f, Heat = 0.03f, Cooldown = 0.25f,
         Range = 520f, OptimalRange = 300f, MuzzleVelocity = 560f, Gravity = 4f, MaxLifetime = 1.5f,
         Length = 2.6f, Caliber = 0.12f, Barrels = 2,
@@ -162,6 +171,7 @@ public sealed record WeaponSpec
     /// </summary>
     public static readonly WeaponSpec MachineGun = new()
     {
+        ImpactPerDamage = 0.3f,
         Name = "Machine gun", Kind = WeaponKind.Projectile, Damage = 1.5f, Heat = 0.004f, Cooldown = 0.08f,
         Range = 260f, OptimalRange = 160f, MuzzleVelocity = 900f, Gravity = 3f, MaxLifetime = 0.6f,
         VsArmor = 0.15f, VsStructure = 1.6f,
@@ -175,6 +185,7 @@ public sealed record WeaponSpec
     /// </summary>
     public static readonly WeaponSpec Flamethrower = new()
     {
+        ImpactPerDamage = 0f,
         Name = "Flamethrower", Kind = WeaponKind.Beam, Damage = 4f, Heat = 0.08f, Cooldown = 2f, BurnTime = 1.2f,
         Range = 80f, OptimalRange = 50f, HeatToTarget = 0.5f, Flame = true,
         Length = 1.3f, Caliber = 0.8f, Barrels = 1,
@@ -187,6 +198,7 @@ public sealed record WeaponSpec
     /// </summary>
     public static readonly WeaponSpec IncendiaryCannon = new()
     {
+        ImpactPerDamage = 0.5f,
         Name = "Incendiary cannon", Kind = WeaponKind.Projectile, Damage = 2.6f, Heat = 0.03f, Cooldown = 0.25f,
         Range = 460f, OptimalRange = 260f, MuzzleVelocity = 520f, Gravity = 4f, MaxLifetime = 1.5f, HeatToTarget = 0.06f,
         Length = 2.6f, Caliber = 0.12f, Barrels = 2,
@@ -200,6 +212,7 @@ public sealed record WeaponSpec
     /// </summary>
     public static readonly WeaponSpec ParticleCannon = new()
     {
+        ImpactPerDamage = 0.9f,
         Name = "Particle cannon", Kind = WeaponKind.Projectile, Damage = 26f, Heat = 0.32f, Cooldown = 3.2f,
         Range = 650f, OptimalRange = 450f, MinRange = 90f, MuzzleVelocity = 1300f, Gravity = 0f, MaxLifetime = 0.8f,
         DisruptTime = 1.5f,

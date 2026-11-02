@@ -27,6 +27,7 @@ public sealed class MechSim
         Locomotion = new MechLocomotion(chassis, seed);
         Weapons = MechWeapons.ForChassis(chassis);
         Damage = damage ?? MechDamage.Create(chassis);
+        Stability = chassis.StabilityMax;
         ApplyDamageEffects();
     }
 
@@ -72,6 +73,49 @@ public sealed class MechSim
         return heat;
     }
 
+    /// <summary>
+    /// Stability: hits drain it by their impact (<see cref="Weapons.WeaponSpec.Impact"/> times the damage that strikes,
+    /// armour or not: the push of a heavy round), it recovers <see cref="StabilityRecoverRate"/> of the budget a second
+    /// once <see cref="StabilityRecoverDelay"/> s pass without a hit. Drained, the gyro steadies the guns less (up to
+    /// <see cref="StabilityAimLoss"/> of it gone); emptied, the mech staggers for <see cref="StaggerTime"/> s: guns
+    /// off line, legs coasting, the torso rocked back. A stagger refills half the budget and can't recur for
+    /// <see cref="StaggerGrace"/> s after (the flamer's chained shutdowns taught that). Heavy shells and massed missiles
+    /// stagger, lasers barely do: a second axis besides damage on which weapons differ (the genre's stagger and
+    /// stability meters).
+    /// </summary>
+    public float Stability { get; private set; }
+
+    public const float StaggerTime = 1.1f, StaggerGrace = 3f, StabilityRecoverDelay = 1.5f, StabilityRecoverRate = 0.25f, StabilityAimLoss = 0.6f;
+
+    /// <summary>0 at full stability, 1 when emptied.</summary>
+    public float Instability => 1f - Stability / Chassis.StabilityMax;
+
+    public float StaggerLeft { get; private set; }
+    public bool Staggered => StaggerLeft > 0f;
+
+    /// <summary>Staggers so far (for reports).</summary>
+    public int Staggers { get; private set; }
+
+    private float _sinceImpact = 99f, _staggerGraceLeft;
+
+    private void Drain(float impact, Vector3? travel)
+    {
+        if (impact <= 0f || IsOut) return;
+        Stability = MathF.Max(0f, Stability - impact);
+        _sinceImpact = 0f;
+        if (Stability > 0f || _staggerGraceLeft > 0f || Shutdown) return;
+        StaggerLeft = StaggerTime;
+        Staggers++;
+        Stability = 0.5f * Chassis.StabilityMax;
+        _staggerGraceLeft = StaggerTime + StaggerGrace;
+        // Rocked away from the blow: back when hit from the front, forward from behind.
+        bool fromFront = travel is not { } d || Vector3.Dot(d, TorsoFacing) < 0f;
+        var sec = Locomotion.Secondary;
+        sec.TorsoPitch.V += fromFront ? -1.4f : 1.4f;
+        sec.TorsoRoll.V += sec.RandomSigned() * 1.2f;
+        sec.AddTrauma(0.7f);
+    }
+
     /// <summary>Seconds left of sensor scrambling from a particle-bolt hit.</summary>
     public float DisruptLeft { get; private set; }
 
@@ -83,10 +127,17 @@ public sealed class MechSim
         DisruptLeft = MathF.Max(0f, DisruptLeft - h);
         FlushLeft = MathF.Max(0f, FlushLeft - h);
         if (!Shutdown && !IsOut && Weapons.Heat >= ShutdownHeat) ShutdownLeft = ShutdownTime;
+        _sinceImpact += h;
+        _staggerGraceLeft = MathF.Max(0f, _staggerGraceLeft - h);
+        StaggerLeft = MathF.Max(0f, StaggerLeft - h);
+        if (_sinceImpact > StabilityRecoverDelay)
+            Stability = MathF.Min(Chassis.StabilityMax, Stability + StabilityRecoverRate * Chassis.StabilityMax * h);
         float hot = Hot;
         Locomotion.HeatSpeedFactor = 1f - HotSpeedLoss * hot;
-        Locomotion.AimSteadiness = 1f - HotAimLoss * hot;
+        Locomotion.AimSteadiness = (1f - HotAimLoss * hot) * (1f - StabilityAimLoss * Instability);
         var command = input;
+        if (Staggered && !Shutdown)
+            command = new MechInput { TwistTarget = Locomotion.Body.Twist, AimTarget = Locomotion.Body.Aim };
         if (Shutdown)
         {
             ShutdownLeft = MathF.Max(0f, ShutdownLeft - h);
@@ -130,6 +181,7 @@ public sealed class MechSim
         var report = Damage.Apply(struck, amount, facing, spec?.VsArmor ?? 1f, spec?.VsStructure ?? 1f);
         if (report.Ignored) return report;
         Locomotion.Secondary.ApplyHit(report.Amount);
+        Drain(amount * (spec?.Impact ?? 1f), travel);
         if (report.ToStructure > 0f || report.SectionDestroyed) ApplyDamageEffects();
         return report;
     }

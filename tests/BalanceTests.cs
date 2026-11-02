@@ -92,7 +92,7 @@ public class BalanceTests
 
     private sealed class RoleStats
     {
-        public float Dealt, Taken, Shots, Hits, Fast, Moving, HullDown, Alive, Samples, Games, Survived, Kills, RearDealt, RearTaken, Heat, Shutdowns;
+        public float Dealt, Taken, Shots, Hits, Fast, Moving, HullDown, Alive, Samples, Games, Survived, Kills, RearDealt, RearTaken, Heat, Shutdowns, Staggered;
     }
 
     /// <summary>
@@ -156,12 +156,13 @@ public class BalanceTests
                 st.Hits += u.Stats.Hits;
                 st.Heat += u.Stats.HeatInflicted;
                 st.Shutdowns += u.Stats.ShutdownsCaused;
+                st.Staggered += u.Sim.Staggers;
                 if (!u.IsOut) st.Survived++;
             }
         }
-        _out.WriteLine("class   | dealt/game | taken/game | kills/game | hit % | survived | fast % | moving % | hull-down % | rear dealt % | rear taken % | heat in/game | shutdowns/game");
+        _out.WriteLine("class   | dealt/game | taken/game | kills/game | hit % | survived | fast % | moving % | hull-down % | rear dealt % | rear taken % | heat in/game | shutdowns/game | staggered/game");
         foreach (var (cls, st) in stats)
-            _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%    | {st.Heat / st.Games,8:0.00}    | {st.Shutdowns / st.Games,8:0.00}");
+            _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%    | {st.Heat / st.Games,8:0.00}    | {st.Shutdowns / st.Games,8:0.00}      | {st.Staggered / st.Games,8:0.00}");
         _out.WriteLine($"unfinished battles: {unfinished}/{2 * LanceSeeds}");
         Assert.True(unfinished <= 2, $"{unfinished} lance battles didn't finish in 400 s");
     }
