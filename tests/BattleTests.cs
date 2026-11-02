@@ -52,6 +52,28 @@ public class ArenaMapTests
         Assert.Equal(8f, inside.X, 4);
     }
 
+    /// <summary>
+    /// The steering probes must see what the collision sees: a block is a wall wherever its top is above the feet.
+    /// Knee-height rays passed over low blocks and blocks sunk into slopes, and the AI walked into them for good.
+    /// </summary>
+    [Fact]
+    public void PathClear_SeesEveryBlockTheLegsCannotPass()
+    {
+        var map = new ArenaMap();
+        map.Blocks.Add(new Block(0f, -20f, 10f, 4f, 2f));        // top at 2 m, under a knee-height probe
+        Assert.Equal(-15.6f, map.PushOut(new Vector3(0f, 0f, -16f), 2.4f, feetY: 0f).Z, 4); // the legs are walled by it
+        Assert.False(map.PathClear(Vector3.Zero, 0f, 2.4f, 30f));
+
+        var buried = new ArenaMap();
+        buried.Blocks.Add(new Block(0f, -20f, 10f, 4f, 2f, baseY: -5f)); // top 3 m below the ground: walk over it
+        Assert.True(buried.PathClear(Vector3.Zero, 0f, 2.4f, 30f));
+
+        var ledge = new ArenaMap();
+        ledge.Blocks.Add(new Block(0f, -20f, 10f, 4f, 0.4f)); // a ledge the legs step over, the probe still avoids
+        Assert.Equal(-16f, ledge.PushOut(new Vector3(0f, 0f, -16f), 2.4f, feetY: 0f).Z, 4);
+        Assert.False(ledge.PathClear(Vector3.Zero, 0f, 2.4f, 30f));
+    }
+
     [Fact]
     public void ClampDestination_StaysInsideTheRingAndOutOfBlocks()
     {

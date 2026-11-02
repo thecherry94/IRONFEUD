@@ -135,7 +135,7 @@ public sealed partial class AiPilot
     private float _jinkPeriod = 1.8f, _settledAt, _holdFor = 10f;
     private bool _relocate, _settled;
     private float _now, _thinkTimer, _lastThink, _noLos, _orbitUntil, _errYaw, _errPitch, _dmgRecent, _coverUntil, _lastHurt;
-    private int _orbit;
+    private int _orbit, _detourSide;
     private BattleUnit? _lastAttacker;
     private Vector3? _roam;
     private Vector3 _home;
@@ -769,7 +769,7 @@ public sealed partial class AiPilot
             score += 0.2f * MathF.Abs(MathUtil.WrapAngle(MathUtil.Heading(c - threat) - away));
             foreach (var a in b.Units)
                 if (a != me && a.Team == me.Team && !a.IsOut && MathUtil.PlanarDistance(a.Position, c) < 90f) { score += 0.25f; break; }
-            if (!map.PathClear(me.Position, MathUtil.Heading(c - me.Position), 2.4f * s, MathUtil.PlanarDistance(me.Position, c), 3f * s)) score -= 0.6f;
+            if (!map.PathClear(me.Position, MathUtil.Heading(c - me.Position), 2.4f * s, MathUtil.PlanarDistance(me.Position, c))) score -= 0.6f;
             if (score > bestScore) { bestScore = score; best = c; }
         }
         _retreatSpot = best;
@@ -1055,6 +1055,9 @@ public sealed partial class AiPilot
     /// <summary>
     /// Probe headings around the destination bearing; take the first with three clear parallel rays.
     /// The probes look 1.2 s ahead at current speed (prototype: a fixed 16 m).
+    /// Not in the prototype: once the direct course is blocked, the detour keeps to the side it took first until the
+    /// direct course clears. Tied to the orbit side, it reversed whenever the orbit did (every 6-12 s), and a mech ran
+    /// back and forth along a wall in plain view instead of getting round it.
     /// </summary>
     private float Steer(BattleSim b, BattleUnit me, Vector3 dest)
     {
@@ -1063,21 +1066,26 @@ public sealed partial class AiPilot
         float lookAhead = MathF.Max(16f, 1.2f * MathF.Abs(me.Sim.Locomotion.Body.V));
         float probe = MathF.Min(lookAhead, MathUtil.PlanarDistance(dest, me.Position));
         if (probe < 3f || Jump is JumpPlan.Traverse or JumpPlan.Vault) return desired;
-        float s = me.Chassis.Scale;
         // A wall (no walkable way within ±35°) but within reach of the jets: jump it rather than walk the long way
         // round. Not for a slope a short detour avoids: jumping those cost more (heat, fuel, height in view) than it saved.
-        if (!b.Map.PathClear(me.Position, desired, 2.4f * s, probe, 3f * s))
+        if (!b.WalkClear(me, desired, probe))
         {
             bool shortDetour = false;
             foreach (float off in SteerOffsets)
-                if (MathF.Abs(off) <= 0.6f && off != 0f && b.Map.PathClear(me.Position, desired + off * _orbit, 2.4f * s, probe, 3f * s)) { shortDetour = true; break; }
+                if (MathF.Abs(off) <= 0.6f && off != 0f && b.WalkClear(me, desired + off * _orbit, probe)) { shortDetour = true; break; }
             if (!shortDetour && TryTraverse(b, me, desired, probe)) return desired;
         }
-        foreach (float off in SteerOffsets)
-        {
-            float h = desired + off * _orbit;
-            if (b.Map.PathClear(me.Position, h, 2.4f * s, probe, 3f * s)) return h;
-        }
+        int side = _detourSide != 0 ? _detourSide : _orbit;
+        for (int pass = 0; pass < 2; pass++)
+            foreach (float off in SteerOffsets)
+            {
+                // Committed: every heading on the detour side first, the other side only if that one is walled off.
+                if (_detourSide != 0 && off != 0f && off > 0f != (pass == 0) || _detourSide == 0 && pass == 1) continue;
+                float h = desired + off * side;
+                if (!b.WalkClear(me, h, probe)) continue;
+                _detourSide = off == 0f ? 0 : off * side > 0f ? 1 : -1;
+                return h;
+            }
         return desired + MathF.PI / 2f;
     }
 

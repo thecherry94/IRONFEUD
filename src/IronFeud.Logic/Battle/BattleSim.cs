@@ -604,6 +604,27 @@ public sealed class BattleSim
     public const float EcmRadius = 120f;
 
     /// <summary>
+    /// Can <paramref name="u"/> walk <paramref name="length"/> m along <paramref name="heading"/>? The map's
+    /// <see cref="ArenaMap.PathClear"/> for blocks and climbs, plus wrecks: they never move and shove like walls (a
+    /// light wedged between its lancemate's wreck and a block stood there for the rest of the match). Live mechs give
+    /// way when pushed and are left out.
+    /// </summary>
+    public bool WalkClear(BattleUnit u, float heading, float length)
+    {
+        if (!Map.PathClear(u.Position, heading, 0.8f * u.Radius, length)) return false;
+        Vector3 fwd = MathUtil.Forward(heading);
+        foreach (var w in Units)
+        {
+            if (!w.IsOut || w == u) continue;
+            Vector3 rel = w.Position - u.Position;
+            rel.Y = 0f;
+            float along = Vector3.Dot(rel, fwd), lateral = MathF.Abs(fwd.X * rel.Z - fwd.Z * rel.X);
+            if (along > 0f && along < length + w.Radius && lateral < u.Radius + w.Radius) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
     /// Is <paramref name="u"/> inside an ECM bubble hostile to <paramref name="team"/> (a working jammer of another team
     /// within <see cref="EcmRadius"/>)? For <paramref name="team"/>'s own mechs that means their sensors are jammed (no
     /// locks, no scans, cut off from the lance's shared sightings); for enemies, that they can't be locked (so not

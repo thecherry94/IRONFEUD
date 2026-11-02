@@ -348,13 +348,16 @@ public sealed class ArenaMap : IGround
     public const float MaxClimbGrade = 0.8f;
 
     /// <summary>
-    /// Three parallel horizontal probes (centre, ±halfWidth) at knee height above the ground against blocks, and the
-    /// ground along the centre line against climbs steeper than <see cref="MaxClimbGrade"/>.
+    /// Three parallel probes (centre, ±halfWidth) across the block footprints, and the ground along the centre line
+    /// against climbs steeper than <see cref="MaxClimbGrade"/>. A block counts where its top is above the ground the
+    /// probe meets it on: <see cref="PushOut"/>'s rule (feet below the top = a wall) without its step allowance, so the
+    /// probes stay the more cautious of the two where the body sits below the terrain. The prototype's knee-height rays
+    /// were the same thing on flat ground with tall blocks; on terrain they passed over low and sunken blocks and the
+    /// AI walked into them for good.
     /// </summary>
-    public bool PathClear(Vector3 position, float heading, float halfWidth, float length, float height = 3f)
+    public bool PathClear(Vector3 position, float heading, float halfWidth, float length)
     {
         Vector3 fwd = MathUtil.Forward(heading), side = MathUtil.Right(heading) * halfWidth;
-        float y = Height(position.X, position.Z) + height;
         if (Terrain != null)
         {
             const float step = 8f;
@@ -369,8 +372,14 @@ public sealed class ArenaMap : IGround
         }
         for (int o = -1; o <= 1; o++)
         {
-            Vector3 from = new Vector3(position.X, y, position.Z) + side * o;
-            if (RayDistance(from, fwd, length, ground: false) < length) return false;
+            Vector3 from = position + side * o;
+            foreach (var b in Blocks)
+            {
+                float t = b.Raycast(new Vector3(from.X, b.Center.Y, from.Z), fwd);
+                if (t >= length) continue;
+                Vector3 at = from + fwd * t;
+                if (b.Max.Y >= Height(at.X, at.Z)) return false;
+            }
         }
         return true;
     }
@@ -407,13 +416,19 @@ public sealed class ArenaMap : IGround
         return new Vector3(q.X, Height(q.X, q.Y), q.Y);
     }
 
+    /// <summary>A block whose top is less than this above a mech's feet is stepped over, not a wall.</summary>
+    public const float StepHeight = 0.6f;
+
     /// <summary>Pushes a circle (mech footprint) out of every block it overlaps. Returns the corrected ground position.</summary>
-    /// <param name="feetY">Height of the mech's feet: blocks it is flying over (top below its feet) don't push.</param>
+    /// <param name="feetY">Height of the mech's feet: blocks it is flying over or can step onto (top less than
+    /// <see cref="StepHeight"/> above its feet) don't push. Without the step, a block flush with the ground walled a mech
+    /// whose body sat half a metre below the terrain (the support height smooths over the feet) while the steering
+    /// probes, measuring from the terrain, saw nothing: a heavy pressed into one for 140 s.</param>
     public Vector3 PushOut(Vector3 p, float radius, float feetY = float.NegativeInfinity)
     {
         foreach (var b in Blocks)
         {
-            if (b.Max.Y < feetY) continue;
+            if (b.Max.Y < feetY + StepHeight) continue;
             float cx = MathUtil.Clamp(p.X, b.Min.X, b.Max.X), cz = MathUtil.Clamp(p.Z, b.Min.Z, b.Max.Z);
             float dx = p.X - cx, dz = p.Z - cz, d2 = dx * dx + dz * dz;
             if (d2 >= radius * radius) continue;

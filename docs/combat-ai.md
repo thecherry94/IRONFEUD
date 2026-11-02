@@ -384,6 +384,14 @@ Score: `1.2·hidden − dist/50 + (retreat ? distToEnemy/140 : −|distToEnemy �
 ### 4. Control (every physics tick)
 - **Steering:** probe candidate headings `0, ±0.3, ±0.6 … ±2.4` rad around the destination bearing with 3 parallel rays
   (±2.4 m) up to 16 m. Take the first clear one. Turn = `clamp(2.2·err)`, throttle = `clamp(dist/20, 0.3, 1)·max(0.1, cos err)`.
+  Godot port (`BattleSim.WalkClear`): the rays are footprint tests that count a block wherever its top is above the
+  terrain they meet it on (the collision's rule, without its 0.6 m step: the probes stay the more cautious), wrecks in
+  the corridor count too, and once the direct course is blocked the detour keeps to the side it took first until the
+  course clears. Player report "got stuck on the corner of this building and became a sitting duck": knee-height rays
+  passed over low and sunken blocks, the collision measured from the body (0.5 m below the terrain on slopes) and walled
+  blocks flush with the ground, wrecks were invisible, and the detour side flipped with the orbit (every 6-12 s), so a
+  mech ran back and forth along a wall. 20 watch lances per map, seconds pressing into obstacles: No Man's Land
+  325 -> 51, hills 1198 -> 195; stalls over 3 s (up to 65 s) -> none (`SteeringTests`, opt-in `StuckTime` report).
 - **Backing up:** in ENGAGE/RETREAT, if the destination is behind (|err| > 2.1) and < 45 m away, reverse at −0.9 while facing the enemy.
 - **Torso aim:** lead = contact position + velocity·(age + range/shellSpeed). Torso yaw target = bearing + aim error,
   pitch includes shell drop `0.5·g·tof²`. If the needed twist exceeds 0.9·TWIST_MAX while standing, turn the legs.
@@ -423,7 +431,8 @@ Deviations from the prototype, and why:
 - **Destination clamp** leaves a block by the nearest face that stays inside the ring (prototype: dominant axis, could
   push points outside).
 - **Collision:** mechs push apart (radius 3 m × chassis scale each, wrecks don't move) and are pushed out of blocks
-  (the prototype had no mech-vs-block collision; steering avoided blocks).
+  whose top is more than 0.6 m above their feet (`ArenaMap.StepHeight`; the prototype had no mech-vs-block collision;
+  steering avoided blocks).
 - Seeded RNG per pilot: battles are deterministic for a given seed.
 
 ## Observed in prototype matches (things to fix/tune)
