@@ -228,21 +228,35 @@ public sealed class MechChassis
     public static MechChassis Assault(MechModel model = MechModel.Bascinet) => Create(ChassisClass.Assault, model);
 
     /// <summary>
-    /// A game mech: the model's body at medium size, then the class's scale, speed and armour.
+    /// A game mech, in three layers kept apart so a new chassis is mostly data: the model's <see cref="Body"/> (body plan
+    /// at reference size: legs, frames, mounts, hit volumes, plates), the class's <see cref="ApplyClass"/> (size, speed,
+    /// agility, armour, jets, heat) and the <see cref="ApplyLoadout"/> (weapons, rack, point defense, sensors).
     /// Speed bands: light 100-150 km/h, medium 60-100, heavy 50-70, assault 30-50.
-    /// Everything except the prototype's geometry is a first guess for feel tuning.
     /// </summary>
     public static MechChassis Create(ChassisClass cls, MechModel model = MechModel.Bascinet)
     {
-        var c = model switch
-        {
-            MechModel.Bascinet => new MechChassis(),
-            MechModel.Sicklefoot => SicklefootBody(),
-            _ => throw new ArgumentOutOfRangeException(nameof(model)),
-        };
+        var c = Body(model);
         c.Model = model;
         c.Class = cls;
         c.Name = $"{model} {cls}";
+        ApplyClass(c, cls);
+        ApplyLoadout(c, cls, model);
+        c.FitGaitToLegs();
+        c.ApplyModelArmour(model);
+        return c;
+    }
+
+    /// <summary>The body plan at its reference (medium) size.</summary>
+    public static MechChassis Body(MechModel model) => model switch
+    {
+        MechModel.Bascinet => new MechChassis(),
+        MechModel.Sicklefoot => SicklefootBody(),
+        _ => throw new ArgumentOutOfRangeException(nameof(model)),
+    };
+
+    /// <summary>Weight-class stats: size, speed and agility, armour, jets, heat sinks.</summary>
+    private static void ApplyClass(MechChassis c, ChassisClass cls)
+    {
         switch (cls)
         {
             case ChassisClass.Light:
@@ -263,10 +277,6 @@ public sealed class MechChassis
                 c.JumpHeat = 0.1f;
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
-                // Sicklefoot: machine guns and a flamethrower (heat it, then shred what the plates don't cover);
-                // Bascinet: incendiary cannon and pulse laser.
-                if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.MachineGun, WeaponSpec.Flamethrower);
-                else c.SetWeapons(WeaponSpec.IncendiaryCannon, WeaponSpec.PulseLaser);
                 c.RoughGroundCaution = 0.5f;
                 c.HeatDissipation = 0.06f;
                 c.CollapseTime = 1.1f;
@@ -274,8 +284,6 @@ public sealed class MechChassis
             case ChassisClass.Medium:
                 // Quick to reposition, and one hard-hitting gun.
                 c.SetSpeed(22f, rev: 6f, accel: 6f, decel: 10f, omega: 1.1f, omegaAccel: 3f, twistRate: 2f, aimRate: 1.2f);
-                if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.Autocannon);
-                else c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
                 c.RoughGroundCaution = 0.8f;
                 c.TurnSpeedPenalty = 0.5f;
                 // Jets: ~13 m on a full burn, enough to pop up over a crest, fire and drop back behind it.
@@ -290,7 +298,6 @@ public sealed class MechChassis
                 c.SetSpeed(16.5f, rev: 4.5f, accel: 4f, decel: 7f, omega: 0.8f, omegaAccel: 2f, twistRate: 1.5f, aimRate: 1f);
                 c.TurnSpeedPenalty = 0.45f;
                 c.SetArmour(140f, 60f, 95f, 6f);
-                c.SetWeapons(model == MechModel.Sicklefoot ? WeaponSpec.ParticleCannon : WeaponSpec.HeavyCannon, WeaponSpec.HeavyLaser);
                 c.HeatDissipation = 0.065f; // big guns need big heat sinks
                 c.CollapseTime = 1.7f;
                 break;
@@ -300,9 +307,34 @@ public sealed class MechChassis
                 c.SetSpeed(11f, rev: 3.5f, accel: 2.8f, decel: 5f, omega: 0.6f, omegaAccel: 1.5f, twistRate: 1.2f, aimRate: 0.9f);
                 c.TurnSpeedPenalty = 0.4f;
                 c.SetArmour(180f, 75f, 120f, 7f);
-                c.SetWeapons(WeaponSpec.SiegeCannon, model == MechModel.Sicklefoot ? WeaponSpec.ParticleCannon : WeaponSpec.HeavyLaser);
                 c.HeatDissipation = 0.075f;
                 c.CollapseTime = 2f;
+                break;
+        }
+        c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
+    }
+
+    /// <summary>Weapons, shoulder rack, point defense and sensor kit for a model in a class.</summary>
+    private static void ApplyLoadout(MechChassis c, ChassisClass cls, MechModel model)
+    {
+        bool sf = model == MechModel.Sicklefoot;
+        switch (cls)
+        {
+            // Sicklefoot light: machine guns and a flamethrower (heat it, then shred what the plates don't cover);
+            // Bascinet light: incendiary cannon and pulse laser.
+            case ChassisClass.Light:
+                if (sf) c.SetWeapons(WeaponSpec.MachineGun, WeaponSpec.Flamethrower);
+                else c.SetWeapons(WeaponSpec.IncendiaryCannon, WeaponSpec.PulseLaser);
+                break;
+            case ChassisClass.Medium:
+                if (sf) c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.Autocannon);
+                else c.SetWeapons(WeaponSpec.HeavyCannon, WeaponSpec.Laser);
+                break;
+            case ChassisClass.Heavy:
+                c.SetWeapons(sf ? WeaponSpec.ParticleCannon : WeaponSpec.HeavyCannon, WeaponSpec.HeavyLaser);
+                break;
+            case ChassisClass.Assault:
+                c.SetWeapons(WeaponSpec.SiegeCannon, sf ? WeaponSpec.ParticleCannon : WeaponSpec.HeavyLaser);
                 break;
         }
         // Shoulder racks and point defense: lights a rocket pod for in-close bursts, mediums a strike rack, heavies
@@ -317,11 +349,7 @@ public sealed class MechChassis
         };
         c.PointDefense = cls == ChassisClass.Assault ? 1 : 0;
         c.Designator = cls == ChassisClass.Light;
-        c.Ecm = cls == ChassisClass.Light && model == MechModel.Sicklefoot;
-        c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
-        c.FitGaitToLegs();
-        c.ApplyModelArmour(model);
-        return c;
+        c.Ecm = cls == ChassisClass.Light && sf;
     }
 
     /// <summary>
