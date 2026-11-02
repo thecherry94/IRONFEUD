@@ -344,15 +344,26 @@ them at each model's arm mount point and flashes, beams, shells and impacts scal
 - Heat: dissipates `0.055 − 0.015·speedFrac` per second, floor 0.08. Weapons lock at heat ≥ 1.
 
 ## Damage model
-Hit volumes (spheres, updated each frame): torso r 2.4, each arm r 1.4 (at forearm), legs r 2.0 (below pelvis).
-HP: torso 100, arms 45, legs 70. Damage to an already destroyed section transfers to the torso.
-Arm destroyed → arm hidden, its weapon offline. Legs destroyed → speed ×0.45. Torso 0 → wreck
-(pelvis collapses ~2.5 m over 1.4 s, legs fold via the same IK, smoke and fire emitters).
+Prototype: torso, two arms, pooled legs. Since 2026-11-02 (Philipp: "The ones in battletech have arms, side torsos,
+center torso, cockpit and legs"; design `docs/superpowers/specs/2026-11-02-side-torsos-and-legs-design.md`) eight
+sections: centre torso (`Torso`), left and right side torsos, two arms, two legs, cockpit.
+- **Hit volumes** (spheres, updated each frame), from the chassis' torso sphere (radius R, default 2.4): centre 0.8 R,
+  side torsos 0.6 R at ±0.6 R (91 % of the old frontal area); each arm r 1.4 at the forearm; one sphere per leg at the
+  middle of hip, knee and ankle, 0.6 x `LegsHitRadius`.
+- **HP** from the chassis' figures: centre 0.8 x `TorsoHp`, each side torso 0.25 x, each leg 0.6 x `LegsHp`. Measured
+  over 12 lance battles the centre takes ~76-80 % of torso hits and the sides ~10-12 % each, so the centre's time to
+  kill is the old torso's; all kills stayed centre-torso kills (legs take ~2-3 % of damage: no legging meta).
+- **Transfer:** a destroyed arm or leg passes hits to its side torso, a destroyed side torso to the centre. A side
+  torso takes its arm with it, and the shoulder rack if it sits in it (`WeaponMount.Section`).
+- **Out:** centre torso (wreck: pelvis collapses ~2.5 m over 1.4 s, legs fold via the same IK, smoke and fire),
+  cockpit (pilot killed), or both legs. One leg destroyed → speed x0.45; lost side torsos cost 15 % heat sinks each.
+- Rear plates on all three torso sections. The AI's twist-away turns its weaker side (side torso + arm) from the fire.
 Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
 
 **Godot additions (not in the prototype):**
 - **Cockpit** section: 5 HP, a small sphere on the canopy glass (player call: it kills the pilot in one solid
-  hit, so it must be extremely hard to hit). Bascinet: r 0.12 m (scaled by size) recessed into the torso sphere so
+  hit, so it must be extremely hard to hit). Bascinet: r 0.09 m since 2026-11-02 (0.12 only passed through a
+  ray-sphere precision error: at 300 m every tiny sphere was ~0.1 m), scaled by size, recessed into the torso sphere so
   ~5 cm of it shows, only head-on; Sicklefoot (head juts out of the torso): r 0.08 m. Share of torso-aimed hits
   (1.5 m scatter) striking it: 0.1-0.3 % head-on, from a diving missile or the side (was 1.3-3.2 %, r 0.3 m, proud
   of the torso: one 10-round arc salvo had a ~15 % chance to kill the pilot and lights died that way at 6-8 s).

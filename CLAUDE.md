@@ -117,7 +117,9 @@ coolant (no more flamer stun-locks). 2026-11-02: dedicated chassis per class (de
 research: docs/research/mech-genre/report.md): Sicklefoot and Bodkin lights, Bascinet (ex-"Hauberk", a BattleTech
 name) and Brigandine mediums, Harrow heavy, Barbican assault; chassis = body + class stats + loadout + design
 quirks; springs scale with size; twist range narrows with weight; running hot (0.6-1) costs speed and aim; stability
-and impact (heavy shells stagger); ECM degrades instead of blocking. Open items: falls, melee and stumble steps (capture point), lancemate orders,
+and impact (heavy shells stagger); ECM degrades instead of blocking; side torsos and separate legs (8 damage
+sections; design: docs/superpowers/specs/2026-11-02-side-torsos-and-legs-design.md). Next: a richer shape kit for the
+rig, then a visual redesign one chassis at a time with Philipp (docs/research/mech-genre/notes/visual_design_language.md). Open items: falls, melee and stumble steps (capture point), lancemate orders,
 chassis data files / `.tres` for editor tuning, heavies still lead kills in lances (80 games: 0.8-1.0/game vs
 0.5-0.7), the siege cannon is the top killer of flamer lights, light counterplay
 at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover independently),
