@@ -67,17 +67,23 @@ public class DamageTests
     /// <summary>
     /// Player call: the cockpit kills the pilot in one solid hit, so it must be extremely hard to hit. Aiming at the
     /// torso with 1.5 m scatter (an AI at ~250 m), the share of hits striking it, head-on, from a diving missile and
-    /// from the side, must stay under 0.4 % for every class and model. Before (r 0.3 m, canopy proud of the torso)
+    /// from the side, must stay under 0.4 % for every class and model (and every design in its own class). Before (r 0.3 m, canopy proud of the torso)
     /// it was 1.3-3.2 % head-on and up to 3 % from above: one 10-round arc salvo had a ~15 % chance of killing the
     /// pilot, and lights died that way in the first 10 s.
     /// </summary>
     [Fact]
     public void Cockpit_IsExtremelyHardToHit_FromAnyDirection()
     {
+        var chassis = new System.Collections.Generic.List<MechChassis>();
         foreach (var cls in Enum.GetValues<ChassisClass>())
-        foreach (var model in new[] { MechModel.Bascinet, MechModel.Sicklefoot })
+            foreach (var model in new[] { MechModel.Bascinet, MechModel.Sicklefoot })
+                chassis.Add(MechChassis.Create(cls, model));
+        foreach (var model in new[] { MechModel.Bodkin, MechModel.Brigandine, MechModel.Harrow, MechModel.Barbican })
+            chassis.Add(MechChassis.Design(model));
+        foreach (var c in chassis)
         {
-            var sim = new MechSim(MechChassis.Create(cls, model));
+            var (cls, model) = (c.Class, c.Model);
+            var sim = new MechSim(c);
             for (int i = 0; i < 240; i++) sim.Step(default, 1f / 120f);
             var rng = new DeterministicRng(7);
             Vector3 aim = Volume(sim, MechSection.Torso).Center;
