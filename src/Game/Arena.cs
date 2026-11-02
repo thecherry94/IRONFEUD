@@ -245,6 +245,11 @@ public static class Arena
         TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
     };
 
+    /// <summary>
+    /// Sky, fog and sun. Contrast comes from a strong warm sun against a dimmer cool sky fill; ambient occlusion and
+    /// screen-space bounce light ground the mechs, and glow only blooms what is brighter than white (muzzle flashes,
+    /// hot barrels, lenses).
+    /// </summary>
     private static void BuildEnvironment(Node3D root, Color fog)
     {
         var env = new Godot.Environment
@@ -254,35 +259,56 @@ public static class Arena
             {
                 SkyMaterial = new ProceduralSkyMaterial
                 {
-                    SkyTopColor = new Color("aab4bc"),
+                    SkyTopColor = new Color("9fb2c2"),
                     SkyHorizonColor = fog,
                     GroundHorizonColor = fog,
                     GroundBottomColor = new Color("5a4e40"),
+                    SunAngleMax = 20f,
                 },
             },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-            AmbientLightEnergy = 1.0f,
+            AmbientLightEnergy = 0.85f,
+            ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
             TonemapMode = Godot.Environment.ToneMapper.Aces,
-            TonemapExposure = 1.05f,
+            TonemapExposure = 1.0f,
+            SsaoEnabled = true,
+            SsaoRadius = 1.6f,
+            SsaoIntensity = 2.2f,
+            SsaoDetail = 0.6f,
+            SsaoLightAffect = 0.15f,
+            SsilEnabled = true,
+            SsilRadius = 4f,
+            SsilIntensity = 0.8f,
+            GlowEnabled = true,
+            GlowHdrThreshold = 1.1f,
+            GlowIntensity = 0.6f,
+            GlowBloom = 0.02f,
+            GlowBlendMode = Godot.Environment.GlowBlendModeEnum.Softlight,
+            AdjustmentEnabled = true,
+            AdjustmentContrast = 1.06f,
+            AdjustmentSaturation = 1.0f,
             FogEnabled = true,
             FogMode = Godot.Environment.FogModeEnum.Depth,
             FogLightColor = fog,
             FogDensity = 1f,
-            FogDepthBegin = 200f,
+            FogDepthBegin = 120f,
             FogDepthEnd = 800f,
             FogSkyAffect = 1f,
+            FogSunScatter = 0.15f,
         };
         root.AddChild(new WorldEnvironment { Environment = env });
 
         var sun = new DirectionalLight3D
         {
             Name = "Sun",
-            LightColor = new Color("fff0dd"),
-            LightEnergy = 1.4f,
+            LightColor = new Color("ffe6c8"),
+            LightEnergy = 1.8f,
+            LightAngularDistance = 0.6f, // slightly soft shadow edges
             ShadowEnabled = true,
+            ShadowBlur = 1.2f,
             DirectionalShadowMaxDistance = 220f,
         };
         root.AddChild(sun);
-        sun.LookAtFromPosition(new Vector3(-30, 55, -22), Vector3.Zero, Vector3.Up);
+        sun.LookAtFromPosition(new Vector3(-30, 42, -22), Vector3.Zero, Vector3.Up);
     }
 }

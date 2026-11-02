@@ -84,6 +84,9 @@ public partial class Main : Node3D
     {
         ProcessMode = ProcessModeEnum.Always; // keys work while paused; the session itself is pausable
         GameInput.Ensure();
+        var viewport = GetViewport();
+        viewport.Msaa3D = Viewport.Msaa.Msaa4X; // mechs are all hard edges: without MSAA they shimmer and stair-step
+        viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Disabled;
         foreach (string arg in OS.GetCmdlineUserArgs())
         {
             switch (arg)
