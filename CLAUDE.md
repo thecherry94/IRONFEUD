@@ -118,10 +118,15 @@ research: docs/research/mech-genre/report.md): Sicklefoot and Bodkin lights, Bas
 name) and Brigandine mediums, Harrow heavy, Barbican assault; chassis = body + class stats + loadout + design
 quirks; springs scale with size; twist range narrows with weight; running hot (0.6-1) costs speed and aim; stability
 and impact (heavy shells stagger); ECM degrades instead of blocking; side torsos and separate legs (8 damage
-sections; design: docs/superpowers/specs/2026-11-02-side-torsos-and-legs-design.md). Next: a richer shape kit for the
-rig, then a visual redesign one chassis at a time with Philipp (docs/research/mech-genre/notes/visual_design_language.md). Open items: falls, melee and stumble steps (capture point), lancemate orders,
-chassis data files / `.tres` for editor tuning, heavies still lead kills in lances (80 games: 0.8-1.0/game vs
-0.5-0.7), the siege cannon is the top killer of flamer lights, light counterplay
+sections; design: docs/superpowers/specs/2026-11-02-side-torsos-and-legs-design.md); the weapons rework (design:
+docs/superpowers/specs/2026-11-02-weapons-rework-design.md): loadouts as hardpoint mounts with 5-6 weapons per mech,
+ammunition with cook-off, weapon groups (alpha/chain) and a HUD weapon panel, arm weapons aiming in a cone faster than
+the torso. Genre gaps still open: docs/research/mech-genre/gap-audit.md. Next: player instruments (zoom, radar,
+target readout), a richer shape kit for the rig, then a visual redesign one chassis at a time with Philipp
+(docs/research/mech-genre/notes/visual_design_language.md). Open items: lights land few kills since the loadout rework
+(0.38/game; missions and scouting should give them jobs), ammunition rarely runs dry in arena fights, falls, melee and stumble steps (capture point), lancemate orders,
+chassis data files / `.tres` for editor tuning, heavies still lead kills in lances (80 games: ~1.0/game vs
+0.4-0.7), the siege cannon is the top killer of flamer lights, light counterplay
 at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover independently),
 real sounds for the new weapons.
 

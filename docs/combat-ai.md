@@ -78,6 +78,15 @@ autocannon), medium one (heavy cannon + laser), heavy two (heavy cannon + heavy 
 | Assault | 192 | 209 | 0.88 | 36 | 38 % | 14 % | 37 % | 81 % |
 
 ## Weapon roster and class loadouts (Godot port)
+Since 2026-11-02 (weapons rework, `docs/superpowers/specs/2026-11-02-weapons-rework-design.md`): a chassis carries a
+`Loadout` of weapons on hardpoints (arms, shoulder rack, chest left/right), 5-6 per mech; fire bit i = mount i (the
+right arm's first weapon is still bit 0, the left arm's bit 1, the rack's bit 2). Guns and racks carry rounds (about a
+minute of fire, 45 s for racks); the rounds sit in the mount's section (an arm weapon's in its side torso) and a fifth
+of what is left goes off in the centre torso when that section is destroyed. Arm weapons aim along the arms' ray,
+which leads the torso by up to ±20° yaw / ±25° pitch at 2.5x the twist rate; torso weapons along the torso's; the AI
+checks alignment per weapon. The player fires weapon groups (1-6, LMB/RMB/MMB; alpha or chain), the AI single
+weapons. Older notes below describe the two-arm + rack era.
+
 Right arm = fire bit 0, left arm = bit 1. Every weapon: full damage out to its optimal range, then linear to zero at
 max range (shells measure the distance they flew and expire there; the AI fires within 40 % damage). Before, shells
 kept full damage at any range and beams fell to 20-25 %.
