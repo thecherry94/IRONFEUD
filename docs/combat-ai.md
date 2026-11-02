@@ -232,6 +232,22 @@ off missiles in flight 35-13 (the lance moves within 120 m of its light: arc mis
 gutted); all of it 37-11. Without the missile shake-off and with the jammer drawing fire: 31-17, the ECM light
 surviving 50 %. Lance report: light 58 dealt / 0.40 kills / 33 % survived / 0.35 shutdowns per game, medium 89 / 0.38
 / 38 %, heavy 143 / 1.35 / 43 %, assault 103 / 0.38 / 38 % (lights started this round at 0.23 kills, 20 %).
+2026-11-02, from the genre research (an ECM that blocks became the genre's mandatory pick and was walked back to lock
+delays): jamming now degrades instead of blocking. In a hostile bubble locks take 2.5x as long (`JamLockFactor`;
+designators and marks still cut through), radar reaches half range, a jammed mate's sightings reach the lance every
+2 s, and every enemy within 180 m knows where the jammer is (`JammerRevealRadius`). Heavy's lock: 1.51 s clear,
+3.75 s jammed, 1.52 s with a designator marking. Head-to-head 29-19 blocking -> 26-22 degrading; the ECM light now
+survives 35 % (was 46 %).
+
+**Running hot and stability** (2026-11-02, `MechSim`). From heat 0.6 to the weapon lock at 1 the legs lose up to 15 %
+of top speed and the gyro steadies the guns less (up to half its stabilisation), a visible slope before the cliff
+(HUD "RUNNING HOT"); own guns can heat a mech to 1.15 at most, so only outside heat and jets scram it. Every hit
+drains a stability budget (light 40, medium 70, heavy 100, assault 135; Bodkin x0.9, Harrow and Barbican x1.25) by
+damage x the weapon's impact (shells 1, particle 0.9, autocannon 0.8, missiles 0.6, incendiary 0.5, MG 0.3, beams
+0.15, flamer 0); drained, the aim wavers (up to 60 % of the stabilisation gone); emptied, the mech staggers 1.1 s
+(guns off line, legs coasting, torso rocked away from the blow), refills half and can't stagger again for 3 s.
+Lance report (80 games) staggers/game: medium 0.50, light 0.18, heavy 0.11, assault 0.04. Not yet: stumble steps
+from the capture point, falls, the AI exploiting a staggered target.
 
 **Lance tactics** (`BattleSim.Tactics` per team, `TeamTactics_HeadToHead` reports them). Radar: lancemates share
 sightings (position, not sight: firing still needs one's own eyes; a missile lock can use a teammate's). Spotters: the
