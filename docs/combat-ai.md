@@ -392,6 +392,7 @@ Score: `1.2·hidden − dist/50 + (retreat ? distToEnemy/140 : −|distToEnemy �
   blocks flush with the ground, wrecks were invisible, and the detour side flipped with the orbit (every 6-12 s), so a
   mech ran back and forth along a wall. 20 watch lances per map, seconds pressing into obstacles: No Man's Land
   325 -> 51, hills 1198 -> 195; stalls over 3 s (up to 65 s) -> none (`SteeringTests`, opt-in `StuckTime` report).
+  Missile evasion swings only to a walkable side, and slows to turn when coming about (flat out it ground along walls).
 - **Backing up:** in ENGAGE/RETREAT, if the destination is behind (|err| > 2.1) and < 45 m away, reverse at −0.9 while facing the enemy.
 - **Torso aim:** lead = contact position + velocity·(age + range/shellSpeed). Torso yaw target = bearing + aim error,
   pitch includes shell drop `0.5·g·tof²`. If the needed twist exceeds 0.9·TWIST_MAX while standing, turn the legs.

@@ -1137,13 +1137,18 @@ public sealed partial class AiPilot
             input.Throttle = MathUtil.Clamp(brake, MathF.Min(0.3f, 1.3f / c.VMax), 1f) * turnThrottle;
         }
 
-        // Missiles inbound: full throttle, swinging the course hard either side of the plan every 0.6 s (the
-        // missiles' track refreshes every 0.5 s and extrapolates a straight line).
+        // Missiles inbound: full throttle, swinging the course hard either side of the plan every second (the
+        // missiles' track refreshes every second and extrapolates a straight line). Never into a wall: a swing that
+        // isn't walkable goes the other way, or not at all.
         if (Evading)
         {
             float weave = 0.7f * MathF.Sign(MathF.Sin(MathUtil.Tau * _now / EvadePeriod + me.Id));
-            input.Turn = MathUtil.Clamp(MathUtil.WrapAngle(DesiredHeading + weave - body.Psi) * 2.2f, -1f, 1f);
-            input.Throttle = 1f;
+            if (!b.WalkClear(me, DesiredHeading + weave, 16f))
+                weave = b.WalkClear(me, DesiredHeading - weave, 16f) ? -weave : 0f;
+            float off = MathUtil.WrapAngle(DesiredHeading + weave - body.Psi);
+            input.Turn = MathUtil.Clamp(off * 2.2f, -1f, 1f);
+            // Coming about (more than a swing's worth to turn), slow to turn: flat out it ground along a wall instead.
+            input.Throttle = MathF.Abs(off) < 1.5f ? 1f : MathF.Max(0.3f, MathF.Cos(off));
         }
 
         bool wasHolding = HoldingFire;
