@@ -12,7 +12,7 @@ using Vec3 = System.Numerics.Vector3;
 
 namespace IronFeud.Game;
 
-public enum GameMode { Range, Watch1v1, Watch2v2, WatchLance, Play1v1, Play2v2, Parade }
+public enum GameMode { Range, Watch1v1, Watch2v2, WatchLance, Play1v1, Play2v2, Parade, Lineup }
 
 /// <summary>Battle maps for the watch and play modes (T cycles). The parade uses open ground, hilly unless Flat.</summary>
 public enum MapKind { NoMansLand, Hills, Flat }
@@ -46,6 +46,7 @@ public partial class Main : Node3D
     private GameMode _mode = GameMode.WatchLance;
     private ChassisClass _playerClass = ChassisClass.Medium;
     private MechModel _playerModel = MechModel.Bascinet;
+    private (float Theta, float Phi, float Radius)? _orbit;
     private uint _round;
     private bool _rangeDemo, _gaitDebug, _aiOverlay = true;
     private MapKind _map = MapKind.NoMansLand;
@@ -65,14 +66,19 @@ public partial class Main : Node3D
 
     private bool Watching => _mode is GameMode.Watch1v1 or GameMode.Watch2v2 or GameMode.WatchLance;
 
-    /// <summary>Gait parade lanes, inner to outer: slow classes inside, lights (widest turning circles) outside.</summary>
+    /// <summary>
+    /// Gait parade lanes, inner to outer: every design in its own class, slow classes inside, lights (widest turning
+    /// circles) outside.
+    /// </summary>
     private static readonly (ChassisClass Class, MechModel Model, float Radius)[] ParadeLanes =
     {
-        (ChassisClass.Assault, MechModel.Bascinet, 100f), (ChassisClass.Assault, MechModel.Sicklefoot, 122f),
-        (ChassisClass.Heavy, MechModel.Bascinet, 144f), (ChassisClass.Heavy, MechModel.Sicklefoot, 166f),
-        (ChassisClass.Medium, MechModel.Bascinet, 188f), (ChassisClass.Medium, MechModel.Sicklefoot, 210f),
-        (ChassisClass.Light, MechModel.Bascinet, 232f), (ChassisClass.Light, MechModel.Sicklefoot, 254f),
+        (ChassisClass.Assault, MechModel.Barbican, 100f), (ChassisClass.Heavy, MechModel.Harrow, 126f),
+        (ChassisClass.Medium, MechModel.Brigandine, 152f), (ChassisClass.Medium, MechModel.Bascinet, 178f),
+        (ChassisClass.Light, MechModel.Bodkin, 208f), (ChassisClass.Light, MechModel.Sicklefoot, 238f),
     };
+
+    /// <summary>Parade lane selected at the start (the Bascinet medium, the reference body).</summary>
+    private const int ParadeStartLane = 3;
 
     public override void _Ready()
     {
@@ -91,6 +97,7 @@ public partial class Main : Node3D
                 case "--play=1v1": _mode = GameMode.Play1v1; break;
                 case "--play=2v2": _mode = GameMode.Play2v2; break;
                 case "--parade": _mode = GameMode.Parade; break;
+                case "--lineup": _mode = GameMode.Lineup; break;
                 case "--light": _playerClass = ChassisClass.Light; break;
                 case "--heavy": _playerClass = ChassisClass.Heavy; break;
                 case "--assault": _playerClass = ChassisClass.Assault; break;
@@ -106,6 +113,12 @@ public partial class Main : Node3D
             }
             if (arg.StartsWith("--seed=") && uint.TryParse(arg[7..], out uint seed)) ArenaSeed = seed;
             if (arg.StartsWith("--select=") && int.TryParse(arg[9..], out int sel)) _selectAtStart = sel;
+            // --orbit=theta,phi,radius: a fixed orbit camera for captures (radians, radius in the target's size units).
+            if (arg.StartsWith("--orbit=") && arg[8..].Split(',') is { Length: 3 } o
+                && float.TryParse(o[0], System.Globalization.CultureInfo.InvariantCulture, out float th)
+                && float.TryParse(o[1], System.Globalization.CultureInfo.InvariantCulture, out float ph)
+                && float.TryParse(o[2], System.Globalization.CultureInfo.InvariantCulture, out float ra))
+                _orbit = (th, ph, ra);
         }
         StartSession(_mode);
     }
@@ -133,6 +146,17 @@ public partial class Main : Node3D
             {
                 var (name, pos, _) = TargetSpawns[i];
                 battle.AddUnit(name, 1, i % 2 == 0 ? MechChassis.Medium() : MechChassis.Light(MechModel.Sicklefoot), pos, Mathf.Pi);
+            }
+        }
+        else if (mode == GameMode.Lineup)
+        {
+            // Silhouette check: every design in its own class, standing in a row on flat ground, facing +z.
+            battle = new BattleSim(ArenaMap.Open(ArenaSeed, false), _round) { TrackOutcome = false };
+            var designs = System.Enum.GetValues<MechModel>();
+            for (int i = 0; i < designs.Length; i++)
+            {
+                var c = MechChassis.Design(designs[i]);
+                battle.AddUnit(c.Name, 0, c, new Vec3((i - (designs.Length - 1) / 2f) * 22f, 0f, 0f), Mathf.Pi);
             }
         }
         else if (mode == GameMode.Parade)
@@ -165,7 +189,8 @@ public partial class Main : Node3D
         _camera = new CameraRig { Name = "Camera", Mechs = _battlefield.Mechs };
         _session.AddChild(_camera);
         _camera.MakeCurrent();
-        _camera.SetMode(_cameraOverride ?? (_player != null ? CameraMode.Chase : mode == GameMode.Parade ? CameraMode.Orbit : CameraMode.Overview));
+        _camera.SetMode(_cameraOverride ?? (_player != null ? CameraMode.Chase : mode is GameMode.Parade or GameMode.Lineup ? CameraMode.Orbit : CameraMode.Overview));
+        if (_orbit is { } orbit) _camera.SetOrbit(orbit.Theta, orbit.Phi, orbit.Radius);
         _cameraOverride = null;
 
         PlayerMechController? pilot = null;
@@ -198,7 +223,7 @@ public partial class Main : Node3D
         _panel = new AiPanel { Name = "AiPanel", Battle = battle, Visible = _aiOverlay && Watching };
         _session.AddChild(_panel);
 
-        int first = _selectAtStart >= 0 ? Mathf.Min(_selectAtStart, _battlefield.Mechs.Count - 1) : mode == GameMode.Parade ? 5 : 0;
+        int first = _selectAtStart >= 0 ? Mathf.Min(_selectAtStart, _battlefield.Mechs.Count - 1) : mode == GameMode.Parade ? ParadeStartLane : 0;
         Select(_player ?? _battlefield.Mechs[first]); // parade: start on the medium Sicklefoot
     }
 
@@ -211,42 +236,43 @@ public partial class Main : Node3D
         void Player(float x, float z) => b.AddUnit("Player", 0, MechChassis.Create(_playerClass, _playerModel), new Vec3(x, 0f, z), 0f);
 
         const ChassisClass M = ChassisClass.Medium, L = ChassisClass.Light;
-        const MechModel SF = MechModel.Sicklefoot;
+        const MechModel SF = MechModel.Sicklefoot, BR = MechModel.Brigandine;
         const float z = ArenaMap.ArenaSpawnZ, z2 = z + 17f, x = 30f;
         switch (mode)
         {
             case GameMode.Watch1v1:
                 Ai("Alpha-1", 0, M, 0f, z, Personality.Balanced);
-                Ai("Bravo-1", 1, M, 0f, -z, Personality.Brawler, SF);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Brawler, BR);
                 break;
             case GameMode.Watch2v2:
                 Ai("Alpha-1", 0, M, x, z, Personality.Brawler);
-                Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper, SF);
-                Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced, SF);
+                Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper, BR);
+                Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced, BR);
                 Ai("Bravo-2", 1, M, x, -z2, Personality.Sniper);
                 break;
             case GameMode.WatchLance:
-                // One of each class per side: light skirmisher, medium, heavy line, assault anchor. Both sides field the
-                // same lance (models mixed within it) on a point-symmetric map: a fair match. Mirrored model mixes
-                // tilted it ~59-41, mostly through the taller Bascinet assault being picked off over crests.
+                // One of each class per side: light skirmisher, medium, heavy line, assault anchor, each its class's
+                // dedicated design. Both sides field the same lance on a point-symmetric map: a fair match (mirrored model
+                // mixes tilted it ~59-41). The light and medium designs alternate with each restart.
+                bool first = _round % 2 == 1;
+                MechModel light = first ? SF : MechModel.Bodkin, medium = first ? MechModel.Bascinet : MechModel.Brigandine;
                 foreach (var (team, sign, name) in new[] { (0, 1f, "Alpha"), (1, -1f, "Bravo") })
                 {
-                    const MechModel model = MechModel.Sicklefoot, other = MechModel.Bascinet;
-                    Ai($"{name}-1", team, L, -45f * sign, sign * z, Personality.Balanced, model);
-                    Ai($"{name}-2", team, M, -15f * sign, sign * z, Personality.Balanced, other);
-                    Ai($"{name}-3", team, ChassisClass.Heavy, 15f * sign, sign * z2, Personality.Balanced, model);
-                    Ai($"{name}-4", team, ChassisClass.Assault, 45f * sign, sign * z2, Personality.Sniper, other);
+                    Ai($"{name}-1", team, L, -45f * sign, sign * z, Personality.Balanced, light);
+                    Ai($"{name}-2", team, M, -15f * sign, sign * z, Personality.Balanced, medium);
+                    Ai($"{name}-3", team, ChassisClass.Heavy, 15f * sign, sign * z2, Personality.Balanced, MechModel.Harrow);
+                    Ai($"{name}-4", team, ChassisClass.Assault, 45f * sign, sign * z2, Personality.Sniper, MechModel.Barbican);
                 }
                 break;
             case GameMode.Play1v1:
                 Player(0f, z);
-                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced, SF);
+                Ai("Bravo-1", 1, M, 0f, -z, Personality.Balanced, BR);
                 break;
             case GameMode.Play2v2:
                 Player(x, z);
                 Ai("Alpha-2", 0, M, -x, z2, Personality.Sniper);
                 Ai("Bravo-1", 1, M, -x, -z, Personality.Balanced);
-                Ai("Bravo-2", 1, M, x, -z2, Personality.Brawler, SF);
+                Ai("Bravo-2", 1, M, x, -z2, Personality.Brawler, BR);
                 break;
         }
     }

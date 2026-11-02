@@ -52,6 +52,14 @@ public partial class CameraRig : Camera3D
         SetMode(Mode);
     }
 
+    /// <summary>Places the orbit camera (spherical angles around the target, radius in the target's size units).</summary>
+    public void SetOrbit(float theta, float phi, float radius)
+    {
+        _theta = theta;
+        _phi = phi;
+        _radius = radius;
+    }
+
     public void SetMode(CameraMode mode)
     {
         Mode = mode;
