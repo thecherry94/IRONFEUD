@@ -550,22 +550,24 @@ public class BattleTests
 
     /// <summary>Shots an AI lands on a light 160 m away, standing or running a tight circle (4 seeds x 40 s).</summary>
     /// <param name="coolant">Unlimited heat sinking, so only fire discipline (not the heat budget) limits the guns.</param>
-    private static (int Shots, int Hits, int Shells) ShootAtLight(bool running, ChassisClass shooter = ChassisClass.Medium, bool coolant = false)
+    private static (int Shots, int Hits, int Shells) ShootAtLight(bool running, ChassisClass shooter = ChassisClass.Medium, bool coolant = false,
+        float? twistMax = null)
     {
         int shots = 0, hits = 0, shellCount = 0;
         for (uint seed = 1; seed <= 4; seed++)
         {
-            var (s, h, sh) = ShootAtLight(running, shooter, seed, coolant);
+            var (s, h, sh) = ShootAtLight(running, shooter, seed, coolant, twistMax);
             shots += s; hits += h; shellCount += sh;
         }
         return (shots, hits, shellCount);
     }
 
-    private static (int Shots, int Hits, int Shells) ShootAtLight(bool running, ChassisClass shooter, uint seed, bool coolant)
+    private static (int Shots, int Hits, int Shells) ShootAtLight(bool running, ChassisClass shooter, uint seed, bool coolant, float? twistMax)
     {
         var b = new BattleSim(new ArenaMap(), seed) { TrackOutcome = false };
         var chassis = MechChassis.Create(shooter);
         if (coolant) chassis.HeatDissipation = 10f;
+        if (twistMax is { } tm) chassis.TwistMax = tm;
         var ai = b.AddUnit("A", 0, chassis, Vector3.Zero, 0f, Personality.Balanced);
         var light = MechChassis.Light();
         var tough = MechDamage.Create(light);
@@ -596,9 +598,11 @@ public class BattleTests
     public void HeavyGuns_WaitForCleanShots()
     {
         // Heat sinking unlimited: since lasers burn, the heavy laser's heat alone throttles the siege cannon against a
-        // standing light (14 vs 13 shells), which hid what this checks: holding fire on a crossing target.
-        var still = ShootAtLight(false, ChassisClass.Assault, coolant: true);
-        var running = ShootAtLight(true, ChassisClass.Assault, coolant: true);
+        // standing light (14 vs 13 shells), which hid what this checks: holding fire on a crossing target. Likewise a
+        // medium's twist range: the assault's narrow arc (1.15 rad) keeps an orbiting assault's guns off even a standing
+        // light part of the time (36 -> 32 shells, running light unchanged at 22-23).
+        var still = ShootAtLight(false, ChassisClass.Assault, coolant: true, twistMax: 1.75f);
+        var running = ShootAtLight(true, ChassisClass.Assault, coolant: true, twistMax: 1.75f);
         _out.WriteLine($"assault vs standing light: {still.Hits}/{still.Shots} hits, {still.Shells} siege shells · vs running light: {running.Hits}/{running.Shots}, {running.Shells} shells");
         Assert.True(running.Shells < 0.7f * still.Shells, "the siege cannon should hold fire on a fast-crossing light");
     }
