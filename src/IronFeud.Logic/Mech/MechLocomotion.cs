@@ -82,7 +82,7 @@ public sealed class MechLocomotion
     {
         Body.Position = Ground.OnGround(position);
         Body.Psi = psi;
-        Body.V = Body.Acc = Body.Omega = Body.Twist = Body.Aim = Body.Slope = Body.Vy = _groundVel = 0f;
+        Body.V = Body.Acc = Body.Omega = Body.Twist = Body.Aim = Body.ArmYaw = Body.ArmPitch = Body.Slope = Body.Vy = _groundVel = 0f;
         Body.Airborne = false;
         JumpFuel = Chassis.JumpFuel;
         Gait.Reset(Body, Chassis);

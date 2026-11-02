@@ -72,7 +72,7 @@ public static class MechPoseSolver
         for (int i = 0; i < 2; i++)
         {
             float side = i == 0 ? 1f : -1f;
-            pose.Shoulders[i] = Rot.X(body.Aim - sec.Arms[i].X - 0.6f * collapse);
+            pose.Shoulders[i] = Rot.Yxz(body.Aim + body.ArmPitch - sec.Arms[i].X - 0.6f * collapse, body.ArmYaw, 0f);
             float elbowJank = i == 0 ? 0.02f * jn : -0.02f * jn;
             pose.Elbows[i] = Rot.X(-(sec.Elbows[i].X * 0.25f + elbowJank));
 
@@ -92,6 +92,8 @@ public static class MechPoseSolver
         float aimPitch = body.Aim - residual * 0.25f * sec.TorsoPitch.X;
         pose.AimOrigin = torsoPos + Vector3.Transform(new Vector3(0f, t.AimOriginY, 0f), torsoRot);
         pose.AimDirection = MathUtil.Forward(aimYaw) * MathF.Cos(aimPitch) + Vector3.UnitY * MathF.Sin(aimPitch);
+        float armYaw = aimYaw + body.ArmYaw, armPitch = aimPitch + body.ArmPitch;
+        pose.ArmAimDirection = MathUtil.Forward(armYaw) * MathF.Cos(armPitch) + Vector3.UnitY * MathF.Sin(armPitch);
 
         Quaternion headRot = torsoRot * pose.HeadRotation;
         Vector3 headPos = torsoPos + Vector3.Transform(t.HeadOffset, torsoRot);

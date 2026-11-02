@@ -29,11 +29,14 @@ public partial class PlayerMechController : Node
 
     private const float MaxConvergence = 800f, MinConvergence = 15f;
 
-    /// <summary>Where the weapons converge this tick (world space), for the reticle.</summary>
+    /// <summary>Where the torso aim ray meets the world this tick (the torso weapons' reticle).</summary>
     public Vector3 AimPoint => AimHit.Point;
 
     /// <summary>What the torso aim ray is on: geometry, or a mech section.</summary>
     public BattleHit AimHit { get; private set; }
+
+    /// <summary>Where the arms' aim ray meets the world (the arm weapons' reticle, and the convergence distance).</summary>
+    public BattleHit ArmAimHit { get; private set; }
 
     public override void _Ready()
     {
@@ -113,13 +116,12 @@ public partial class PlayerMechController : Node
             jump = _autopilotTime is > 2f and < 2.4f or > 7f and < 7.7f or > 12f and < 13.2f;
         }
 
-        // Converge on whatever the torso aim ray hits, mechs included (last tick's pose; one tick of lag is invisible).
+        // Converge on whatever the arms' aim ray hits (where the pilot is pointing; the torso follows), mechs included
+        // (last tick's pose; one tick of lag is invisible). The torso ray gets its own reticle.
         var pose = Mech.Sim.Pose;
-        Vector3 from = pose.AimOrigin.ToGodot(), dir = pose.AimDirection.ToGodot();
-        BattleHit aim;
-        if (Battlefield != null) Battlefield.Raycast(from, dir, MaxConvergence, Mech, out aim);
-        else aim = new BattleHit { Point = from + dir * MaxConvergence, Distance = MaxConvergence };
-        AimHit = aim;
+        Vector3 from = pose.AimOrigin.ToGodot();
+        AimHit = Cast(from, pose.AimDirection.ToGodot());
+        var aim = ArmAimHit = Cast(from, pose.ArmAimDirection.ToGodot());
         float convergence = Mathf.Max(MinConvergence, aim.Distance);
 
         Mech.PilotInput = new MechInput
@@ -141,6 +143,12 @@ public partial class PlayerMechController : Node
         }
         else if ((_lockSeen += h) > 2f) _lockCandidate = null;
         Mech.Unit.LockCandidate = _lockCandidate?.Unit;
+    }
+
+    private BattleHit Cast(Vector3 from, Vector3 dir)
+    {
+        if (Battlefield != null && Battlefield.Raycast(from, dir, MaxConvergence, Mech, out var hit)) return hit;
+        return new BattleHit { Point = from + dir * MaxConvergence, Distance = MaxConvergence };
     }
 
     private MechNode? _lockCandidate;

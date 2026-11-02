@@ -1237,15 +1237,16 @@ public sealed partial class AiPilot
             // Fire when the reticle is on the target: the tolerance is the target's apparent size (the prototype's fixed
             // 0.02 + 1.6/d was ~5 m at 160 m, wider than a light's whole torso). Heavy guns cycle slowly: they want a
             // tighter lay (0.8 of the size), on a target that isn't crossing fast (or is close).
+            bool arm = !weapons.Mounts[i].OnTorso; // arm weapons fire along the arms' aim
             if (spec.Damage >= HeavyShot)
             {
-                if (!Aligned(sim.Pose, point, 0.003f, 0.8f * k.Radius) || Crossing(me, k) > 0.05f && d > 90f) continue;
+                if (!Aligned(sim.Pose, point, 0.003f, 0.8f * k.Radius, arm) || Crossing(me, k) > 0.05f && d > 90f) continue;
             }
-            else if (!Aligned(sim.Pose, point, 0.004f, k.Radius)) continue;
+            else if (!Aligned(sim.Pose, point, 0.004f, k.Radius, arm)) continue;
             // Check the shot that would actually leave: toward the convergence point on the current aim ray (minus the
             // shell's drop: the chord to the impact lies below the arc). Alignment tolerates metres of error at range,
             // which is fine on flat ground but puts the round into a crest the mech is firing over.
-            Vector3 aimed = sim.Pose.AimOrigin + sim.Pose.AimDirection * input.Convergence;
+            Vector3 aimed = sim.Pose.AimOrigin + (arm ? sim.Pose.ArmAimDirection : sim.Pose.AimDirection) * input.Convergence;
             if (projectile)
             {
                 float t = input.Convergence / spec.MuzzleVelocity;
@@ -1315,11 +1316,13 @@ public sealed partial class AiPilot
     }
 
     /// <summary>Aim-ray angle to the point is inside the tolerance (which widens up close by <paramref name="slack"/>/d).</summary>
-    private static bool Aligned(MechPose pose, Vector3 point, float tolerance, float slack = 1.6f)
+    /// <param name="arms">Check the arms' aim ray (arm weapons) instead of the torso's.</param>
+    private static bool Aligned(MechPose pose, Vector3 point, float tolerance, float slack = 1.6f, bool arms = false)
     {
         Vector3 v = point - pose.AimOrigin;
         float d = v.Length();
-        return MathF.Acos(MathUtil.Clamp(Vector3.Dot(pose.AimDirection, v / d), -1f, 1f)) < tolerance + slack / d;
+        Vector3 dir = arms ? pose.ArmAimDirection : pose.AimDirection;
+        return MathF.Acos(MathUtil.Clamp(Vector3.Dot(dir, v / d), -1f, 1f)) < tolerance + slack / d;
     }
 
     /// <summary>Angular rate (rad/s) at which the contact crosses this mech's line of sight, from its estimated velocity.</summary>

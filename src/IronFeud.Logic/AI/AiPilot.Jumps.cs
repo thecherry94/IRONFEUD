@@ -304,10 +304,14 @@ public sealed partial class AiPilot
         return true;
     }
 
-    /// <summary>Under fire (hit in the last second): a short hop half the time, keeping speed and course.</summary>
+    /// <summary>
+    /// Under fire (hit in the last second): a short hop half the time, keeping speed and course. Not with a vault lined
+    /// up: the hop would spend the fuel the vault needs (once arm weapons tracked faster, the target's fire set off a
+    /// jink on every run-up and the vault never came).
+    /// </summary>
     private void TryJink(BattleUnit me)
     {
-        if (_now - _lastHurt > 1f || !CanJump(me, 0.5f) || _rng.NextFloat() > 0.5f) return;
+        if (VaultArmed || _now - _lastHurt > 1f || !CanJump(me, 0.5f) || _rng.NextFloat() > 0.5f) return;
         if (me.Sim.Weapons.Heat > Personality.HeatLimit - 0.1f) return;
         StartJump(me, JumpPlan.Jink, 0.3f + 0.2f * _rng.NextFloat(), "under fire");
     }

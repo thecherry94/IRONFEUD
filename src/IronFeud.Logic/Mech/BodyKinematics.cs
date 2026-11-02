@@ -34,6 +34,12 @@ public sealed class BodyState
     public float Twist;
     public float Aim;
 
+    /// <summary>
+    /// The arms' aim relative to the torso's (yaw + = left, pitch + = up): they swing toward the commanded aim faster
+    /// than the torso twists, within the chassis' arm cone, and centre again as the torso catches up.
+    /// </summary>
+    public float ArmYaw, ArmPitch;
+
     /// <summary>Smoothed ground slope along the heading, radians (+ = climbing). Set by MechLocomotion.</summary>
     public float Slope;
 }
@@ -70,5 +76,11 @@ public static class BodyKinematics
         float aimT = MathUtil.Clamp(input.AimTarget, t.AimMin, t.AimMax);
         s.Twist += MathUtil.Clamp(twistT - s.Twist, -t.TwistRate * h, t.TwistRate * h);
         s.Aim += MathUtil.Clamp(aimT - s.Aim, -t.AimRate * h, t.AimRate * h);
+        // The arms make up what the torso hasn't yet, within their cone, at their own (faster) rate.
+        float armRate = t.ArmRate * h;
+        float armYawT = MathUtil.Clamp(twistT - s.Twist, -t.ArmYawMax, t.ArmYawMax);
+        float armPitchT = MathUtil.Clamp(aimT - s.Aim, -t.ArmPitchMax, t.ArmPitchMax);
+        s.ArmYaw += MathUtil.Clamp(armYawT - s.ArmYaw, -armRate, armRate);
+        s.ArmPitch += MathUtil.Clamp(armPitchT - s.ArmPitch, -armRate, armRate);
     }
 }

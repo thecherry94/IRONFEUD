@@ -80,6 +80,15 @@ public sealed class MechChassis
     public float AimMax = 0.45f;
     public float AimRate = 0.8f;
 
+    /// <summary>
+    /// Arm aiming: the arms swing up to this far from the torso's aim (yaw ±20°, pitch ±25°) at
+    /// <see cref="ArmRate"/>, 2.5x the torso twist rate (the genre's ratio), so arm weapons get onto a target before the
+    /// torso does. Torso weapons fire along the torso.
+    /// </summary>
+    public float ArmYawMax = 0.35f, ArmPitchMax = 0.45f;
+
+    public float ArmRate => 2.5f * TwistRate;
+
     // Gait. Duty blends from walking (Duty) to running (DutyRun) between RunStartSpeed and RunFullSpeed.
     public float Duty = 0.62f;
     public float DutyRun = 0.32f;

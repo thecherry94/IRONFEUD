@@ -31,6 +31,9 @@ public sealed class MechPose
     public Vector3 AimOrigin;
     public Vector3 AimDirection = -Vector3.UnitZ;
 
+    /// <summary>The arms' aim ray direction (from <see cref="AimOrigin"/>): the torso's, turned by the arm yaw and pitch.</summary>
+    public Vector3 ArmAimDirection = -Vector3.UnitZ;
+
     /// <summary>World-space hit spheres, indexed by <see cref="Damage.MechSection"/>.</summary>
     public readonly Damage.HitVolume[] HitVolumes = new Damage.HitVolume[Damage.MechDamage.SectionCount];
 

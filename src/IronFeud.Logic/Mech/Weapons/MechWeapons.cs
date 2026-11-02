@@ -145,11 +145,13 @@ public sealed class MechWeapons
 
         var pose = loco.Pose;
         float convergence = input.Convergence > 0f ? input.Convergence : DefaultConvergence;
-        Vector3 target = pose.AimOrigin + pose.AimDirection * convergence;
+        Vector3 torsoTarget = pose.AimOrigin + pose.AimDirection * convergence;
+        Vector3 armTarget = pose.AimOrigin + pose.ArmAimDirection * convergence;
 
         for (int i = 0; i < Mounts.Count; i++)
         {
             var m = Mounts[i];
+            Vector3 target = m.OnTorso ? torsoTarget : armTarget; // arm weapons converge on the arms' aim
             m.Cooldown = MathF.Max(0f, m.Cooldown - h);
             if (m.Offline) m.BurnLeft = m.PulsesLeft = 0;
 

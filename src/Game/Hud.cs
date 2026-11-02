@@ -22,7 +22,7 @@ public partial class Hud : CanvasLayer
     private ColorRect _jetBack = null!, _jetBar = null!;
     private static readonly Color JetColor = new("5ad8ff"), JetLowColor = new("2a6a80");
     private const float JetBarWidth = 70f;
-    private Reticle _reticle = null!;
+    private Reticle _reticle = null!, _torsoReticle = null!;
     private RichTextLabel _weapons = null!;
     private double _uiTimer, _time;
     // A burning beam lands a sliver of damage every tick: those merge into one line (same attacker, target and
@@ -42,9 +42,11 @@ public partial class Hud : CanvasLayer
         [MechSection.LegLeft] = "left leg", [MechSection.LegRight] = "right leg", [MechSection.Cockpit] = "cockpit",
     };
 
+    /// <summary>A circle with a dot (the arm weapons' aim), or a cross (the torso's).</summary>
     private partial class Reticle : Control
     {
         private bool _hot;
+        public bool Cross;
 
         public bool Hot
         {
@@ -55,6 +57,12 @@ public partial class Hud : CanvasLayer
         public override void _Draw()
         {
             var c = _hot ? new Color(1f, 0.35f, 0.23f, 0.9f) : new Color(0.49f, 1f, 0.69f, 0.85f);
+            if (Cross)
+            {
+                foreach (var d in new[] { Vector2.Right, Vector2.Left, Vector2.Up, Vector2.Down })
+                    DrawLine(d * 6f, d * 13f, c, 2f, true);
+                return;
+            }
             DrawArc(Vector2.Zero, 15f, 0f, Mathf.Tau, 32, c, 2f, true);
             DrawCircle(Vector2.Zero, 2f, c);
         }
@@ -112,6 +120,8 @@ public partial class Hud : CanvasLayer
 
         _reticle = new Reticle { MouseFilter = Control.MouseFilterEnum.Ignore };
         AddChild(_reticle);
+        _torsoReticle = new Reticle { MouseFilter = Control.MouseFilterEnum.Ignore, Cross = true };
+        AddChild(_torsoReticle);
 
         // Weapon panel, bottom right: each weapon with its groups, rounds and state; the groups' fire modes under it.
         _weapons = new RichTextLabel
@@ -180,15 +190,17 @@ public partial class Hud : CanvasLayer
                 if (_time - t < FeedLifetime) feed.Append(line).Append('\n');
             _feed.Text = feed.ToString();
         }
-        _reticle.Visible = false;
+        _reticle.Visible = _torsoReticle.Visible = false;
         if (Camera == null || Pilot == null || !IsInstanceValid(Mech) || Mech!.Sim is not { } sim) return;
         var weapons = sim.Weapons;
 
-        Vector3 aim = Pilot.AimPoint;
-        bool visible = Camera.Mode is CameraMode.Chase or CameraMode.Cockpit && Camera.Target == Mech && !Camera.IsPositionBehind(aim) && !sim.IsOut;
-        _reticle.Visible = visible;
-        if (visible) _reticle.Position = Camera.UnprojectPosition(aim);
-        _reticle.Hot = weapons.HeatLocked;
+        bool flying = Camera.Mode is CameraMode.Chase or CameraMode.Cockpit && Camera.Target == Mech && !sim.IsOut;
+        foreach (var (reticle, point) in new[] { (_reticle, Pilot.ArmAimHit.Point), (_torsoReticle, Pilot.AimPoint) })
+        {
+            reticle.Visible = flying && !Camera.IsPositionBehind(point);
+            if (reticle.Visible) reticle.Position = Camera.UnprojectPosition(point);
+            reticle.Hot = weapons.HeatLocked;
+        }
 
         if (!refresh) return;
 
