@@ -153,7 +153,7 @@ public class SteeringTests
         Assert.Equal(0, longStalls);
     }
 
-    /// <summary>The watch-mode lance (Main.SpawnTeams) on No Man's Land or the hills arena.</summary>
+    /// <summary>The watch-mode lance (Main.SpawnTeams, light and medium alternating by seed) on No Man's Land or the hills arena.</summary>
     private static BattleSim WatchLance(uint seed, bool hills)
     {
         var b = new BattleSim(hills ? ArenaMap.Arena(seed) : ArenaMap.NoMansLand(seed), seed * 31u + 1u) { TrackOutcome = false };
@@ -162,10 +162,11 @@ public class SteeringTests
             void Add(ChassisClass c, float x, float z, Personality p, MechModel model) =>
                 b.AddUnit($"{team}-{c}", team, MechChassis.Create(c, model), new Vector3(x * sign, 0f, z * sign), team == 0 ? 0f : MathF.PI, p);
             const float z = ArenaMap.ArenaSpawnZ, z2 = z + 17f;
-            Add(ChassisClass.Light, -45f, z, Personality.Balanced, MechModel.Sicklefoot);
-            Add(ChassisClass.Medium, -15f, z, Personality.Balanced, MechModel.Bascinet);
-            Add(ChassisClass.Heavy, 15f, z2, Personality.Balanced, MechModel.Sicklefoot);
-            Add(ChassisClass.Assault, 45f, z2, Personality.Sniper, MechModel.Bascinet);
+            bool first = seed % 2 == 1;
+            Add(ChassisClass.Light, -45f, z, Personality.Balanced, first ? MechModel.Sicklefoot : MechModel.Bodkin);
+            Add(ChassisClass.Medium, -15f, z, Personality.Balanced, first ? MechModel.Bascinet : MechModel.Brigandine);
+            Add(ChassisClass.Heavy, 15f, z2, Personality.Balanced, MechModel.Harrow);
+            Add(ChassisClass.Assault, 45f, z2, Personality.Sniper, MechModel.Barbican);
         }
         return b;
     }

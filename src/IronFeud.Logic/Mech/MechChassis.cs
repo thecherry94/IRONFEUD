@@ -649,7 +649,7 @@ public sealed class MechChassis
     public static float ArmourFactor(MechModel model) => model switch
     {
         MechModel.Bascinet => BascinetArmour,
-        MechModel.Brigandine => 1.2f,
+        MechModel.Brigandine => BascinetArmour, // the same humanoid target size: at 1.2 it lost every duel series (23-17 .. 26-14)
         _ => 1f,
     };
 

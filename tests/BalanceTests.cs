@@ -70,10 +70,22 @@ public class BalanceTests
     public void Models_AreBalanced()
     {
         foreach (string map in new[] { "nml", "hills" })
-            Duels(map, (Personality.Balanced, MechModel.Bascinet), (Personality.Balanced, MechModel.Sicklefoot));
-        Duels("nml", (Personality.Brawler, MechModel.Bascinet), (Personality.Brawler, MechModel.Sicklefoot));
-        Duels("nml", (Personality.Balanced, MechModel.Bascinet), (Personality.Brawler, MechModel.Sicklefoot)); // watch 1v1 as shipped
+            Duels(map, (Personality.Balanced, MechModel.Bascinet), (Personality.Balanced, MechModel.Brigandine));
+        Duels("nml", (Personality.Brawler, MechModel.Bascinet), (Personality.Brawler, MechModel.Brigandine));
+        Duels("nml", (Personality.Balanced, MechModel.Bascinet), (Personality.Brawler, MechModel.Brigandine)); // watch 1v1 as shipped
     }
+
+    /// <summary>
+    /// The watch-mode lance (both sides field the same one): Harrow heavy, Barbican assault, and the light and medium
+    /// designs alternating by seed (Sicklefoot + Bascinet, Bodkin + Brigandine).
+    /// </summary>
+    private static MechModel Roster(ChassisClass cls, uint seed) => cls switch
+    {
+        ChassisClass.Light => seed % 2 == 1 ? MechModel.Sicklefoot : MechModel.Bodkin,
+        ChassisClass.Medium => seed % 2 == 1 ? MechModel.Bascinet : MechModel.Brigandine,
+        ChassisClass.Heavy => MechModel.Harrow,
+        _ => MechModel.Barbican,
+    };
 
     /// <summary>Seeds per map in the lance report (IRONFEUD_SEEDS overrides the 10: 20 games is noise for kill rates).</summary>
     private static uint LanceSeeds => uint.TryParse(Environment.GetEnvironmentVariable("IRONFEUD_SEEDS"), out uint n) && n > 0 ? n : 10;
@@ -102,7 +114,7 @@ public class BalanceTests
                 float sign = team == 0 ? 1f : -1f;
                 for (int i = 0; i < 4; i++)
                 {
-                    var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet;
+                    var model = Roster((ChassisClass)i, seed);
                     b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, model),
                         new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
                 }
@@ -250,7 +262,7 @@ public class BalanceTests
             float sign = team == 0 ? 1f : -1f;
             for (int i = 0; i < 4; i++)
             {
-                var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet;
+                var model = Roster((ChassisClass)i, seed);
                 b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, model),
                     new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
             }
@@ -352,7 +364,7 @@ public class BalanceTests
         {
             float sign = team == 0 ? 1f : -1f;
             for (int i = 0; i < 4; i++)
-                b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet),
+                b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, Roster((ChassisClass)i, seed)),
                     new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
         }
         return b;
@@ -416,7 +428,7 @@ public class BalanceTests
     [BalanceFact]
     public void Marks_WhatTheyAreWorth()
     {
-        foreach (var lightModel in new[] { MechModel.Bascinet, MechModel.Sicklefoot })
+        foreach (var lightModel in new[] { MechModel.Bodkin, MechModel.Sicklefoot })
         {
             int wins = 0, losses = 0; float markedT = 0, enemyT = 0, lightDealt = 0, lightSurv = 0, arc = 0, lightOn = 0, games = 0, markedHits = 0, hits = 0;
             foreach (string map in new[] { "nml", "hills" })
@@ -429,7 +441,7 @@ public class BalanceTests
                 {
                     float sign = team == 0 ? 1f : -1f;
                     for (int i = 0; i < 4; i++)
-                        b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i == 0 ? lightModel : i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet),
+                        b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i == 0 ? lightModel : Roster((ChassisClass)i, seed)),
                             new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
                 }
                 b.Tactics[smart] = TeamTactics.All;
