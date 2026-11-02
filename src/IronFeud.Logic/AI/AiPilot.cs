@@ -134,7 +134,7 @@ public sealed partial class AiPilot
     private readonly List<string> _log = new();
     private float _jinkPeriod = 1.8f, _settledAt, _holdFor = 10f;
     private bool _relocate, _settled;
-    private float _now, _thinkTimer, _lastThink, _noLos, _orbitUntil, _errYaw, _errPitch, _dmgRecent, _coverUntil, _lastHurt;
+    private float _now, _thinkTimer, _lastThink, _noLos, _orbitUntil, _errYaw, _errPitch, _dmgRecent, _coverUntil, _lastHurt, _nextJamShare;
     private int _orbit, _detourSide;
     private BattleUnit? _lastAttacker;
     private Vector3? _roam;
@@ -431,7 +431,9 @@ public sealed partial class AiPilot
                 Observe(k, e);
                 k.AimHeight = seenHeight;
             }
-            else if (d < RadarRange * signature && !b.Jammed(me.Team, e) && !b.Jammed(me.Team, me))
+            // Radar, at half range in or against a jammer's bubble; and a working jammer gives itself away.
+            else if (d < RadarRange * signature * (b.Jammed(me.Team, e) || b.Jammed(me.Team, me) ? BattleSim.JamRadarFactor : 1f)
+                     || e.Chassis.Ecm && !e.Sim.Shutdown && d < BattleSim.JammerRevealRadius)
             {
                 if (k == null)
                 {
@@ -466,11 +468,14 @@ public sealed partial class AiPilot
 
         // Lance radar: what a teammate sees, this pilot knows about (position, not sight: firing still needs its own
         // eyes; a missile lock can use the teammate's).
+        // Jammed (this pilot or the lancemate), the link only gets through every JamShareInterval: stale, not cut.
+        bool meJammed = b.Jammed(me.Team, me), jamTick = _now >= _nextJamShare;
+        if (jamTick) _nextJamShare = _now + BattleSim.JamShareInterval;
         foreach (var mate in b.Units)
         {
-            if (!b.TacticsOf(me.Team).HasFlag(TeamTactics.Radar) || b.Jammed(me.Team, me)) break;
-            // A jammed lancemate can't share what it sees (ECM cuts it off the network).
-            if (mate == me || mate.Team != me.Team || mate.IsOut || mate.Ai == null || b.Jammed(me.Team, mate)) continue;
+            if (!b.TacticsOf(me.Team).HasFlag(TeamTactics.Radar)) break;
+            if (mate == me || mate.Team != me.Team || mate.IsOut || mate.Ai == null) continue;
+            if ((meJammed || b.Jammed(me.Team, mate)) && !jamTick) continue;
             foreach (var (e, theirs) in mate.Ai.Contacts)
             {
                 if (e.IsOut || !theirs.Visible || theirs.Shared) continue;

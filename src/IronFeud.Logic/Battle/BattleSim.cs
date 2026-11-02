@@ -546,11 +546,12 @@ public sealed class BattleSim
             Vector3 to = c.Volume(MechSection.Torso).Center - pose.AimOrigin;
             float d = to.Length(), lockTime = guided?.LockTime ?? SensorLockTime, range = guided?.Range ?? SensorLockRange;
             if (Marked(u.Team, c) && c.MarkedBy != u) lockTime *= MarkedLockFactor;
+            // ECM: a jammed locker, or a jammed target (unless a designator locks it or it is marked), takes longer.
+            bool jammed = Jammed(u.Team, u) || (Jammed(u.Team, c) && !u.Chassis.Designator && !Marked(u.Team, c));
+            if (jammed) lockTime *= JamLockFactor;
             u.LockTime = lockTime;
             bool inCone = d < range && Vector3.Dot(pose.AimDirection, to / MathF.Max(1e-3f, d)) > MathF.Cos(0.35f);
-            // ECM: a jammed locker can't lock at all; a jammed target only by a designator, or once it is marked.
-            bool jammed = Jammed(u.Team, u) || (Jammed(u.Team, c) && !u.Chassis.Designator && !Marked(u.Team, c));
-            u.LockProgress = inCone && !jammed && Spotted(u.Team, c)
+            u.LockProgress = inCone && Spotted(u.Team, c)
                 ? MathF.Min(lockTime, u.LockProgress + h)
                 : MathF.Max(0f, u.LockProgress - 2f * h);
             u.Locked = u.LockProgress >= lockTime ? c : null;
@@ -603,6 +604,15 @@ public sealed class BattleSim
     public const float EcmRadius = 120f;
 
     /// <summary>
+    /// ECM degrades rather than blocks (the genre's lesson: a jammer that blocked locks, sharing and radar in one cheap
+    /// slot became mandatory and was walked back to lock delays). Inside a hostile bubble locks take
+    /// <see cref="JamLockFactor"/> times as long, radar reaches <see cref="JamRadarFactor"/> of its range, and a jammed
+    /// lancemate's sightings reach the lance only every <see cref="JamShareInterval"/> s. Jamming is loud: every enemy
+    /// within <see cref="JammerRevealRadius"/> knows where the jammer is (the AI's "kill the jammer" has a target).
+    /// </summary>
+    public const float JamLockFactor = 2.5f, JamRadarFactor = 0.5f, JamShareInterval = 2f, JammerRevealRadius = 1.5f * EcmRadius;
+
+    /// <summary>
     /// Can <paramref name="u"/> walk <paramref name="length"/> m along <paramref name="heading"/>? The map's
     /// <see cref="ArenaMap.PathClear"/> for blocks and climbs, plus wrecks: they never move and shove like walls (a
     /// light wedged between its lancemate's wreck and a block stood there for the rest of the match). Live mechs give
@@ -625,10 +635,10 @@ public sealed class BattleSim
 
     /// <summary>
     /// Is <paramref name="u"/> inside an ECM bubble hostile to <paramref name="team"/> (a working jammer of another team
-    /// within <see cref="EcmRadius"/>)? For <paramref name="team"/>'s own mechs that means their sensors are jammed (no
-    /// locks, no scans, cut off from the lance's shared sightings); for enemies, that they can't be locked (so not
-    /// scanned, nor fired on with guided missiles) unless marked: designators burn through. A salvo already in the
-    /// air keeps homing (letting it shake missiles off too made the whole lance near immune to arc missiles: 35-13).
+    /// within <see cref="EcmRadius"/>)? For <paramref name="team"/>'s own mechs that means their sensors are degraded
+    /// (slow locks, half radar, stale sharing); for enemies, that they are slow to lock unless marked: designators burn
+    /// through. A salvo already in the air keeps homing (letting it shake missiles off too made the whole lance near
+    /// immune to arc missiles: 35-13). See <see cref="JamLockFactor"/>.
     /// </summary>
     public bool Jammed(int team, BattleUnit u)
     {

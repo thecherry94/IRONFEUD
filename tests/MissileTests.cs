@@ -153,48 +153,43 @@ public class MissileTests
     }
 
     /// <summary>
-    /// An enemy ECM light next to the target: the heavy can't lock it. A designator light burns through, marks it,
-    /// and then the heavy locks through the mark.
+    /// An enemy ECM light next to the target slows the heavy's lock ~2.5x (it used to block it outright: ECM that blocks
+    /// became mandatory in the genre and was walked back to lock delays); a designator's mark cuts through it.
     /// </summary>
     [Fact]
-    public void Ecm_BlocksLocks_UntilADesignatorMarksTheTarget()
+    public void Ecm_SlowsLocks_ADesignatorsMarkCutsThrough()
+    {
+        float clear = LockTime(jammer: false, designator: false), jammed = LockTime(jammer: true, designator: false);
+        float marked = LockTime(jammer: true, designator: true);
+        _out.WriteLine($"heavy's lock: {clear:0.00} s clear, {jammed:0.00} s jammed, {marked:0.00} s jammed with a designator marking");
+        Assert.InRange(jammed / clear, 2.2f, 2.8f);
+        // The designator needs its own lock first, then the heavy's runs at a third: about the unjammed time in all.
+        Assert.True(marked < 0.6f * jammed, "the mark burns through the jamming");
+    }
+
+    private float LockTime(bool jammer, bool designator)
     {
         var b = new BattleSim(new ArenaMap { Radius = 700f }) { TrackOutcome = false };
         var heavy = b.AddUnit("H", 0, MechChassis.Heavy(), new Vector3(0, 0, 450), 0f);
         var target = b.AddUnit("T", 1, MechChassis.Medium(MechModel.Sicklefoot), Vector3.Zero, MathF.PI);
-        var jammer = b.AddUnit("J", 1, MechChassis.Light(MechModel.Sicklefoot), new Vector3(40, 0, 0), MathF.PI);
-        Assert.True(jammer.Chassis.Ecm);
-        float twist = 0f, aim = 0f;
-        void Track(int ticks)
+        if (jammer) Assert.True(b.AddUnit("J", 1, MechChassis.Light(MechModel.Sicklefoot), new Vector3(40, 0, 0), MathF.PI).Chassis.Ecm);
+        var d = designator ? b.AddUnit("D", 0, MechChassis.Light(MechModel.Bodkin), new Vector3(0, 0, 220), 0f) : null;
+        float twist = 0f, aim = 0f, dTwist = 0f, dAim = 0f;
+        for (int i = 0; i < 120 * 20; i++)
         {
-            for (int i = 0; i < ticks; i++)
+            AimSolver.Track(heavy.Sim.Pose, heavy.Sim.Locomotion.Body, heavy.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
+            heavy.Input = new MechInput { TwistTarget = twist, AimTarget = aim };
+            heavy.LockCandidate = target;
+            if (d != null)
             {
-                AimSolver.Track(heavy.Sim.Pose, heavy.Sim.Locomotion.Body, heavy.Chassis, target.Volume(MechSection.Torso).Center, ref twist, ref aim);
-                heavy.Input = new MechInput { TwistTarget = twist, AimTarget = aim };
-                heavy.LockCandidate = target;
-                b.Step(H);
+                AimSolver.Track(d.Sim.Pose, d.Sim.Locomotion.Body, d.Chassis, target.Volume(MechSection.Torso).Center, ref dTwist, ref dAim);
+                d.Input = new MechInput { TwistTarget = dTwist, AimTarget = dAim };
+                d.LockCandidate = target;
             }
+            b.Step(H);
+            if (heavy.Locked != null) return b.Time;
         }
-        Track(120 * 4);
-        Assert.True(b.Spotted(0, target));
-        Assert.True(b.Jammed(0, target));
-        Assert.Null(heavy.Locked);
-        Assert.Null(b.Scan(0, target));
-
-        var designator = b.AddUnit("D", 0, MechChassis.Light(MechModel.Bascinet), new Vector3(0, 0, 220), 0f);
-        Assert.False(designator.Chassis.Ecm);
-        float dTwist = 0f, dAim = 0f, lockedAt = -1f;
-        for (int i = 0; i < 120 * 4 && lockedAt < 0f; i++)
-        {
-            AimSolver.Track(designator.Sim.Pose, designator.Sim.Locomotion.Body, designator.Chassis, target.Volume(MechSection.Torso).Center, ref dTwist, ref dAim);
-            designator.Input = new MechInput { TwistTarget = dTwist, AimTarget = dAim };
-            designator.LockCandidate = target;
-            Track(1);
-            if (heavy.Locked != null) lockedAt = b.Time;
-        }
-        _out.WriteLine($"designator marked: {b.Marked(0, target)}, heavy locked at {lockedAt:0.00} s");
-        Assert.True(b.Marked(0, target), "designators burn through ECM");
-        Assert.NotNull(heavy.Locked);
+        return float.PositiveInfinity;
     }
 
     /// <summary>
