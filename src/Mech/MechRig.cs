@@ -568,7 +568,7 @@ public sealed class MechRig
             Box(leg.Knee, 0.9f, 0.75f, 0.5f, m.Armor, 0, 0.05f, -0.45f, -0.2f);
             Box(leg.Knee, 0.5f, l2 * 0.95f, 0.55f, m.Frame, 0, -l2 * 0.5f, 0);
             Box(leg.Knee, 0.7f, l2 * 0.55f, 0.25f, m.ArmorDark, 0, -l2 * 0.4f, 0.38f);
-            Box(leg.Knee, 0.1f, l2 * 0.4f, 0.2f, m.Glow, -side * 0.3f, -l2 * 0.45f, 0.3f);
+            Box(leg.Knee, 0.06f, l2 * 0.4f, 0.16f, m.Glow, -side * 0.37f, -l2 * 0.45f, 0.38f); // proud of the plate's face (was coplanar: z-fighting)
 
             // Hock: the backward joint, with a heel spur.
             Cyl(hock, 0.38f, 0.38f, 0.75f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
