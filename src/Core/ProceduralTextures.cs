@@ -49,6 +49,23 @@ public static class ProceduralTextures
         return ImageTexture.CreateFromImage(img);
     }
 
+    /// <summary>Tileable fractal noise (grey, 256²) for material breakup.</summary>
+    public static ImageTexture Noise(int seed)
+    {
+        var noise = new FastNoiseLite
+        {
+            Seed = seed,
+            NoiseType = FastNoiseLite.NoiseTypeEnum.Simplex,
+            Frequency = 0.02f,
+            FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
+            FractalOctaves = 5,
+        };
+        var img = noise.GetSeamlessImage(256, 256);
+        img.Convert(Image.Format.Rgba8);
+        img.GenerateMipmaps();
+        return ImageTexture.CreateFromImage(img);
+    }
+
     public static GradientTexture2D RadialPuff(Color inner, Color outer)
     {
         var g = new Gradient();

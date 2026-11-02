@@ -61,15 +61,18 @@ public sealed class MechRig
 
     private sealed class Mats
     {
-        public readonly StandardMaterial3D Armor, ArmorDark, Frame, Accent, Chrome, Glow, Glass, Lens, Hole;
+        public readonly Material Armor, ArmorDark, Frame, Accent;
+        public readonly StandardMaterial3D Chrome, Glow, Glass, Lens, Hole;
+
+        private static Shader? _armorShader;
+        private static Texture2D? _noise;
 
         public Mats(Color accent)
         {
-            var panel = ProceduralTextures.ArmorPanel(11);
-            Armor = Lit("9aa1a8", 0.25f, 0.55f, panel);
-            ArmorDark = Lit("6a7077", 0.3f, 0.6f, panel);
-            Frame = Lit("3e4249", 0.45f, 0.5f);
-            Accent = Lit(accent.ToHtml(false), 0.2f, 0.55f);
+            Armor = Painted("6f757a", 0.55f, wear: 0.45f, grime: 0.45f);
+            ArmorDark = Painted("4c5156", 0.6f, wear: 0.5f, grime: 0.5f);
+            Frame = Painted("2e3135", 0.5f, wear: 0.7f, grime: 0.6f, metallic: 0.45f, seams: 0f);
+            Accent = Painted(accent.ToHtml(false), 0.5f, wear: 0.6f, grime: 0.35f);
             Chrome = Lit("c8cdd2", 0.6f, 0.25f);
             Glow = Emissive("221100", "ff7a1a", 2.2f);
             Glass = Lit("0c1820", 0.9f, 0.08f);
@@ -78,6 +81,22 @@ public sealed class MechRig
             Glass.EmissionEnergyMultiplier = 0.7f;
             Lens = Emissive("200000", "ff2a1a", 2.5f);
             Hole = Lit("0a0a0a", 0f, 1f);
+        }
+
+        /// <summary>Painted armour (mech_armor.gdshader): bevel highlights, chipped edges, panel seams, grime.</summary>
+        private static ShaderMaterial Painted(string color, float rough, float wear, float grime, float metallic = 0.1f, float seams = 1f)
+        {
+            _armorShader ??= GD.Load<Shader>("res://src/Mech/mech_armor.gdshader");
+            _noise ??= ProceduralTextures.Noise(7);
+            var m = new ShaderMaterial { Shader = _armorShader };
+            m.SetShaderParameter("paint_color", new Color(color));
+            m.SetShaderParameter("paint_roughness", rough);
+            m.SetShaderParameter("paint_metallic", metallic);
+            m.SetShaderParameter("wear", wear);
+            m.SetShaderParameter("grime", grime);
+            m.SetShaderParameter("panel_seams", seams);
+            m.SetShaderParameter("noise", _noise);
+            return m;
         }
 
         private static StandardMaterial3D Lit(string color, float metal, float rough, Texture2D? tex = null) => new()
@@ -725,6 +744,7 @@ public sealed class MechRig
         float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0)
     {
         var mi = New(new BoxMesh { Size = new Vector3(w, h, d) }, mat, x, y, z, rx, ry, rz);
+        mi.SetInstanceShaderParameter("shape", new Vector4(w / 2f, h / 2f, d / 2f, 1f)); // for the armour shader's edges
         parent.AddChild(mi);
         return mi;
     }
@@ -738,9 +758,13 @@ public sealed class MechRig
     }
 
     private static MeshInstance3D NewCyl(float rTop, float rBottom, float h, Material mat,
-        float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, int segments = 18) =>
-        New(new CylinderMesh { TopRadius = rTop, BottomRadius = rBottom, Height = h, RadialSegments = segments, Rings = 1 },
+        float x = 0, float y = 0, float z = 0, float rx = 0, float ry = 0, float rz = 0, int segments = 18)
+    {
+        var mi = New(new CylinderMesh { TopRadius = rTop, BottomRadius = rBottom, Height = h, RadialSegments = segments, Rings = 1 },
             mat, x, y, z, rx, ry, rz);
+        mi.SetInstanceShaderParameter("shape", new Vector4(rTop, h / 2f, rBottom, 2f));
+        return mi;
+    }
 
     private static MeshInstance3D New(Mesh mesh, Material mat, float x, float y, float z, float rx, float ry, float rz) => new()
     {
