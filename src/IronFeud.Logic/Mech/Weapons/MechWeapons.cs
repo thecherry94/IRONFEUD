@@ -22,7 +22,16 @@ public sealed class WeaponMount
     public float Cooldown;
 
     /// <summary>The section carrying it is destroyed.</summary>
-    public bool Offline;
+    public bool Lost;
+
+    /// <summary>Rounds left (salvos for missiles); -1 = no ammunition needed (energy weapons).</summary>
+    public int Ammo;
+
+    /// <summary>Where its rounds sit: its own section, or for an arm weapon the side torso the arm hangs from.</summary>
+    public readonly MechSection AmmoSection;
+
+    /// <summary>Can't fire any more: its section is gone or it is out of rounds.</summary>
+    public bool Offline => Lost || Ammo == 0;
 
     /// <summary>Seconds left of the current burn (burn lasers).</summary>
     public float BurnLeft;
@@ -43,6 +52,8 @@ public sealed class WeaponMount
         Arm = arm;
         Offset = offset;
         Section = arm == 0 ? MechSection.ArmLeft : arm == 1 ? MechSection.ArmRight : section;
+        AmmoSection = MechDamage.Parent(Section) is var parent && arm >= 0 ? parent : Section;
+        Ammo = spec.UsesAmmo ? spec.Rounds : -1;
     }
 
     public int Side => Arm == 0 ? +1 : Arm == 1 ? -1 : 0;
@@ -160,6 +171,7 @@ public sealed class MechWeapons
             if ((input.FireMask & (1u << i)) == 0 || !CanFire(i)) continue;
 
             m.Cooldown = m.Spec.Cooldown * m.CycleFactor;
+            if (m.Ammo > 0) m.Ammo--;
             Heat = MathF.Max(Heat, MathF.Min(Heat + m.Spec.Heat, OwnHeatCap));
             if (m.Spec.BurnTime > 0f)
             {

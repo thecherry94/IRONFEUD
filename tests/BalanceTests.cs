@@ -92,7 +92,7 @@ public class BalanceTests
 
     private sealed class RoleStats
     {
-        public float Dealt, Taken, Shots, Hits, Fast, Moving, HullDown, Alive, Samples, Games, Survived, Kills, RearDealt, RearTaken, Heat, Shutdowns, Staggered;
+        public float Dealt, Taken, Shots, Hits, Fast, Moving, HullDown, Alive, Samples, Games, Survived, Kills, RearDealt, RearTaken, Heat, Shutdowns, Staggered, Dry, CookOffs;
     }
 
     /// <summary>
@@ -124,6 +124,7 @@ public class BalanceTests
                 bool rear = report.Facing == Logic.Mech.Damage.Facing.Rear;
                 stats[target.Chassis.Class].Taken += report.Amount;
                 if (rear) stats[target.Chassis.Class].RearTaken += report.Amount;
+                if (report.CookOff > 0f) stats[target.Chassis.Class].CookOffs++;
                 if (attacker == null) return;
                 stats[attacker.Chassis.Class].Dealt += report.Amount;
                 if (rear) stats[attacker.Chassis.Class].RearDealt += report.Amount;
@@ -157,12 +158,13 @@ public class BalanceTests
                 st.Heat += u.Stats.HeatInflicted;
                 st.Shutdowns += u.Stats.ShutdownsCaused;
                 st.Staggered += u.Sim.Staggers;
+                foreach (var m in u.Sim.Weapons.Mounts) if (!m.Lost && m.Ammo == 0) st.Dry++;
                 if (!u.IsOut) st.Survived++;
             }
         }
-        _out.WriteLine("class   | dealt/game | taken/game | kills/game | hit % | survived | fast % | moving % | hull-down % | rear dealt % | rear taken % | heat in/game | shutdowns/game | staggered/game");
+        _out.WriteLine("class   | dealt/game | taken/game | kills/game | hit % | survived | fast % | moving % | hull-down % | rear dealt % | rear taken % | heat in/game | shutdowns/game | staggered/game | ran dry/game | cook-offs/game");
         foreach (var (cls, st) in stats)
-            _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%    | {st.Heat / st.Games,8:0.00}    | {st.Shutdowns / st.Games,8:0.00}      | {st.Staggered / st.Games,8:0.00}");
+            _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%    | {st.Heat / st.Games,8:0.00}    | {st.Shutdowns / st.Games,8:0.00}      | {st.Staggered / st.Games,8:0.00}      | {st.Dry / st.Games,8:0.00}    | {st.CookOffs / st.Games,8:0.00}");
         _out.WriteLine($"unfinished battles: {unfinished}/{2 * LanceSeeds}");
         Assert.True(unfinished <= 2, $"{unfinished} lance battles didn't finish in 400 s");
     }

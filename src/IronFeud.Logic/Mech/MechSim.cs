@@ -153,6 +153,29 @@ public sealed class MechSim
         if (!IsOut) Weapons.Step(command, Locomotion, h, Shots);
     }
 
+    /// <summary>Share of the damage still in a destroyed section's rounds that goes off inside the centre torso.</summary>
+    public const float CookOffShare = 0.2f;
+
+    /// <summary>
+    /// The rounds stored in the section just destroyed go off: <see cref="CookOffShare"/> of their damage straight
+    /// into the centre torso's structure (plates don't help from inside). Those weapons are empty after.
+    /// </summary>
+    private void CookOff(ref DamageReport report)
+    {
+        if (Damage.IsOut) return; // the centre torso itself went: nothing left to hurt
+        float blast = 0f;
+        foreach (var m in Weapons.Mounts)
+        {
+            if (m.Ammo <= 0 || m.AmmoSection != report.Applied) continue;
+            blast += m.Ammo * m.Spec.Damage;
+            m.Ammo = 0;
+        }
+        if (blast <= 0f) return;
+        report.CookOff = CookOffShare * blast;
+        Damage.ApplyInternal(MechSection.Torso, report.CookOff);
+        report.StatusAfter = Damage.Status;
+    }
+
     /// <summary>Heat sink capacity each destroyed side torso takes with it.</summary>
     public const float LostSideTorsoSinks = 0.15f;
 
@@ -183,6 +206,7 @@ public sealed class MechSim
         var facing = travel is { } dir ? HitFacing.Classify(TorsoFacing, dir) : Facing.Front;
         var report = Damage.Apply(struck, amount, facing, spec?.VsArmor ?? 1f, spec?.VsStructure ?? 1f);
         if (report.Ignored) return report;
+        if (report.SectionDestroyed) CookOff(ref report);
         Locomotion.Secondary.ApplyHit(report.Amount);
         Drain(amount * (spec?.Impact ?? 1f), travel);
         if (report.ToStructure > 0f || report.SectionDestroyed) ApplyDamageEffects();
@@ -208,7 +232,7 @@ public sealed class MechSim
     {
         foreach (var m in Weapons.Mounts)
         {
-            m.Offline = Damage.IsDestroyed(m.Section);
+            m.Lost = Damage.IsDestroyed(m.Section);
             if (!m.OnTorso) m.CycleFactor = Damage.Exposed(m.Section) ? 2f - Damage.StructureFraction(m.Section) : 1f;
         }
         float legs = 1f;

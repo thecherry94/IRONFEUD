@@ -97,6 +97,14 @@ public sealed record WeaponSpec
     public float TorsoPitchKick { get; init; }
     public float Trauma { get; init; }
 
+    /// <summary>
+    /// Rounds carried per mount (salvos for missiles); 0 = no ammunition (energy weapons, paid for in heat instead).
+    /// First cut: about a minute of continuous fire for guns, 45 s for missile racks.
+    /// </summary>
+    public int Rounds { get; init; }
+
+    public bool UsesAmmo => Rounds > 0;
+
     public float DamageAt(float distance)
     {
         if (Kind != WeaponKind.Missile && MinRange > 0f && distance < MinRange) return Damage * MathF.Max(0.2f, distance / MinRange);
@@ -124,7 +132,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec Autocannon = new()
     {
         ImpactPerDamage = 0.8f,
-        Name = "Autocannon", Kind = WeaponKind.Projectile, Damage = 4f, Heat = 0.03f, Cooldown = 0.25f,
+        Name = "Autocannon", Kind = WeaponKind.Projectile, Damage = 4f, Heat = 0.03f, Cooldown = 0.25f, Rounds = 240,
         Range = 520f, OptimalRange = 300f, MuzzleVelocity = 560f, Gravity = 4f, MaxLifetime = 1.5f,
         Length = 2.6f, Caliber = 0.12f, Barrels = 2,
         ArmKick = 0.8f, ElbowKick = 1f, TorsoYawKick = 0.06f, TorsoPitchKick = 0.05f, Trauma = 0.05f,
@@ -142,7 +150,7 @@ public sealed record WeaponSpec
     /// <summary>The medium's harder hitter.</summary>
     public static readonly WeaponSpec Cannon = new()
     {
-        Name = "Cannon", Kind = WeaponKind.Projectile, Damage = 14f, Heat = 0.08f, Cooldown = 0.75f,
+        Name = "Cannon", Kind = WeaponKind.Projectile, Damage = 14f, Heat = 0.08f, Cooldown = 0.75f, Rounds = 80,
         Range = 640f, OptimalRange = 400f, MuzzleVelocity = 450f, Gravity = 4f, MaxLifetime = 2f,
         Length = 3.4f, Caliber = 0.26f, Barrels = 1,
         ArmKick = 3.4f, ElbowKick = 4f, TorsoYawKick = 0.35f, TorsoPitchKick = 0.25f, Trauma = 0.3f,
@@ -159,7 +167,7 @@ public sealed record WeaponSpec
 
     public static readonly WeaponSpec HeavyCannon = new()
     {
-        Name = "Heavy cannon", Kind = WeaponKind.Projectile, Damage = 32f, Heat = 0.2f, Cooldown = 2.2f,
+        Name = "Heavy cannon", Kind = WeaponKind.Projectile, Damage = 32f, Heat = 0.2f, Cooldown = 2.2f, Rounds = 28,
         Range = 600f, OptimalRange = 360f, MuzzleVelocity = 330f, Gravity = 4f, MaxLifetime = 2.5f,
         Length = 3.9f, Caliber = 0.38f, Barrels = 1,
         ArmKick = 5f, ElbowKick = 6f, TorsoYawKick = 0.6f, TorsoPitchKick = 0.45f, Trauma = 0.5f,
@@ -172,7 +180,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec MachineGun = new()
     {
         ImpactPerDamage = 0.3f,
-        Name = "Machine gun", Kind = WeaponKind.Projectile, Damage = 1.5f, Heat = 0.004f, Cooldown = 0.08f,
+        Name = "Machine gun", Kind = WeaponKind.Projectile, Damage = 1.5f, Heat = 0.004f, Cooldown = 0.08f, Rounds = 750,
         Range = 260f, OptimalRange = 160f, MuzzleVelocity = 900f, Gravity = 3f, MaxLifetime = 0.6f,
         VsArmor = 0.15f, VsStructure = 1.6f,
         Length = 1.6f, Caliber = 0.08f, Barrels = 2,
@@ -199,7 +207,7 @@ public sealed record WeaponSpec
     public static readonly WeaponSpec IncendiaryCannon = new()
     {
         ImpactPerDamage = 0.5f,
-        Name = "Incendiary cannon", Kind = WeaponKind.Projectile, Damage = 2.6f, Heat = 0.03f, Cooldown = 0.25f,
+        Name = "Incendiary cannon", Kind = WeaponKind.Projectile, Damage = 2.6f, Heat = 0.03f, Cooldown = 0.25f, Rounds = 240,
         Range = 460f, OptimalRange = 260f, MuzzleVelocity = 520f, Gravity = 4f, MaxLifetime = 1.5f, HeatToTarget = 0.06f,
         Length = 2.6f, Caliber = 0.12f, Barrels = 2,
         ArmKick = 0.8f, ElbowKick = 1f, TorsoYawKick = 0.06f, TorsoPitchKick = 0.05f, Trauma = 0.05f,
@@ -223,7 +231,7 @@ public sealed record WeaponSpec
     /// <summary>Short-range unguided rocket salvo: six rounds in a wide cone, a shotgun up close.</summary>
     public static readonly WeaponSpec RocketPod = new()
     {
-        Name = "Rocket pod", Kind = WeaponKind.Missile, Damage = 18f, Heat = 0.12f, Cooldown = 3f,
+        Name = "Rocket pod", Kind = WeaponKind.Missile, Damage = 18f, Heat = 0.12f, Cooldown = 3f, Rounds = 15,
         Range = 220f, OptimalRange = 130f, Pulses = 6, PulseInterval = 0.05f,
         MissileSpeed = 200f, Spread = 0.035f, MaxLifetime = 2f,
         Length = 1.2f, Caliber = 0.5f, Barrels = 6,
@@ -233,7 +241,7 @@ public sealed record WeaponSpec
     /// <summary>Medium-range unguided salvo: ten fast rounds in a tight pattern. No homing: aim it.</summary>
     public static readonly WeaponSpec StrikeRack = new()
     {
-        Name = "Strike rack", Kind = WeaponKind.Missile, Damage = 25f, Heat = 0.16f, Cooldown = 4f,
+        Name = "Strike rack", Kind = WeaponKind.Missile, Damage = 25f, Heat = 0.16f, Cooldown = 4f, Rounds = 12,
         Range = 400f, OptimalRange = 300f, Pulses = 10, PulseInterval = 0.06f,
         MissileSpeed = 260f, Spread = 0.015f, MaxLifetime = 2.5f,
         Length = 1.4f, Caliber = 0.6f, Barrels = 10,
@@ -247,7 +255,7 @@ public sealed record WeaponSpec
     /// </summary>
     public static readonly WeaponSpec ArcMissiles = new()
     {
-        Name = "Arc missiles", Kind = WeaponKind.Missile, Damage = 40f, Heat = 0.2f, Cooldown = 5f,
+        Name = "Arc missiles", Kind = WeaponKind.Missile, Damage = 40f, Heat = 0.2f, Cooldown = 5f, Rounds = 10,
         Range = 800f, OptimalRange = 650f, Pulses = 10, PulseInterval = 0.1f,
         MissileSpeed = 140f, Spread = 0.05f, Guided = true, TurnRate = 1.6f, Loft = 0.9f, LockTime = 1.5f, MinRange = 120f,
         MaxLifetime = 9f,
@@ -261,7 +269,7 @@ public sealed record WeaponSpec
     /// </summary>
     public static readonly WeaponSpec SiegeCannon = new()
     {
-        Name = "Siege cannon", Kind = WeaponKind.Projectile, Damage = 75f, Heat = 0.36f, Cooldown = 4.5f,
+        Name = "Siege cannon", Kind = WeaponKind.Projectile, Damage = 75f, Heat = 0.36f, Cooldown = 4.5f, Rounds = 14,
         Range = 700f, OptimalRange = 450f, MuzzleVelocity = 240f, Gravity = 5f, MaxLifetime = 3.5f,
         Length = 4.6f, Caliber = 0.55f, Barrels = 1,
         ArmKick = 8f, ElbowKick = 9f, TorsoYawKick = 1f, TorsoPitchKick = 0.8f, Trauma = 0.8f,

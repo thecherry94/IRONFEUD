@@ -35,6 +35,9 @@ public struct DamageReport
 
     /// <summary>A side torso went and took this arm with it (<see cref="MechSection.ArmLeft"/> / Right), else null.</summary>
     public MechSection? ArmLost;
+
+    /// <summary>Damage the rounds stored in the destroyed section did to the centre torso when they went off.</summary>
+    public float CookOff;
     public MechStatus StatusAfter;
     public bool Ignored;
 }
@@ -124,6 +127,16 @@ public sealed class MechDamage
     /// <summary>The section's (front) plate is gone: its structure takes hits directly.</summary>
     public bool Exposed(MechSection s) => Armor[(int)s] <= 0f;
     public bool IsOut => Status != MechStatus.Operational;
+
+    /// <summary>Damage from inside (an ammunition cook-off): straight into a section's structure, plates untouched.</summary>
+    public void ApplyInternal(MechSection s, float amount)
+    {
+        if (IsOut || amount <= 0f) return;
+        int i = (int)s;
+        bool wasIntact = Structure[i] > 0f;
+        Structure[i] = MathF.Max(0f, Structure[i] - amount);
+        if (wasIntact && Structure[i] <= 0f && s == MechSection.Torso) Status = MechStatus.Destroyed;
+    }
 
     /// <param name="facing">Torso hits from behind strike the rear plate.</param>
     /// <param name="vsArmor">How effective the weapon is against armour plates (1 = full damage).</param>
