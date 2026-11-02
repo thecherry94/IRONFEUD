@@ -58,10 +58,11 @@ godot --path . &                   # run the editor/game (Godot .NET build on PA
 godot --path . --headless --quit   # import/validate project in CI or before commits
 dotnet test tests/                 # pure-logic unit tests (xUnit)
 # Modes: --watch=lance|1v1|2v2 (AI vs AI, default lance: one of each class per side), --play=1v1|2v2, --range (firing range),
-# --parade (all chassis classes running laps, for gait work); in game F5-F11.
+# --parade (every design running laps, for gait work), --lineup (every design standing in a row: silhouette check); in game F5-F11.
 # Captures: --autopilot (range, scripted walk, fires 3-9 s, jumps at 2 / 7 / 12 s if the chassis has jets), --range-demo (range, scripted shooting);
 # --camera=chase|cockpit|orbit|overview; --debug shows gait and hit spheres; --light|--heavy|--assault and --sicklefoot pick the player's class and model (L / M cycle in game);
-# --select=N starts on mech N (Tab order); --map=nml|hills|flat picks the battle map (T cycles; No Man's Land is the default); --seed=N varies it:
+# --select=N starts on mech N (Tab order); --orbit=theta,phi,radius fixes the orbit camera (captures);
+# --map=nml|hills|flat picks the battle map (T cycles; No Man's Land is the default); --seed=N varies it:
 godot --path . --resolution 960x540 --fixed-fps 30 --write-movie /tmp/ironfeud-cap/f.png --quit-after 600 -- --watch=2v2
 dotnet test tests/ --filter AiDuels --logger "console;verbosity=detailed"   # headless AI duel summary
 ```
@@ -112,9 +113,12 @@ incendiary cannon / particle cannon with per-model loadouts, heat shutdowns, sig
 (lights) and ECM (Sicklefoot light), a tiny recessed cockpit, Bascinet shoulder cover plates, arc missiles steering on
 a 1 s lock track (a weaving light shakes them) with missile evasion, steering that sees low/sunken blocks and wrecks
 and keeps to one detour side (no more mechs stuck on block corners). A restart after a heat shutdown flushes the
-coolant (no more flamer stun-locks). Open items: own guns can overshoot heat 1 into a shutdown (a 0.32 bolt fired at
+coolant (no more flamer stun-locks). 2026-11-02: dedicated chassis per class (design: docs/superpowers/specs/2026-11-02-dedicated-chassis-design.md;
+research: docs/research/mech-genre/report.md): Sicklefoot and Bodkin lights, Bascinet (ex-"Hauberk", a BattleTech
+name) and Brigandine mediums, Harrow heavy, Barbican assault; chassis = body + class stats + loadout + design
+quirks; springs scale with size; twist range narrows with weight. Open items: own guns can overshoot heat 1 into a shutdown (a 0.32 bolt fired at
 0.99), the hills medium duel favours the Bascinet ~60-40, chassis `.tres` for editor tuning,
-spring frequencies don't scale with size, heavy/assault are scaled copies of the medium body, heavies still lead
+spring frequencies don't scale with size, heavies still lead
 kills in lances (0.7-1.1/game vs 0.35-0.55), the siege cannon is the top killer of flamer lights, light counterplay
 at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover independently),
 real sounds for the new weapons.
@@ -139,7 +143,8 @@ real sounds for the new weapons.
 - **Balance with the headless reports, not by eye.** One watched match conflated personality, model and spawn side;
   the data showed the model (Sicklefoot's smaller, lower hit spheres) was the cause. Run
   `IRONFEUD_BALANCE=1 dotnet test tests/ --filter BalanceTests --logger "console;verbosity=detailed"` (~3 min) with
-  both spawn sides and 20+ seeds per matchup; 12 games is noise.
+  both spawn sides and 20+ seeds per matchup; 12 games is noise. Kill rates need more: `IRONFEUD_SEEDS=40` runs the
+  lance report over 80 games (20-game runs swung heavies' kills 0.6-1.0).
 - **Design intent: distinct complementary roles, not parity;** prefer buffing the weaker option over nerfing.
 - **Statistical tests need samples:** several seeds and a margin, or a one-number change reshuffles RNG and flips them.
 - **Captures:** Godot runs the assembly from the last `dotnet build IRONFEUD.sln`; rebuild the solution, not just the

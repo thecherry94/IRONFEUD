@@ -47,3 +47,13 @@ one optimal weapon/sensor/utility loadout". Battle loop first: no missions/campa
 
 ## Left to the builder
 Exact proportions, colours and dressing of each body; loadout tuning from the balance runs.
+
+## Built (2026-11-02) and deviations
+- Brigandine: sight runs from the cockpit and the AI only fires at what it sees, so a cockpit lower than the guns would
+  only blind it. Built instead as a hull-down shooter: arms high under the bar, cockpit just below it, so its guns clear
+  a crest together with its eyes. Particle cannon + autocannon; armour factor 1.3 like the Bascinet (1.2 lost every
+  duel series).
+- Harrow and Barbican: legs ~10 % longer and hips narrower than first drafted (planted feet were off target 8-10 % of
+  the time across No Man's Land); they keep the squat look by crouching deeper (stance extension 0.75).
+- Lineup check: `--lineup` (all designs in a row). Balance: medium duels 21-19 / 18-22 / 22-18 / 21-18; lance kills
+  per game light 0.66, medium 0.57, heavy 0.85-0.97, assault 0.55, survival 31-40 % each (80 games).
