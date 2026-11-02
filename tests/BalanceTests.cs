@@ -75,6 +75,9 @@ public class BalanceTests
         Duels("nml", (Personality.Balanced, MechModel.Bascinet), (Personality.Brawler, MechModel.Sicklefoot)); // watch 1v1 as shipped
     }
 
+    /// <summary>Seeds per map in the lance report (IRONFEUD_SEEDS overrides the 10: 20 games is noise for kill rates).</summary>
+    private static uint LanceSeeds => uint.TryParse(Environment.GetEnvironmentVariable("IRONFEUD_SEEDS"), out uint n) && n > 0 ? n : 10;
+
     private sealed class RoleStats
     {
         public float Dealt, Taken, Shots, Hits, Fast, Moving, HullDown, Alive, Samples, Games, Survived, Kills, RearDealt, RearTaken, Heat, Shutdowns;
@@ -91,7 +94,7 @@ public class BalanceTests
         var personas = new[] { Personality.Balanced, Personality.Balanced, Personality.Balanced, Personality.Sniper };
         int unfinished = 0;
         foreach (string map in new[] { "nml", "hills" })
-        for (uint seed = 1; seed <= 10; seed++)
+        for (uint seed = 1; seed <= LanceSeeds; seed++)
         {
             var b = new BattleSim(map == "nml" ? ArenaMap.NoMansLand(seed) : ArenaMap.Arena(seed), seed * 13);
             for (int team = 0; team < 2; team++)
@@ -147,7 +150,7 @@ public class BalanceTests
         _out.WriteLine("class   | dealt/game | taken/game | kills/game | hit % | survived | fast % | moving % | hull-down % | rear dealt % | rear taken % | heat in/game | shutdowns/game");
         foreach (var (cls, st) in stats)
             _out.WriteLine($"{cls,-7} | {st.Dealt / st.Games,10:0} | {st.Taken / st.Games,10:0} | {st.Kills / st.Games,10:0.00} | {100 * st.Hits / Math.Max(1, st.Shots),5:0} | {100 * st.Survived / st.Games,7:0}% | {100 * st.Fast / Math.Max(1, st.Samples),5:0}% | {100 * st.Moving / Math.Max(1, st.Samples),7:0}% | {100 * st.HullDown / Math.Max(1, st.Samples),5:0}%    | {100 * st.RearDealt / Math.Max(1, st.Dealt),8:0}%    | {100 * st.RearTaken / Math.Max(1, st.Taken),8:0}%    | {st.Heat / st.Games,8:0.00}    | {st.Shutdowns / st.Games,8:0.00}");
-        _out.WriteLine($"unfinished battles: {unfinished}/20");
+        _out.WriteLine($"unfinished battles: {unfinished}/{2 * LanceSeeds}");
         Assert.True(unfinished <= 2, $"{unfinished} lance battles didn't finish in 400 s");
     }
 

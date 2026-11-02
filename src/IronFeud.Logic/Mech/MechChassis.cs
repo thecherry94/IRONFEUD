@@ -275,7 +275,6 @@ public sealed class MechChassis
                 c.JumpFuel = 1.4f;
                 c.JumpRecharge = 5f;
                 c.JumpHeat = 0.1f;
-                c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
                 c.RoughGroundCaution = 0.5f;
                 c.HeatDissipation = 0.06f;
@@ -312,6 +311,10 @@ public sealed class MechChassis
                 break;
         }
         c.Signature = cls switch { ChassisClass.Light => 0.6f, ChassisClass.Medium => 0.8f, ChassisClass.Assault => 1.15f, _ => 1f };
+        // Torso twist range narrows with weight (the genre's numbers: assaults +-62-90 deg, lights far wider), so a light
+        // inside an assault's arc is safe and a big mech must turn its legs to follow one. The rate already falls with
+        // tonnage^-0.75 (light 3, medium 2, heavy 1.5, assault 1.2 rad/s).
+        c.TwistMax = cls switch { ChassisClass.Light => 1.9f, ChassisClass.Medium => 1.75f, ChassisClass.Heavy => 1.45f, _ => 1.15f };
     }
 
     /// <summary>Weapons, shoulder rack, point defense and sensor kit for a model in a class.</summary>
