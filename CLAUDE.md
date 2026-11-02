@@ -86,7 +86,7 @@ src/
                     CameraRig (chase/cockpit/orbit/overview), PlayerMechController, Hud, Effects, GameInput
 scenes/             main.tscn (thin: just the Main script)
 tests/              xUnit project referencing IronFeud.Logic
-docs/               design notes (read on demand)
+docs/               design notes (read on demand); docs/research/mech-genre/report.md = genre research + roadmap
 reference/web-prototype/   working three.js prototypes; the behavioral source of truth for feel
 ```
 Logic uses `System.Numerics` in Godot's axis convention, so conversion is a plain field copy (`GodotConv`).
