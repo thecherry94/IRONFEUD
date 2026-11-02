@@ -181,7 +181,7 @@ public class MissileTests
         Assert.Null(heavy.Locked);
         Assert.Null(b.Scan(0, target));
 
-        var designator = b.AddUnit("D", 0, MechChassis.Light(MechModel.Hauberk), new Vector3(0, 0, 220), 0f);
+        var designator = b.AddUnit("D", 0, MechChassis.Light(MechModel.Bascinet), new Vector3(0, 0, 220), 0f);
         Assert.False(designator.Chassis.Ecm);
         float dTwist = 0f, dAim = 0f, lockedAt = -1f;
         for (int i = 0; i < 120 * 4 && lockedAt < 0f; i++)
@@ -212,8 +212,8 @@ public class MissileTests
             {
                 var b = new BattleSim(new ArenaMap { Radius = 900f }, seed) { TrackOutcome = false };
                 var heavy = b.AddUnit("H", 0, MechChassis.Heavy(), new Vector3(0, 0, 500), 0f);
-                b.AddUnit("L", 0, MechChassis.Light(MechModel.Hauberk), new Vector3(250, 0, 0), 0f); // spotter
-                var c = MechChassis.Create(cls, MechModel.Hauberk);
+                b.AddUnit("L", 0, MechChassis.Light(MechModel.Bascinet), new Vector3(250, 0, 0), 0f); // spotter
+                var c = MechChassis.Create(cls, MechModel.Bascinet);
                 var target = b.AddUnit("T", 1, c, Vector3.Zero, MathF.PI / 2f, damage: Tough(c));
                 float twist = 0f, aim = 0f;
                 bool launched = false;

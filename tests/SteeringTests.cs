@@ -163,9 +163,9 @@ public class SteeringTests
                 b.AddUnit($"{team}-{c}", team, MechChassis.Create(c, model), new Vector3(x * sign, 0f, z * sign), team == 0 ? 0f : MathF.PI, p);
             const float z = ArenaMap.ArenaSpawnZ, z2 = z + 17f;
             Add(ChassisClass.Light, -45f, z, Personality.Balanced, MechModel.Sicklefoot);
-            Add(ChassisClass.Medium, -15f, z, Personality.Balanced, MechModel.Hauberk);
+            Add(ChassisClass.Medium, -15f, z, Personality.Balanced, MechModel.Bascinet);
             Add(ChassisClass.Heavy, 15f, z2, Personality.Balanced, MechModel.Sicklefoot);
-            Add(ChassisClass.Assault, 45f, z2, Personality.Sniper, MechModel.Hauberk);
+            Add(ChassisClass.Assault, 45f, z2, Personality.Sniper, MechModel.Bascinet);
         }
         return b;
     }

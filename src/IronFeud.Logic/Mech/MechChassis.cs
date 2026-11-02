@@ -10,7 +10,7 @@ public enum ChassisClass { Light, Medium, Heavy, Assault }
 public enum MechModel
 {
     /// <summary>The prototype's upright biped: boxy torso, hanging arms, forward knees.</summary>
-    Hauberk,
+    Bascinet,
 
     /// <summary>Chicken walker: a long, low hull with a nose cockpit, weapon pods instead of arms, digitigrade legs.</summary>
     Sicklefoot,
@@ -46,7 +46,7 @@ public sealed class MechChassis
 {
     public string Name = "Prototype";
     public ChassisClass Class = ChassisClass.Medium;
-    public MechModel Model = MechModel.Hauberk;
+    public MechModel Model = MechModel.Bascinet;
 
     /// <summary>
     /// Rig size relative to the model's medium. All lengths below are already scaled; the gait's built-in lengths
@@ -154,7 +154,7 @@ public sealed class MechChassis
 
     /// <summary>
     /// Cover plates on the left shoulder (shoulder-local, the right one mirrored), part of that arm: hits on them strike
-    /// the arm, not the core behind. The Hauberk's pauldrons, with a raised flange on the inner edge that screens the
+    /// the arm, not the core behind. The Bascinet's pauldrons, with a raised flange on the inner edge that screens the
     /// head and upper torso from the side; the rig draws exactly these boxes. A mech that twists a shoulder toward the
     /// fire takes it on the arm (and risks that arm's weapon) instead of the torso.
     /// </summary>
@@ -222,21 +222,21 @@ public sealed class MechChassis
     /// <summary>The web prototype's walker, unchanged (4.2 m/s). Tests pin conventions against it.</summary>
     public static MechChassis Prototype() => new();
 
-    public static MechChassis Light(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Light, model);
-    public static MechChassis Medium(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Medium, model);
-    public static MechChassis Heavy(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Heavy, model);
-    public static MechChassis Assault(MechModel model = MechModel.Hauberk) => Create(ChassisClass.Assault, model);
+    public static MechChassis Light(MechModel model = MechModel.Bascinet) => Create(ChassisClass.Light, model);
+    public static MechChassis Medium(MechModel model = MechModel.Bascinet) => Create(ChassisClass.Medium, model);
+    public static MechChassis Heavy(MechModel model = MechModel.Bascinet) => Create(ChassisClass.Heavy, model);
+    public static MechChassis Assault(MechModel model = MechModel.Bascinet) => Create(ChassisClass.Assault, model);
 
     /// <summary>
     /// A game mech: the model's body at medium size, then the class's scale, speed and armour.
     /// Speed bands: light 100-150 km/h, medium 60-100, heavy 50-70, assault 30-50.
     /// Everything except the prototype's geometry is a first guess for feel tuning.
     /// </summary>
-    public static MechChassis Create(ChassisClass cls, MechModel model = MechModel.Hauberk)
+    public static MechChassis Create(ChassisClass cls, MechModel model = MechModel.Bascinet)
     {
         var c = model switch
         {
-            MechModel.Hauberk => new MechChassis(),
+            MechModel.Bascinet => new MechChassis(),
             MechModel.Sicklefoot => SicklefootBody(),
             _ => throw new ArgumentOutOfRangeException(nameof(model)),
         };
@@ -264,7 +264,7 @@ public sealed class MechChassis
                 c.TwistMax = MathF.Min(c.TwistMax, 1.5f);
                 c.SetArmour(60f, 30f, 45f, 4f);
                 // Sicklefoot: machine guns and a flamethrower (heat it, then shred what the plates don't cover);
-                // Hauberk: incendiary cannon and pulse laser.
+                // Bascinet: incendiary cannon and pulse laser.
                 if (model == MechModel.Sicklefoot) c.SetWeapons(WeaponSpec.MachineGun, WeaponSpec.Flamethrower);
                 else c.SetWeapons(WeaponSpec.IncendiaryCannon, WeaponSpec.PulseLaser);
                 c.RoughGroundCaution = 0.5f;
@@ -306,7 +306,7 @@ public sealed class MechChassis
                 break;
         }
         // Shoulder racks and point defense: lights a rocket pod for in-close bursts, mediums a strike rack, heavies
-        // the guided arc missiles (their support role), assaults one point-defense turret. A Hauberk medium with a
+        // the guided arc missiles (their support role), assaults one point-defense turret. A Bascinet medium with a
         // second turret made every default lance a two-turret screen that shot down ~3/4 of arc volleys.
         c.TorsoWeapon = cls switch
         {
@@ -326,7 +326,7 @@ public sealed class MechChassis
 
     /// <summary>
     /// Sicklefoot at medium size: a long, low hull carried forward of the hips, cockpit in the nose, weapon pods on
-    /// short side pylons, digitigrade legs. About a metre lower than the Hauberk but longer.
+    /// short side pylons, digitigrade legs. About a metre lower than the Bascinet but longer.
     /// </summary>
     private static MechChassis SicklefootBody() => new()
     {
@@ -378,16 +378,16 @@ public sealed class MechChassis
 
     /// <summary>
     /// Armour multiplier per body plan, on torso, arms and legs (the cockpit stays fragile). Balanced against headless
-    /// duels: the Hauberk is the bigger, taller target (more sphere area, a torso that shows over crests), so it gets
+    /// duels: the Bascinet is the bigger, taller target (more sphere area, a torso that shows over crests), so it gets
     /// the heavier plate. 1.0 = the class's base values.
     /// </summary>
     public static float ArmourFactor(MechModel model) => model switch
     {
-        MechModel.Hauberk => HauberkArmour,
+        MechModel.Bascinet => BascinetArmour,
         _ => 1f,
     };
 
-    private const float HauberkArmour = 1.3f;
+    private const float BascinetArmour = 1.3f;
 
     private void ApplyModelArmour(MechModel model)
     {

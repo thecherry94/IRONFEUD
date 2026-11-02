@@ -62,7 +62,7 @@ public class DamageTests
     public void Cockpit_IsExtremelyHardToHit_FromAnyDirection()
     {
         foreach (var cls in Enum.GetValues<ChassisClass>())
-        foreach (var model in new[] { MechModel.Hauberk, MechModel.Sicklefoot })
+        foreach (var model in new[] { MechModel.Bascinet, MechModel.Sicklefoot })
         {
             var sim = new MechSim(MechChassis.Create(cls, model));
             for (int i = 0; i < 240; i++) sim.Step(default, 1f / 120f);
@@ -85,13 +85,13 @@ public class DamageTests
     }
 
     /// <summary>
-    /// Cover geometry (player note: shoulder and torso structures that give extra cover): the Hauberk's pauldron
+    /// Cover geometry (player note: shoulder and torso structures that give extra cover): the Bascinet's pauldron
     /// flanges, swept forward beside the head, screen it from the side, so a side shot at the canopy strikes the arm;
     /// head-on the chest is still the torso; with the arm destroyed its plates are gone. Torso-aimed shots (1.5 m
     /// scatter) on the torso: side 78 -> 59 %, at 45° 67 -> 51 % (the arms take the rest). The Sicklefoot has none.
     /// </summary>
     [Fact]
-    public void ShoulderPlates_ScreenTheHauberksCore_FromTheSide()
+    public void ShoulderPlates_ScreenTheBascinetsCore_FromTheSide()
     {
         var sim = new MechSim(MechChassis.Medium());
         for (int i = 0; i < 240; i++) sim.Step(default, H);

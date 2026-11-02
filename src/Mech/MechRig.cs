@@ -144,7 +144,7 @@ public sealed class MechRig
                 r.DressSicklefoot(t);
                 break;
             default:
-                r.DressHauberk(t);
+                r.DressBascinet(t);
                 break;
         }
         if (t.TorsoWeapon is { } rack) r.BuildRack(r.Torso, rack, t.TorsoMount.ToGodot() / s);
@@ -187,9 +187,9 @@ public sealed class MechRig
         }
     }
 
-    // ---------- Hauberk: the prototype's upright biped ----------
+    // ---------- Bascinet: the prototype's upright biped ----------
 
-    private void DressHauberk(MechChassis t)
+    private void DressBascinet(MechChassis t)
     {
         var m = _m;
         float l1 = t.L1 / Scale, l2 = t.L2 / Scale;

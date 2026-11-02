@@ -140,7 +140,7 @@ and heavier classes are scaled copies of the same body.
 
 ## Leg layouts and models (Godot addition)
 `MechChassis.Create(class, model)`: the **model** is the body plan and look, the **class** sets size, speed, armour.
-- **Hauberk** (the prototype): upright torso, hanging arms, plantigrade legs (thigh, shin, flat foot, knee forward).
+- **Bascinet** (the prototype): upright torso, hanging arms, plantigrade legs (thigh, shin, flat foot, knee forward).
 - **Sicklefoot**: chicken walker. Long low hull slung forward over a turret ring, cockpit pod under the nose, weapon
   pods on short pylons (the "arms": they pitch with aim and barely swing), dorsal radiator spine, rear counterweight.
   **Digitigrade legs**: thigh L1 2.3, shin L2 3.0, raised foot bone L3 1.9 (medium), walking on the toe joint.
@@ -151,7 +151,7 @@ virtual thigh of L1 + L3: solve it with the forward-knee solution and set the ho
 no jitter. Knee points forward, hock backward. The gait is unchanged: its "ankle" target is the toe joint
 (`AnkleHeight` 0.35 m), foot pivots come from `ToeLength`/`HeelLength`.
 
-`FitGaitToLegs` derives each mech's hip height (from `StanceExtension`: 0.766 Hauberk, 0.72 Sicklefoot), stride limit
+`FitGaitToLegs` derives each mech's hip height (from `StanceExtension`: 0.766 Bascinet, 0.72 Sicklefoot), stride limit
 AMAX (70 % of the horizontal reach at 95 % extension) and walk-to-run speeds from its leg geometry, so new models
 only describe their bodies. A plain reverse knee (2 segments, knee back) would be the other root of the 2-bone solve
 (hip pitch α − β); not used yet.

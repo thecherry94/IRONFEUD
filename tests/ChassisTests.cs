@@ -88,9 +88,9 @@ public class ChassisTests
     }
 
     [Theory]
-    [InlineData(ChassisClass.Light, MechModel.Hauberk)]
-    [InlineData(ChassisClass.Medium, MechModel.Hauberk)]
-    [InlineData(ChassisClass.Heavy, MechModel.Hauberk)]
+    [InlineData(ChassisClass.Light, MechModel.Bascinet)]
+    [InlineData(ChassisClass.Medium, MechModel.Bascinet)]
+    [InlineData(ChassisClass.Heavy, MechModel.Bascinet)]
     [InlineData(ChassisClass.Light, MechModel.Sicklefoot)]
     [InlineData(ChassisClass.Medium, MechModel.Sicklefoot)]
     public void AtTopSpeed_StrideIsSetByLegReach_NotByAShuffle(ChassisClass cls, MechModel model)

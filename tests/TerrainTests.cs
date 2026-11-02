@@ -67,8 +67,8 @@ public class TerrainTests
 
     public static TheoryData<ChassisClass, MechModel> Mechs() => new()
     {
-        { ChassisClass.Light, MechModel.Hauberk }, { ChassisClass.Medium, MechModel.Hauberk },
-        { ChassisClass.Assault, MechModel.Hauberk }, { ChassisClass.Light, MechModel.Sicklefoot },
+        { ChassisClass.Light, MechModel.Bascinet }, { ChassisClass.Medium, MechModel.Bascinet },
+        { ChassisClass.Assault, MechModel.Bascinet }, { ChassisClass.Light, MechModel.Sicklefoot },
         { ChassisClass.Medium, MechModel.Sicklefoot }, { ChassisClass.Heavy, MechModel.Sicklefoot },
     };
 
@@ -187,7 +187,7 @@ public class TerrainTests
 
     public static TheoryData<MechModel, float> PoseRuns() => new()
     {
-        { MechModel.Hauberk, 0.35f }, { MechModel.Hauberk, 1f }, { MechModel.Sicklefoot, 0.35f }, { MechModel.Sicklefoot, 1f },
+        { MechModel.Bascinet, 0.35f }, { MechModel.Bascinet, 1f }, { MechModel.Sicklefoot, 0.35f }, { MechModel.Sicklefoot, 1f },
     };
 
     /// <summary>

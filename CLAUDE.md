@@ -102,18 +102,18 @@ Semantic angles (pitch + = down, roll + = lean right) become Godot Euler angles 
 Then: more weapons, mech classes, missions.
 
 **Status (2026-10-31):** steps 1-5 done, plus the pulled-forward "mech classes" item: four weight classes at genre
-speeds (light 130 / medium 80 / heavy 60 / assault 40 km/h) with a running gait, two body models (Hauberk biped,
+speeds (light 130 / medium 80 / heavy 60 / assault 40 km/h) with a running gait, two body models (Bascinet biped,
 Sicklefoot digitigrade), a weapon roster with class loadouts, class roles in the AI, and a No Man's Land arena.
 Since then (2026-11-01): audio (synthesised placeholders), burning/pulse lasers, facing armour, jump jets + jump AI,
 stabilised weapons, weapon ranges (optimal -> zero at max), missiles (rocket pod / strike rack / guided arc missiles)
 and point defense, support calls, symmetric maps, armour over fragile internal structure (critical effects),
 sensor-lock scans shared per lance (the AI decides on enemy state only from scans), machine guns / flamethrower /
 incendiary cannon / particle cannon with per-model loadouts, heat shutdowns, signature by size, designator marks
-(lights) and ECM (Sicklefoot light), a tiny recessed cockpit, Hauberk shoulder cover plates, arc missiles steering on
+(lights) and ECM (Sicklefoot light), a tiny recessed cockpit, Bascinet shoulder cover plates, arc missiles steering on
 a 1 s lock track (a weaving light shakes them) with missile evasion, steering that sees low/sunken blocks and wrecks
 and keeps to one detour side (no more mechs stuck on block corners). A restart after a heat shutdown flushes the
 coolant (no more flamer stun-locks). Open items: own guns can overshoot heat 1 into a shutdown (a 0.32 bolt fired at
-0.99), the hills medium duel favours the Hauberk ~60-40, chassis `.tres` for editor tuning,
+0.99), the hills medium duel favours the Bascinet ~60-40, chassis `.tres` for editor tuning,
 spring frequencies don't scale with size, heavy/assault are scaled copies of the medium body, heavies still lead
 kills in lances (0.7-1.1/game vs 0.35-0.55), the siege cannon is the top killer of flamer lights, light counterplay
 at range (re-measure: firing now reveals a light at full size), squad tactics (2v2+ pick cover independently),

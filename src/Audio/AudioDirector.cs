@@ -60,7 +60,7 @@ public partial class AudioDirector : Node3D
     /// <summary>Synthesises the whole roster up front (~0.5 s) so the first siege-cannon shot doesn't hitch.</summary>
     private void Prewarm()
     {
-        foreach (var cls in Enum.GetValues<ChassisClass>()) FootfallSet(MechChassis.Create(cls, MechModel.Hauberk));
+        foreach (var cls in Enum.GetValues<ChassisClass>()) FootfallSet(MechChassis.Create(cls, MechModel.Bascinet));
         foreach (var spec in new[] { WeaponSpec.PulseLaser, WeaponSpec.Autocannon, WeaponSpec.Laser, WeaponSpec.Cannon,
                      WeaponSpec.HeavyLaser, WeaponSpec.HeavyCannon, WeaponSpec.SiegeCannon })
             if (spec.BurnTime > 0f) BurnSet(spec);

@@ -419,7 +419,7 @@ public class BattleTests
     {
         var matchups = new (Personality, Personality, ChassisClass, ChassisClass, MechModel)[]
         {
-            (Personality.Balanced, Personality.Brawler, ChassisClass.Medium, ChassisClass.Medium, MechModel.Hauberk),
+            (Personality.Balanced, Personality.Brawler, ChassisClass.Medium, ChassisClass.Medium, MechModel.Bascinet),
             (Personality.Sniper, Personality.Brawler, ChassisClass.Medium, ChassisClass.Medium, MechModel.Sicklefoot),
             (Personality.Balanced, Personality.Balanced, ChassisClass.Light, ChassisClass.Heavy, MechModel.Sicklefoot),
         };

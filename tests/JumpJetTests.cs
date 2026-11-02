@@ -101,11 +101,11 @@ public class JumpJetTests
     /// <summary>
     /// Jumping repeatedly while running across No Man's Land (craters, trenches, ridges): the legs stay natural in
     /// the air and on every landing, and the pelvis never teleports. Feet may dip into a crest briefly right after a
-    /// touchdown while the next stride catches up (measured when added: Hauberk worst 1.3 m in 0.5 % of foot-ticks;
+    /// touchdown while the next stride catches up (measured when added: Bascinet worst 1.3 m in 0.5 % of foot-ticks;
     /// the Sicklefoot already dips up to 1.6 m when only walking here, its toe joint on steep faces).
     /// </summary>
     [Theory]
-    [InlineData(MechModel.Hauberk)]
+    [InlineData(MechModel.Bascinet)]
     [InlineData(MechModel.Sicklefoot)]
     public void JumpingAcrossNoMansLand_PosesStayNatural(MechModel model)
     {

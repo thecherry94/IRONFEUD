@@ -41,11 +41,11 @@ describes the prototype.
 `IRONFEUD_BALANCE=1 dotnet test tests/ --filter BalanceTests --logger "console;verbosity=detailed"` (≈ 3 min): medium
 duels over 20 seeds x both spawn sides per matchup, on No Man's Land and the hills arena; fails if anything wins > 70 %.
 - **Spawn side:** no bias (40 seeds per map: 17-23, 21-19, 18-22).
-- **Personalities** (Hauberk vs Hauberk, 40 games each): Brawler vs Balanced 19-21 / 18-21, Brawler vs Sniper
+- **Personalities** (Bascinet vs Bascinet, 40 games each): Brawler vs Balanced 19-21 / 18-21, Brawler vs Sniper
   18-20 / 13-26, Balanced vs Sniper 18-21 / 17-22 (No Man's Land / hills). Brawler is not overpowered; Sniper is a
   little strong on the open hills.
-- **Models:** the Sicklefoot won ~80 % against an equal Hauberk: smaller, lower hit spheres (its hull hides behind
-  crests; the Hauberk's tall torso shows), so it was hit 45-50 % vs 28-35 %. Rather than nerf it, the Hauberk carries
+- **Models:** the Sicklefoot won ~80 % against an equal Bascinet: smaller, lower hit spheres (its hull hides behind
+  crests; the Bascinet's tall torso shows), so it was hit 45-50 % vs 28-35 %. Rather than nerf it, the Bascinet carries
   1.3x armour on torso/arms/legs (cockpit unchanged): now 18-22, 18-21, and 24-16 when brawling up close.
 
 ## Class roles (Godot port)
@@ -84,15 +84,15 @@ kept full damage at any range and beams fell to 20-25 %.
 
 | weapon | kind | dmg | heat | cooldown | optimal / max range | shell m/s | used by |
 |---|---|---|---|---|---|---|---|
-| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 180 / 280 | | Hauberk light (L) |
+| Pulse laser | 3 pulses, 0.09 s apart | 9 (3 × 3) | .09 | 0.9 s | 180 / 280 | | Bascinet light (L) |
 | Autocannon | 2 barrels | 4 | .03 | 0.25 s | 300 / 520 | 560 | Sicklefoot medium (L) |
-| Incendiary cannon | 2 barrels, +0.06 target heat a round | 2.6 | .03 | 0.25 s | 260 / 460 | 520 | Hauberk light (R) |
+| Incendiary cannon | 2 barrels, +0.06 target heat a round | 2.6 | .03 | 0.25 s | 260 / 460 | 520 | Bascinet light (R) |
 | Machine gun | 2 barrels, x0.15 vs armour, x1.6 vs structure | 1.5 | .004 | 0.08 s | 160 / 260 | 900 | Sicklefoot light (R) |
 | Flamethrower | 1.2 s stream, +0.5 target heat a burn | 4 | .08 | 2 s | 50 / 80 | | Sicklefoot light (L) |
-| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 200 / 320 | | Hauberk medium (L) |
+| Laser | 1.25 s burn | 20 | .24 | 2.25 s | 200 / 320 | | Bascinet medium (L) |
 | Cannon | shell | 14 | .08 | 0.75 s | 400 / 640 | 450 | (prototype) |
-| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 240 / 380 | | heavy, Hauberk assault (L) |
-| Heavy cannon | shell | 32 | .20 | 2.2 s | 360 / 600 | 330 | Hauberk medium, Hauberk heavy (R) |
+| Heavy laser | 2 s burn | 32 | .35 | 3.5 s | 240 / 380 | | heavy, Bascinet assault (L) |
+| Heavy cannon | shell | 32 | .20 | 2.2 s | 360 / 600 | 330 | Bascinet medium, Bascinet heavy (R) |
 | Particle cannon | bolt, no drop, ramps to full over 90 m, scrambles sensors 1.5 s | 26 | .32 | 3.2 s | 450 / 650 | 1300 | Sicklefoot medium, heavy (R), Sicklefoot assault (L) |
 | Siege cannon | shell | 75 | .36 | 4.5 s | 450 / 700 | 240 | assault (R) |
 | Rocket pod | 6 rockets, 0.05 s | 18 | .12 | 3 s | 130 / 220 | 200 | light (shoulder) |
@@ -179,7 +179,7 @@ The HUD shows armour/structure per section ("!" = exposed); the AI panel draws b
 
 **Heat and specialist weapons** (the lights package: lights must be a real nuisance to the backline, not just
 spotters). Each model now carries its own loadout (table above): the Sicklefoot light pairs machine guns with a
-flamethrower (heat it, then shred whatever the plates no longer cover), the Hauberk light an incendiary cannon and
+flamethrower (heat it, then shred whatever the plates no longer cover), the Bascinet light an incendiary cannon and
 a pulse laser; Sicklefoot mediums to assaults carry the particle cannon. Heat weapons add heat to the target in
 proportion to the damage they land. A mech's own guns lock at heat 1, but outside heat (and jets) can push it on: at
 1.2 the reactor scrams for 3 s (`MechSim.ShutdownHeat`): no legs, no guns, torso slack, heat sinks still working; the
@@ -215,13 +215,13 @@ from cover), locks in a third of the time (arc missiles 1.5 -> 0.5 s), shows at 
 600 m, not 360), is known wherever it goes, is aimed at with 25 % less error and is preferred (+0.3; focus +0.8).
 A spotter whose mark is fresh (> 3 s left) leaves its post: the heavy locks through the mark. The marked pilot gets
 the designator's bearing; the HUD shows "MARKED BY DESIGNATOR" and tags marked targets, the AI overlay rings them.
-`Marks_WhatTheyAreWorth`, marks vs the same lance without (48 games): Hauberk light 31-17 (light survived 46 %),
+`Marks_WhatTheyAreWorth`, marks vs the same lance without (48 games): Bascinet light 31-17 (light survived 46 %),
 Sicklefoot flamer light 24-24 (it marks from flame range, mid-brawl); passive marks alone, before full-size painting
 and the preference, were 25-23 / 21-27. Enemies are marked ~13 % of the time. Lance report: light 55 / 0.20 / 18 %,
 medium 84 / 0.43 / 28 %, heavy 142 / 1.63 / 38 %, assault 121 / 0.58 / 35 % (marks also expose enemy lights).
 
 **ECM** (generic genre jammer; the Sicklefoot light carries it, `MechChassis.Ecm`, so the two light models differ:
-Hauberk = ranged designator, Sicklefoot = flamer brawler with a jammer). Inside its 120 m bubble
+Bascinet = ranged designator, Sicklefoot = flamer brawler with a jammer). Inside its 120 m bubble
 (`BattleSim.Jammed`): enemy mechs can't lock or scan and drop off their lance's shared sightings and radar; its own
 lance can't be locked (so not scanned, nor fired on with arc missiles) unless marked, and designators burn through,
 so the enemy light is the answer. A salvo already in the air keeps homing. Pilots that are jammed, or whose target is
@@ -292,7 +292,7 @@ light 160 standing, 13 weaving; assault 108 either way). Lance report: light 90 
 (was 58 / 0.40 / 33 %), medium 110 / 0.53 / 38 %, heavy 167 / 0.73 / 38 % (kills were 1.35), assault 148 / 0.73 /
 45 %; light deaths 30 -> 23 of 40, median 34 -> 42 s, only 1 before 20 s (was 7); arc kills on lights 13 -> 5.
 The siege cannon is now the top light killer (the flamer light brawling beside an assault).
-Point defense: turrets (assault 1; a second on the Hauberk medium made every lance a two-turret screen) each shoot down 1.5
+Point defense: turrets (assault 1; a second on the Bascinet medium made every lance a two-turret screen) each shoot down 1.5
 missiles a second within 110 m that are closing on the mech or a teammate within 120 m; turrets add up. One arc
 volley shot down: 1 turret 33 %, 2 turrets 73 %, 3 turrets 100 % (design: one turret thins, stopping a volley takes
 investment, on one mech or across the lance; 5/s erased 9 of 10). Lance report after: light 122 dealt / 30 %
@@ -336,7 +336,7 @@ Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
 
 **Godot additions (not in the prototype):**
 - **Cockpit** section: 5 HP, a small sphere on the canopy glass (player call: it kills the pilot in one solid
-  hit, so it must be extremely hard to hit). Hauberk: r 0.12 m (scaled by size) recessed into the torso sphere so
+  hit, so it must be extremely hard to hit). Bascinet: r 0.12 m (scaled by size) recessed into the torso sphere so
   ~5 cm of it shows, only head-on; Sicklefoot (head juts out of the torso): r 0.08 m. Share of torso-aimed hits
   (1.5 m scatter) striking it: 0.1-0.3 % head-on, from a diving missile or the side (was 1.3-3.2 %, r 0.3 m, proud
   of the torso: one 10-round arc salvo had a ~15 % chance to kill the pilot and lights died that way at 6-8 s).
@@ -344,13 +344,13 @@ Hits add trauma and random torso pitch/roll spring kicks proportional to damage.
   struck from the front.
 - **Cover plates** (player note: some genre mechs have torso/shoulder structures that give extra cover):
   `MechChassis.ShoulderCover`, oriented boxes in the shoulder frame belonging to that arm, drawn by the rig from the
-  same data (F3 shows them). The Hauberk has its pauldrons and a raised flange on each, swept forward beside the
+  same data (F3 shows them). The Bascinet has its pauldrons and a raised flange on each, swept forward beside the
   head; the Sicklefoot has none (weapon pods on bare pylons). The section spheres are coarse (the torso sphere
   reaches ~1 m past the visible chest), the plates exact: a plate takes the hit if the ray reaches it first or meets
-  it inside the sphere it struck. A destroyed arm's plates are gone. Torso-aimed hits on a Hauberk medium: torso
+  it inside the sphere it struck. A destroyed arm's plates are gone. Torso-aimed hits on a Bascinet medium: torso
   share head-on 84 -> 80 %, at 45° 67 -> 51 %, side 78 -> 59 % (arms take the rest; the plates add a little
   silhouette: misses 20 -> 16 % head-on). Twisting a shoulder into the fire now spends an arm to spare the core.
-  Medium duels Hauberk vs Sicklefoot (Models_AreBalanced): hills 28-12 before the plates (already lopsided since
+  Medium duels Bascinet vs Sicklefoot (Models_AreBalanced): hills 28-12 before the plates (already lopsided since
   per-model loadouts: the Sicklefoot medium's particle cannon + machine gun does ~11/s on armour vs ~23/s), 34-6 after.
   Swapping its machine gun for a laser made it worse (34-5, overheats), a pulse laser too (31-9); an autocannon
   balanced it: nml 20-20, hills 26-14, brawlers 21-19, watch 1v1 27-13 (all under the 70 % limit). Destroyed = pilot killed: the mech slumps like a wreck but without fire/smoke and with the

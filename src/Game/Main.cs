@@ -45,7 +45,7 @@ public partial class Main : Node3D
 
     private GameMode _mode = GameMode.WatchLance;
     private ChassisClass _playerClass = ChassisClass.Medium;
-    private MechModel _playerModel = MechModel.Hauberk;
+    private MechModel _playerModel = MechModel.Bascinet;
     private uint _round;
     private bool _rangeDemo, _gaitDebug, _aiOverlay = true;
     private MapKind _map = MapKind.NoMansLand;
@@ -68,10 +68,10 @@ public partial class Main : Node3D
     /// <summary>Gait parade lanes, inner to outer: slow classes inside, lights (widest turning circles) outside.</summary>
     private static readonly (ChassisClass Class, MechModel Model, float Radius)[] ParadeLanes =
     {
-        (ChassisClass.Assault, MechModel.Hauberk, 100f), (ChassisClass.Assault, MechModel.Sicklefoot, 122f),
-        (ChassisClass.Heavy, MechModel.Hauberk, 144f), (ChassisClass.Heavy, MechModel.Sicklefoot, 166f),
-        (ChassisClass.Medium, MechModel.Hauberk, 188f), (ChassisClass.Medium, MechModel.Sicklefoot, 210f),
-        (ChassisClass.Light, MechModel.Hauberk, 232f), (ChassisClass.Light, MechModel.Sicklefoot, 254f),
+        (ChassisClass.Assault, MechModel.Bascinet, 100f), (ChassisClass.Assault, MechModel.Sicklefoot, 122f),
+        (ChassisClass.Heavy, MechModel.Bascinet, 144f), (ChassisClass.Heavy, MechModel.Sicklefoot, 166f),
+        (ChassisClass.Medium, MechModel.Bascinet, 188f), (ChassisClass.Medium, MechModel.Sicklefoot, 210f),
+        (ChassisClass.Light, MechModel.Bascinet, 232f), (ChassisClass.Light, MechModel.Sicklefoot, 254f),
     };
 
     public override void _Ready()
@@ -205,7 +205,7 @@ public partial class Main : Node3D
     private void SpawnTeams(BattleSim b, GameMode mode)
     {
         // Alpha starts at +z facing -z, Bravo at -z facing +z (the prototype's spawns, mirrored into Godot's frame).
-        void Ai(string name, int team, ChassisClass c, float x, float z, Personality p, MechModel model = MechModel.Hauberk) =>
+        void Ai(string name, int team, ChassisClass c, float x, float z, Personality p, MechModel model = MechModel.Bascinet) =>
             b.AddUnit(name, team, MechChassis.Create(c, model), new Vec3(x, 0f, z), team == 0 ? 0f : Mathf.Pi,
                 _personalities.GetValueOrDefault($"{mode}:{name}", p));
         void Player(float x, float z) => b.AddUnit("Player", 0, MechChassis.Create(_playerClass, _playerModel), new Vec3(x, 0f, z), 0f);
@@ -228,10 +228,10 @@ public partial class Main : Node3D
             case GameMode.WatchLance:
                 // One of each class per side: light skirmisher, medium, heavy line, assault anchor. Both sides field the
                 // same lance (models mixed within it) on a point-symmetric map: a fair match. Mirrored model mixes
-                // tilted it ~59-41, mostly through the taller Hauberk assault being picked off over crests.
+                // tilted it ~59-41, mostly through the taller Bascinet assault being picked off over crests.
                 foreach (var (team, sign, name) in new[] { (0, 1f, "Alpha"), (1, -1f, "Bravo") })
                 {
-                    const MechModel model = MechModel.Sicklefoot, other = MechModel.Hauberk;
+                    const MechModel model = MechModel.Sicklefoot, other = MechModel.Bascinet;
                     Ai($"{name}-1", team, L, -45f * sign, sign * z, Personality.Balanced, model);
                     Ai($"{name}-2", team, M, -15f * sign, sign * z, Personality.Balanced, other);
                     Ai($"{name}-3", team, ChassisClass.Heavy, 15f * sign, sign * z2, Personality.Balanced, model);

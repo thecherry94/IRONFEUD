@@ -60,9 +60,9 @@ public class BalanceTests
     {
         foreach (string map in new[] { "nml", "hills" })
         {
-            Duels(map, (Personality.Brawler, MechModel.Hauberk), (Personality.Balanced, MechModel.Hauberk));
-            Duels(map, (Personality.Brawler, MechModel.Hauberk), (Personality.Sniper, MechModel.Hauberk));
-            Duels(map, (Personality.Balanced, MechModel.Hauberk), (Personality.Sniper, MechModel.Hauberk));
+            Duels(map, (Personality.Brawler, MechModel.Bascinet), (Personality.Balanced, MechModel.Bascinet));
+            Duels(map, (Personality.Brawler, MechModel.Bascinet), (Personality.Sniper, MechModel.Bascinet));
+            Duels(map, (Personality.Balanced, MechModel.Bascinet), (Personality.Sniper, MechModel.Bascinet));
         }
     }
 
@@ -70,9 +70,9 @@ public class BalanceTests
     public void Models_AreBalanced()
     {
         foreach (string map in new[] { "nml", "hills" })
-            Duels(map, (Personality.Balanced, MechModel.Hauberk), (Personality.Balanced, MechModel.Sicklefoot));
-        Duels("nml", (Personality.Brawler, MechModel.Hauberk), (Personality.Brawler, MechModel.Sicklefoot));
-        Duels("nml", (Personality.Balanced, MechModel.Hauberk), (Personality.Brawler, MechModel.Sicklefoot)); // watch 1v1 as shipped
+            Duels(map, (Personality.Balanced, MechModel.Bascinet), (Personality.Balanced, MechModel.Sicklefoot));
+        Duels("nml", (Personality.Brawler, MechModel.Bascinet), (Personality.Brawler, MechModel.Sicklefoot));
+        Duels("nml", (Personality.Balanced, MechModel.Bascinet), (Personality.Brawler, MechModel.Sicklefoot)); // watch 1v1 as shipped
     }
 
     private sealed class RoleStats
@@ -99,7 +99,7 @@ public class BalanceTests
                 float sign = team == 0 ? 1f : -1f;
                 for (int i = 0; i < 4; i++)
                 {
-                    var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk;
+                    var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet;
                     b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, model),
                         new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
                 }
@@ -247,7 +247,7 @@ public class BalanceTests
             float sign = team == 0 ? 1f : -1f;
             for (int i = 0; i < 4; i++)
             {
-                var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk;
+                var model = (i + team) % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet;
                 b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, model),
                     new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
             }
@@ -349,7 +349,7 @@ public class BalanceTests
         {
             float sign = team == 0 ? 1f : -1f;
             for (int i = 0; i < 4; i++)
-                b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk),
+                b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet),
                     new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
         }
         return b;
@@ -407,13 +407,13 @@ public class BalanceTests
 
     /// <summary>
     /// A lance with designator marks against the same lance without, for each light model (24 seeds x 2 sides, both
-    /// maps). Measured when added: Hauberk (ranged) light 31-17, light survived 46 %; Sicklefoot (flamer) 24-24;
+    /// maps). Measured when added: Bascinet (ranged) light 31-17, light survived 46 %; Sicklefoot (flamer) 24-24;
     /// enemies marked ~13 % of the time, a third of the damage landing on marked targets.
     /// </summary>
     [BalanceFact]
     public void Marks_WhatTheyAreWorth()
     {
-        foreach (var lightModel in new[] { MechModel.Hauberk, MechModel.Sicklefoot })
+        foreach (var lightModel in new[] { MechModel.Bascinet, MechModel.Sicklefoot })
         {
             int wins = 0, losses = 0; float markedT = 0, enemyT = 0, lightDealt = 0, lightSurv = 0, arc = 0, lightOn = 0, games = 0, markedHits = 0, hits = 0;
             foreach (string map in new[] { "nml", "hills" })
@@ -426,7 +426,7 @@ public class BalanceTests
                 {
                     float sign = team == 0 ? 1f : -1f;
                     for (int i = 0; i < 4; i++)
-                        b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i == 0 ? lightModel : i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Hauberk),
+                        b.AddUnit($"{team}-{i}", team, MechChassis.Create((ChassisClass)i, i == 0 ? lightModel : i % 2 == 0 ? MechModel.Sicklefoot : MechModel.Bascinet),
                             new Vector3((-45f + 30f * i) * sign, 0, sign * ArenaMap.ArenaSpawnZ), team == 0 ? 0f : MathF.PI, personas[i]);
                 }
                 b.Tactics[smart] = TeamTactics.All;
