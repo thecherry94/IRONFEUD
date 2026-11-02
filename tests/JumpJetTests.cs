@@ -107,10 +107,12 @@ public class JumpJetTests
     [Theory]
     [InlineData(MechModel.Bascinet)]
     [InlineData(MechModel.Sicklefoot)]
+    [InlineData(MechModel.Bodkin)]
+    [InlineData(MechModel.Brigandine)]
     public void JumpingAcrossNoMansLand_PosesStayNatural(MechModel model)
     {
         var map = ArenaMap.NoMansLand(3);
-        var c = MechChassis.Medium(model);
+        var c = TerrainTests.PoseTestChassis(model);
         var sim = new MechSim(c);
         var m = sim.Locomotion;
         m.Ground = map;

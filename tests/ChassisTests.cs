@@ -93,6 +93,10 @@ public class ChassisTests
     [InlineData(ChassisClass.Heavy, MechModel.Bascinet)]
     [InlineData(ChassisClass.Light, MechModel.Sicklefoot)]
     [InlineData(ChassisClass.Medium, MechModel.Sicklefoot)]
+    [InlineData(ChassisClass.Light, MechModel.Bodkin)]
+    [InlineData(ChassisClass.Medium, MechModel.Brigandine)]
+    [InlineData(ChassisClass.Heavy, MechModel.Harrow)]
+    [InlineData(ChassisClass.Assault, MechModel.Barbican)]
     public void AtTopSpeed_StrideIsSetByLegReach_NotByAShuffle(ChassisClass cls, MechModel model)
     {
         // Regression: the walking stride cap (DMax) once stayed on at a run and made the light take 16 steps/s.

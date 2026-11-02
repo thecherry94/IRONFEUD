@@ -185,10 +185,20 @@ public class TerrainTests
         Assert.True(floating < 0.1f * stanceTicks, $"{cls} {model}: planted feet off target {100f * floating / stanceTicks:0}% of the time");
     }
 
-    public static TheoryData<MechModel, float> PoseRuns() => new()
+    public static TheoryData<MechModel, float> PoseRuns()
     {
-        { MechModel.Bascinet, 0.35f }, { MechModel.Bascinet, 1f }, { MechModel.Sicklefoot, 0.35f }, { MechModel.Sicklefoot, 1f },
-    };
+        var data = new TheoryData<MechModel, float>();
+        foreach (var model in Enum.GetValues<MechModel>())
+        {
+            data.Add(model, 0.35f);
+            data.Add(model, 1f);
+        }
+        return data;
+    }
+
+    /// <summary>The two original bodies as mediums (their reference values), the dedicated designs in their own class.</summary>
+    public static MechChassis PoseTestChassis(MechModel model) =>
+        model is MechModel.Bascinet or MechModel.Sicklefoot ? MechChassis.Medium(model) : MechChassis.Design(model);
 
     /// <summary>
     /// Pose quality across No Man's Land (trenches, craters, mounds), walking and at a full run. Pins the fixes for
@@ -200,7 +210,7 @@ public class TerrainTests
     public void AcrossNoMansLand_PosesStayNatural(MechModel model, float throttle)
     {
         var map = ArenaMap.NoMansLand(3);
-        var c = MechChassis.Medium(model);
+        var c = PoseTestChassis(model);
         var m = new MechLocomotion(c) { Ground = map };
         m.Reset(new Vector3(-60, 0, 190), 0f);
         float maxRoll = 0, minKnee = 9, maxKnee = 0, minPitch = 9, maxPitch = -9, prevPitch = float.NaN, maxPitchRate = 0, minPelvis = 99;

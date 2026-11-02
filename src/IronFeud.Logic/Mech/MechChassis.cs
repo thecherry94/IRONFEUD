@@ -14,6 +14,18 @@ public enum MechModel
 
     /// <summary>Chicken walker: a long, low hull with a nose cockpit, weapon pods instead of arms, digitigrade legs.</summary>
     Sicklefoot,
+
+    /// <summary>Light jumper: an upright drum torso on tall digitigrade legs, thin arms ending in long barrels.</summary>
+    Bodkin,
+
+    /// <summary>Medium hull-down shooter: a high, level shoulder bar with the cockpit tucked just under it.</summary>
+    Brigandine,
+
+    /// <summary>Squat heavy breacher: short thick legs, wide stance, cockpit sunk between two shoulder humps.</summary>
+    Harrow,
+
+    /// <summary>Top-heavy assault fortress: stubby legs on huge feet, a wide chest, a visor slit under a brow plate.</summary>
+    Barbican,
 }
 
 public enum LegLayout
@@ -123,6 +135,9 @@ public sealed class MechChassis
     /// teammates). One thins a volley; stopping one takes several, on this mech or across the lance.
     /// </summary>
     public int PointDefense;
+
+    /// <summary>Where the first point-defense turret sits (torso frame); further turrets stack back. Rig only.</summary>
+    public Vector3 PointDefenseMount = new(-1.1f, 1.75f, 0.4f);
 
     /// <summary>
     /// How far off it can be seen, as a share of a pilot's sight and radar range: small mechs are seen last (and, with
@@ -241,18 +256,77 @@ public sealed class MechChassis
         c.Name = $"{model} {cls}";
         ApplyClass(c, cls);
         ApplyLoadout(c, cls, model);
+        ApplyDesign(c, model);
         c.FitGaitToLegs();
         c.ApplyModelArmour(model);
         return c;
     }
+
+    /// <summary>The weight class a design is built for (rosters use these; <see cref="Create"/> builds any pairing).</summary>
+    public static ChassisClass NativeClass(MechModel model) => model switch
+    {
+        MechModel.Sicklefoot or MechModel.Bodkin => ChassisClass.Light,
+        MechModel.Bascinet or MechModel.Brigandine => ChassisClass.Medium,
+        MechModel.Harrow => ChassisClass.Heavy,
+        MechModel.Barbican => ChassisClass.Assault,
+        _ => throw new ArgumentOutOfRangeException(nameof(model)),
+    };
+
+    /// <summary>A design in its own weight class.</summary>
+    public static MechChassis Design(MechModel model) => Create(NativeClass(model), model);
 
     /// <summary>The body plan at its reference (medium) size.</summary>
     public static MechChassis Body(MechModel model) => model switch
     {
         MechModel.Bascinet => new MechChassis(),
         MechModel.Sicklefoot => SicklefootBody(),
+        MechModel.Bodkin => BodkinBody(),
+        MechModel.Brigandine => BrigandineBody(),
+        MechModel.Harrow => HarrowBody(),
+        MechModel.Barbican => BarbicanBody(),
         _ => throw new ArgumentOutOfRangeException(nameof(model)),
     };
+
+    /// <summary>
+    /// Per-design quirks on top of the class: agility within the class band, armour split, loadout. Quirks waiting for
+    /// systems that don't exist yet (stability, bracing, shoving, melee, logistics) are noted on each design.
+    /// </summary>
+    private static void ApplyDesign(MechChassis c, MechModel model)
+    {
+        switch (model)
+        {
+            case MechModel.Bodkin:
+                // The roster's best jumper and widest twist; fragile legs, a small reactor that runs hot.
+                // Later: mid-air heading change, landing strikes (melee).
+                c.TwistMax = 2.0f;
+                c.JumpFuel = 1.7f;
+                c.JumpThrust = 26f;
+                c.LegsHp *= 0.85f;
+                c.HeatDissipation -= 0.006f;
+                break;
+            case MechModel.Brigandine:
+                // Arms ride high under the shoulder bar: when its eyes clear a crest, so do its guns, with little torso
+                // showing. Particle cannon and autocannon (the hull-down shooter's long, fast guns).
+                c.SetWeapons(WeaponSpec.ParticleCannon, WeaponSpec.Autocannon);
+                break;
+            case MechModel.Harrow:
+                // Slow, narrow twist (lights inside its arc are safe), quick off the mark, a heavy front. Later: cover
+                // breaking, shoves, high stability, thin rear plate.
+                c.TwistMax = 1.25f;
+                c.TwistRate = 1.3f;
+                c.Accel *= 1.3f;
+                c.TorsoHp *= 1.1f;
+                break;
+            case MechModel.Barbican:
+                // The slowest, narrowest twist in the roster and the most armour; a cowled visor. Later: bracing, high
+                // stability, logistics cost, short sensors.
+                c.TwistMax = 1.05f;
+                c.TwistRate = 1.1f;
+                c.TorsoHp *= 1.1f;
+                c.ArmHp *= 1.1f;
+                break;
+        }
+    }
 
     /// <summary>Weight-class stats: size, speed and agility, armour, jets, heat sinks.</summary>
     private static void ApplyClass(MechChassis c, ChassisClass cls)
@@ -396,6 +470,166 @@ public sealed class MechChassis
     };
 
     /// <summary>
+    /// Bodkin at reference size: an upright drum torso on tall digitigrade legs, the cockpit on its front face, thin arms
+    /// hanging from high shoulders with long-barrelled forearms reaching forward. Taller and narrower than a Sicklefoot.
+    /// </summary>
+    private static MechChassis BodkinBody() => new()
+    {
+        Legs = LegLayout.Digitigrade,
+        L1 = 2.5f,
+        L2 = 3.3f,
+        L3 = 2.1f,
+        AnkleHeight = 0.35f,
+        HipWidth = 1.25f,
+        HipRootY = -0.1f,
+        StanceExtension = 0.74f,
+        ToeLength = 1.05f,
+        HeelLength = 0.35f,
+
+        TorsoBaseY = 0.45f,
+        TorsoY = 0.5f,
+        ShoulderOffset = new Vector3(1.75f, 1.55f, -0.1f),
+        ElbowOffset = new Vector3(0.3f, -1.5f, 0f),
+        AimOriginY = 1.1f,
+        HeadOffset = new Vector3(0f, 1.45f, -1.05f),
+        ArmSwing = 0.6f,
+
+        RightArmMount = new Vector3(0f, 0f, -1.9f),
+        LeftArmMount = new Vector3(0f, 0f, -1.9f),
+        TorsoMount = new Vector3(0.95f, 2.25f, 0.4f),
+
+        TorsoHitOffset = new Vector3(0f, 1.0f, 0f),
+        TorsoHitRadius = 1.95f,
+        ArmHitOffset = new Vector3(0f, 0f, -1.4f),
+        ArmHitRadius = 1.0f,
+        LegsHitDrop = 2.6f,
+        LegsHitRadius = 1.8f,
+        CockpitHitOffset = new Vector3(0f, 0.05f, -0.6f),
+        CockpitHitRadius = 0.09f,
+        ShoulderCover = System.Array.Empty<ShoulderPlate>(),
+        CollapseDrop = 2.7f,
+    };
+
+    /// <summary>
+    /// Brigandine at reference size: Bascinet-like legs under a torso whose shoulder joints sit on a high, level bar
+    /// above the cockpit, which is tucked in just under it; the arms hang from the bar and their forearm guns ride high.
+    /// </summary>
+    private static MechChassis BrigandineBody() => new()
+    {
+        L1 = 3.3f,
+        L2 = 3.4f,
+        HipWidth = 1.5f,
+        TorsoBaseY = 0.5f,
+        TorsoY = 0.55f,
+        ShoulderOffset = new Vector3(2.5f, 2.75f, 0.2f),
+        ElbowOffset = new Vector3(0.35f, -1.6f, 0f),
+        AimOriginY = 2.1f,
+        HeadOffset = new Vector3(0f, 2.15f, -1.15f),
+        ArmSwing = 0.8f,
+
+        RightArmMount = new Vector3(0f, 0.15f, -2f),
+        LeftArmMount = new Vector3(0f, 0.15f, -2f),
+        TorsoMount = new Vector3(-1.4f, 3.3f, 0.5f),
+        PointDefenseMount = new Vector3(1.4f, 3.2f, 0.6f),
+
+        TorsoHitOffset = new Vector3(0f, 1.25f, 0f),
+        TorsoHitRadius = 2.3f,
+        ArmHitOffset = new Vector3(0f, 0f, -1.6f),
+        ArmHitRadius = 1.3f,
+        CockpitHitOffset = new Vector3(0f, 0f, -0.55f),
+        CockpitHitRadius = 0.11f,
+        ShoulderCover = System.Array.Empty<ShoulderPlate>(),
+        CollapseDrop = 2.5f,
+    };
+
+    /// <summary>
+    /// Harrow at reference size: short thick legs on a wide stance, a broad torso with two raised shoulder humps and the
+    /// cockpit sunk between them; heavy forearms with the guns above the fists. The humps are cover plates (part of
+    /// the arms), screening the cockpit from the side.
+    /// </summary>
+    private static MechChassis HarrowBody() => new()
+    {
+        L1 = 2.95f,
+        L2 = 3.05f,
+        AnkleHeight = 0.7f,
+        HipWidth = 1.7f, // a wider stance put each foot on very different ground in craters (8 % of planted feet off target)
+        HipRootY = -0.2f,
+        StanceExtension = 0.75f, // crouched deep in its legs: shorter, straighter legs left too little bend for trenches
+        ToeLength = 1.9f,
+        HeelLength = 1.25f,
+
+        TorsoBaseY = 0.5f,
+        TorsoY = 0.5f,
+        ShoulderOffset = new Vector3(2.75f, 1.55f, 0f),
+        ElbowOffset = new Vector3(0.5f, -1.75f, 0f),
+        AimOriginY = 1.3f,
+        HeadOffset = new Vector3(0f, 1.75f, -1.05f),
+        ArmSwing = 0.7f,
+
+        RightArmMount = new Vector3(0f, 0.6f, -1.7f),
+        LeftArmMount = new Vector3(0f, 0.6f, -1.7f),
+        TorsoMount = new Vector3(0f, 2.3f, 1.3f),
+        PointDefenseMount = new Vector3(0f, 2.2f, 0.9f),
+
+        TorsoHitOffset = new Vector3(0f, 1.1f, 0f),
+        TorsoHitRadius = 2.6f,
+        ArmHitOffset = new Vector3(0f, 0.1f, -1.5f),
+        ArmHitRadius = 1.55f,
+        LegsHitDrop = 2.0f,
+        LegsHitRadius = 2.1f,
+        CockpitHitOffset = new Vector3(0f, 0f, -0.55f),
+        CockpitHitRadius = 0.1f,
+        ShoulderCover = new[]
+        {
+            new ShoulderPlate { Center = new Vector3(0.1f, 0.85f, -0.1f), Size = new Vector3(1.3f, 1.5f, 2.0f) }, // hump
+        },
+        CollapseDrop = 2.2f,
+    };
+
+    /// <summary>
+    /// Barbican at reference size: stubby legs on very large feet, a very wide, deep chest with the shoulder line well
+    /// above a narrow visor slit under a flat brow plate (a cowled cockpit), arms hanging wide.
+    /// </summary>
+    private static MechChassis BarbicanBody() => new()
+    {
+        L1 = 3.0f,
+        L2 = 3.1f,
+        AnkleHeight = 0.8f,
+        HipWidth = 1.8f,
+        HipRootY = -0.2f,
+        StanceExtension = 0.75f, // crouched: stubby legs need bend in reserve for trenches and mounds
+        ToeLength = 2.2f,
+        HeelLength = 1.4f,
+
+        TorsoBaseY = 0.55f,
+        TorsoY = 0.6f,
+        ShoulderOffset = new Vector3(3.15f, 2.55f, 0.1f),
+        ElbowOffset = new Vector3(0.5f, -2.0f, 0f),
+        AimOriginY = 1.6f,
+        HeadOffset = new Vector3(0f, 1.7f, -1.45f),
+        ArmSwing = 0.6f,
+
+        RightArmMount = new Vector3(0f, 0.05f, -2.1f),
+        LeftArmMount = new Vector3(0f, 0.05f, -2.1f),
+        TorsoMount = new Vector3(1.4f, 3.4f, 0.3f),
+        PointDefenseMount = new Vector3(-1.5f, 3.35f, 0.4f),
+
+        TorsoHitOffset = new Vector3(0f, 1.5f, 0f),
+        TorsoHitRadius = 2.75f,
+        ArmHitOffset = new Vector3(0f, 0f, -1.7f),
+        ArmHitRadius = 1.5f,
+        LegsHitDrop = 2.0f,
+        LegsHitRadius = 2.2f,
+        CockpitHitOffset = new Vector3(0f, 0f, -0.45f),
+        CockpitHitRadius = 0.09f,
+        ShoulderCover = new[]
+        {
+            new ShoulderPlate { Center = new Vector3(-0.3f, 0.45f, 0f), Size = new Vector3(1.6f, 1.1f, 2.1f) }, // pauldron
+        },
+        CollapseDrop = 2.4f,
+    };
+
+    /// <summary>
     /// Hip height from the stance extension, stride limit from the leg's horizontal reach (70 % of it at 95 %
     /// extension), walk-to-run speeds from the Froude number.
     /// </summary>
@@ -415,6 +649,7 @@ public sealed class MechChassis
     public static float ArmourFactor(MechModel model) => model switch
     {
         MechModel.Bascinet => BascinetArmour,
+        MechModel.Brigandine => 1.2f,
         _ => 1f,
     };
 
@@ -489,6 +724,7 @@ public sealed class MechChassis
         RightArmMount *= s;
         LeftArmMount *= s;
         TorsoMount *= s;
+        PointDefenseMount *= s;
         TorsoHitOffset *= s;
         TorsoHitRadius *= s;
         ArmHitOffset *= s;

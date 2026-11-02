@@ -140,12 +140,12 @@ public sealed class MechRig
 
         switch (t.Model)
         {
-            case MechModel.Sicklefoot:
-                r.DressSicklefoot(t);
-                break;
-            default:
-                r.DressBascinet(t);
-                break;
+            case MechModel.Sicklefoot: r.DressSicklefoot(t); break;
+            case MechModel.Bodkin: r.DressBodkin(t); break;
+            case MechModel.Brigandine: r.DressBrigandine(t); break;
+            case MechModel.Harrow: r.DressHarrow(t); break;
+            case MechModel.Barbican: r.DressBarbican(t); break;
+            default: r.DressBascinet(t); break;
         }
         if (t.TorsoWeapon is { } rack) r.BuildRack(r.Torso, rack, t.TorsoMount.ToGodot() / s);
         if (t.PointDefense > 0) r.BuildPointDefense(r.Torso, t);
@@ -192,7 +192,6 @@ public sealed class MechRig
     private void DressBascinet(MechChassis t)
     {
         var m = _m;
-        float l1 = t.L1 / Scale, l2 = t.L2 / Scale;
         var pelvis = Pelvis;
         Box(pelvis, 2.6f, 1.1f, 1.9f, m.Frame);
         Box(pelvis, 2.2f, 0.7f, 2.1f, m.ArmorDark, 0, -0.25f, -0.05f);
@@ -204,38 +203,7 @@ public sealed class MechRig
             Cyl(pelvis, 0.42f, 0.42f, 0.8f, m.Accent, -side * 1.3f, -0.1f, 0, 0, 0, -HalfPi);
         }
 
-        for (int i = 0; i < 2; i++)
-        {
-            int side = i == 0 ? +1 : -1;
-            var leg = Legs[i];
-            Cyl(leg.Hip, 0.55f, 0.55f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
-            Box(leg.Hip, 0.9f, l1 * 0.9f, 1.0f, m.Frame, 0, -l1 * 0.5f, 0);
-            Box(leg.Hip, 1.15f, l1 * 0.75f, 0.35f, m.Armor, 0, -l1 * 0.45f, -0.62f, 0.05f);
-            Box(leg.Hip, 0.25f, l1 * 0.7f, 1.15f, m.ArmorDark, -side * 0.6f, -l1 * 0.48f, 0);
-            Box(leg.Hip, 0.3f, 0.28f, 1.0f, m.Accent, -side * 0.72f, -0.85f, 0);
-
-            Cyl(leg.Knee, 0.5f, 0.5f, 1.05f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
-            Box(leg.Knee, 1.0f, 0.95f, 0.5f, m.Armor, 0, 0.05f, -0.62f, -0.25f);
-            Box(leg.Knee, 0.8f, l2 * 0.9f, 0.9f, m.Frame, 0, -l2 * 0.5f, 0.05f);
-            Box(leg.Knee, 1.15f, l2 * 0.78f, 0.4f, m.Armor, 0, -l2 * 0.42f, -0.56f, -0.06f);
-            Box(leg.Knee, 1.05f, 0.85f, 1.25f, m.ArmorDark, 0, -l2 * 0.8f, 0.1f);
-            Box(leg.Knee, 0.12f, 0.55f, 0.3f, m.Glow, -side * 0.5f, -l2 * 0.8f, 0.35f);
-
-            Cyl(leg.Ankle, 0.42f, 0.42f, 0.9f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
-            Box(leg.Ankle, 0.9f, 0.4f, 0.9f, m.Frame, 0, -0.1f, 0);
-            Box(leg.Ankle, 1.5f, 0.45f, 1.5f, m.ArmorDark, 0, -0.37f, -0.1f);
-            foreach (float tx in new[] { -0.52f, 0f, 0.52f })
-            {
-                Box(leg.Ankle, 0.42f, 0.38f, 1.05f, m.Armor, tx, -0.42f, -1.2f);
-                Box(leg.Ankle, 0.3f, 0.18f, 0.25f, m.Frame, tx, -0.5f, -1.8f);
-            }
-            Box(leg.Ankle, 0.95f, 0.36f, 1.0f, m.Armor, 0, -0.43f, 0.95f, 0.08f);
-            Box(leg.Ankle, 0.1f, 0.3f, 1.4f, m.Accent, -side * 0.76f, -0.38f, -0.1f);
-
-            // Calf pistons from the back of the thigh to the back of the shin.
-            foreach (float px in new[] { -0.38f, 0.38f })
-                AddPiston(leg.Hip, new Vector3(px, -0.6f, 0.68f), leg.Knee, new Vector3(px, -1.35f, 0.62f), 0.15f, 0.085f, 1.7f);
-        }
+        DressPlantigradeLegs(t, 1f, 1f);
 
         TorsoBase.AddChild(NewCyl(0.75f, 0.95f, 0.8f, m.Frame, 0, 0.25f, 0, segments: 12));
         var torso = Torso;
@@ -268,17 +236,276 @@ public sealed class MechRig
             int side = i == 0 ? +1 : -1;
             var arm = Arms[i];
             // Pauldron and flange: the chassis' cover plates, drawn exactly where the hit test has them.
-            for (int k = 0; k < t.ShoulderCover.Length; k++)
-            {
-                var c = t.ShoulderCover[k];
-                Vector3 size = c.Size.ToGodot() / Scale, at = c.Center.ToGodot() / Scale;
-                Box(arm.Shoulder, size.X, size.Y, size.Z, k == 0 ? m.Armor : m.ArmorDark, i == 0 ? at.X : -at.X, at.Y, at.Z);
-            }
+            DrawCover(t, i);
             Box(arm.Shoulder, 0.2f, 0.85f, 1.6f, m.Accent, -side * 1.0f, 0.25f, 0);
             Cyl(arm.Shoulder, 0.5f, 0.5f, 0.9f, m.Frame, -side * 0.2f, 0, 0, 0, 0, -HalfPi);
             Box(arm.Shoulder, 0.75f, 1.9f, 0.8f, m.Frame, -side * 0.45f, -1.1f, 0);
             Cyl(arm.Elbow, 0.42f, 0.42f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
             Box(arm.Elbow, 1.0f, 1.0f, 2.4f, m.ArmorDark, 0, 0, -1.0f);
+            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+        }
+    }
+
+    /// <summary>
+    /// Plantigrade legs (thigh, shin, flat armoured foot, calf pistons), as the Bascinet's at <paramref name="w"/> = 1:
+    /// <paramref name="w"/> thickens thigh, shin and joints, <paramref name="f"/> enlarges the feet.
+    /// </summary>
+    private void DressPlantigradeLegs(MechChassis t, float w, float f)
+    {
+        var m = _m;
+        float l1 = t.L1 / Scale, l2 = t.L2 / Scale;
+        for (int i = 0; i < 2; i++)
+        {
+            int side = i == 0 ? +1 : -1;
+            var leg = Legs[i];
+            Cyl(leg.Hip, 0.55f * w, 0.55f * w, 0.95f * w, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(leg.Hip, 0.9f * w, l1 * 0.9f, 1.0f * w, m.Frame, 0, -l1 * 0.5f, 0);
+            Box(leg.Hip, 1.15f * w, l1 * 0.75f, 0.35f, m.Armor, 0, -l1 * 0.45f, -0.62f * w, 0.05f);
+            Box(leg.Hip, 0.25f, l1 * 0.7f, 1.15f * w, m.ArmorDark, -side * 0.6f * w, -l1 * 0.48f, 0);
+            Box(leg.Hip, 0.3f, 0.28f, 1.0f * w, m.Accent, -side * 0.72f * w, -0.85f, 0);
+
+            Cyl(leg.Knee, 0.5f * w, 0.5f * w, 1.05f * w, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(leg.Knee, 1.0f * w, 0.95f, 0.5f, m.Armor, 0, 0.05f, -0.62f * w, -0.25f);
+            Box(leg.Knee, 0.8f * w, l2 * 0.9f, 0.9f * w, m.Frame, 0, -l2 * 0.5f, 0.05f);
+            Box(leg.Knee, 1.15f * w, l2 * 0.78f, 0.4f, m.Armor, 0, -l2 * 0.42f, -0.56f * w, -0.06f);
+            Box(leg.Knee, 1.05f * w, 0.85f, 1.25f * w, m.ArmorDark, 0, -l2 * 0.8f, 0.1f);
+            Box(leg.Knee, 0.12f, 0.55f, 0.3f, m.Glow, -side * 0.5f * w, -l2 * 0.8f, 0.35f * w);
+
+            Cyl(leg.Ankle, 0.42f * w, 0.42f * w, 0.9f * w, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(leg.Ankle, 0.9f * w, 0.4f, 0.9f * w, m.Frame, 0, -0.1f, 0);
+            Box(leg.Ankle, 1.5f * f, 0.45f, 1.5f * f, m.ArmorDark, 0, -0.37f, -0.1f * f);
+            foreach (float tx in new[] { -0.52f * f, 0f, 0.52f * f })
+            {
+                Box(leg.Ankle, 0.42f * f, 0.38f, 1.05f * f, m.Armor, tx, -0.42f, -1.2f * f);
+                Box(leg.Ankle, 0.3f * f, 0.18f, 0.25f, m.Frame, tx, -0.5f, -1.8f * f);
+            }
+            Box(leg.Ankle, 0.95f * f, 0.36f, 1.0f * f, m.Armor, 0, -0.43f, 0.95f * f, 0.08f);
+            Box(leg.Ankle, 0.1f, 0.3f, 1.4f * f, m.Accent, -side * 0.76f * f, -0.38f, -0.1f * f);
+
+            // Calf pistons from the back of the thigh to the back of the shin.
+            foreach (float px in new[] { -0.38f * w, 0.38f * w })
+                AddPiston(leg.Hip, new Vector3(px, -0.6f, 0.68f * w), leg.Knee, new Vector3(px, -1.35f, 0.62f * w), 0.15f * w, 0.085f * w, 1.7f);
+        }
+    }
+
+    /// <summary>The chassis' cover plates on arm <paramref name="i"/>'s shoulder (0 = left), where the hit test has them.</summary>
+    private void DrawCover(MechChassis t, int i)
+    {
+        for (int k = 0; k < t.ShoulderCover.Length; k++)
+        {
+            var c = t.ShoulderCover[k];
+            Vector3 size = c.Size.ToGodot() / Scale, at = c.Center.ToGodot() / Scale;
+            Box(Arms[i].Shoulder, size.X, size.Y, size.Z, k == 0 ? _m.Armor : _m.ArmorDark, i == 0 ? at.X : -at.X, at.Y, at.Z);
+        }
+    }
+
+    // ---------- Bodkin: light jumper ----------
+
+    /// <summary>
+    /// An upright armoured drum on tall "Z" legs, the cockpit a visor block on its front face, jump-jet nozzles on the
+    /// back, thin arms whose long forearm housings carry the barrels forward past the body.
+    /// </summary>
+    private void DressBodkin(MechChassis t)
+    {
+        var m = _m;
+        float s = Scale, l1 = t.L1 / s, l2 = t.L2 / s, l3 = t.L3 / s;
+        var pelvis = Pelvis;
+        Box(pelvis, 1.7f, 0.8f, 1.3f, m.Frame);
+        Box(pelvis, 1.4f, 0.3f, 1.5f, m.ArmorDark, 0, -0.45f, 0);
+        foreach (int side in new[] { -1, 1 })
+            Cyl(pelvis, 0.45f, 0.45f, 0.5f, m.Accent, -side * 0.95f, -0.05f, 0, 0, 0, -HalfPi);
+
+        for (int i = 0; i < 2; i++)
+        {
+            int side = i == 0 ? +1 : -1;
+            var leg = Legs[i];
+            var hock = leg.Hock!;
+            Cyl(leg.Hip, 0.4f, 0.4f, 0.6f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(leg.Hip, 0.6f, l1 * 0.95f, 0.75f, m.Armor, 0, -l1 * 0.5f, 0);
+            Box(leg.Hip, 0.15f, l1 * 0.6f, 0.7f, m.Accent, -side * 0.35f, -l1 * 0.5f, 0);
+            Cyl(leg.Knee, 0.36f, 0.36f, 0.7f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(leg.Knee, 0.38f, l2 * 0.95f, 0.42f, m.Frame, 0, -l2 * 0.5f, 0);
+            Box(leg.Knee, 0.55f, l2 * 0.7f, 0.18f, m.Armor, 0, -l2 * 0.45f, -0.28f);
+            Cyl(hock, 0.3f, 0.3f, 0.6f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(hock, 0.32f, l3 * 0.95f, 0.36f, m.Frame, 0, -l3 * 0.5f, 0);
+            Box(hock, 0.4f, l3 * 0.5f, 0.16f, m.ArmorDark, 0, -l3 * 0.45f, 0.24f);
+            var foot = leg.Ankle;
+            Cyl(foot, 0.25f, 0.25f, 0.5f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            foreach (float yaw in new[] { -0.3f, 0.3f })
+            {
+                var toe = Group(foot, "Toe", 0, -0.18f, -0.15f);
+                toe.Rotation = new Vector3(0, yaw, 0);
+                Box(toe, 0.24f, 0.2f, 1.1f, m.Armor, 0, 0, -0.5f);
+            }
+            Box(foot, 0.22f, 0.18f, 0.6f, m.Armor, 0, -0.2f, 0.35f, -0.15f);
+            AddPiston(leg.Knee, new Vector3(0, -l2 * 0.7f, -0.25f), hock, new Vector3(0, -l3 * 0.6f, -0.2f), 0.09f, 0.055f, 0.8f);
+        }
+
+        TorsoBase.AddChild(NewCyl(0.65f, 0.75f, 0.45f, m.Frame, 0, 0.2f, 0, segments: 12));
+        var torso = Torso;
+        Cyl(torso, 1.45f, 1.6f, 2.2f, m.Armor, 0, 1.0f, 0, segments: 16);
+        Cyl(torso, 1.25f, 1.45f, 0.35f, m.ArmorDark, 0, 2.25f, 0, segments: 16);
+        Box(torso, 2.0f, 0.5f, 0.3f, m.Accent, 0, 0.35f, -1.5f);
+        foreach (int side in new[] { -1, 1 })
+        {
+            Cyl(torso, 0.32f, 0.42f, 0.9f, m.Frame, side * 0.6f, 0.9f, 1.55f, 0.35f);
+            Cyl(torso, 0.22f, 0.22f, 0.06f, m.Glow, side * 0.6f, 0.5f, 1.7f, 0.35f);
+        }
+        Cyl(torso, 0.03f, 0.03f, 1.4f, m.Chrome, 0.7f, 2.9f, 0.5f);
+
+        var head = Head;
+        Box(head, 1.25f, 0.75f, 0.7f, m.ArmorDark);
+        Box(head, 1.05f, 0.28f, 0.2f, m.Glass, 0, 0.05f, -0.36f, 0.15f);
+        Box(head, 1.35f, 0.15f, 0.8f, m.Armor, 0, 0.42f, 0);
+        CamMount = Group(head, "CamMount", 0, 0.05f, -0.45f);
+
+        for (int i = 0; i < 2; i++)
+        {
+            int side = i == 0 ? +1 : -1;
+            var arm = Arms[i];
+            Cyl(arm.Shoulder, 0.42f, 0.42f, 0.7f, m.Frame, -side * 0.1f, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Shoulder, 0.85f, 0.6f, 1.0f, m.Armor, -side * 0.15f, 0.3f, 0);
+            Box(arm.Shoulder, 0.38f, 1.4f, 0.42f, m.Frame, -side * 0.3f, -0.75f, 0);
+            Cyl(arm.Elbow, 0.3f, 0.3f, 0.6f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Elbow, 0.6f, 0.6f, 1.9f, m.ArmorDark, 0, 0, -0.75f);
+            Box(arm.Elbow, 0.64f, 0.12f, 1.4f, m.Accent, 0, 0.33f, -0.8f);
+            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+        }
+    }
+
+    // ---------- Brigandine: medium hull-down shooter ----------
+
+    /// <summary>
+    /// A compact chest under a high, level shoulder bar that spans the whole width; the cockpit is a dark visor tucked
+    /// under the bar's centre, the arms hang from its ends and their forearm guns ride high.
+    /// </summary>
+    private void DressBrigandine(MechChassis t)
+    {
+        var m = _m;
+        var pelvis = Pelvis;
+        Box(pelvis, 2.4f, 1.0f, 1.8f, m.Frame);
+        Box(pelvis, 2.0f, 0.6f, 2.0f, m.ArmorDark, 0, -0.25f, 0);
+        foreach (int side in new[] { -1, 1 })
+            Cyl(pelvis, 0.6f, 0.6f, 0.6f, m.Accent, -side * 1.2f, -0.1f, 0, 0, 0, -HalfPi);
+        DressPlantigradeLegs(t, 0.95f, 0.95f);
+
+        TorsoBase.AddChild(NewCyl(0.7f, 0.9f, 0.7f, m.Frame, 0, 0.25f, 0, segments: 12));
+        var torso = Torso;
+        Box(torso, 2.9f, 2.0f, 2.5f, m.Armor, 0, 1.0f, 0);
+        Box(torso, 3.1f, 0.5f, 2.3f, m.ArmorDark, 0, 0.1f, 0);
+        Box(torso, 2.2f, 1.1f, 0.35f, m.ArmorDark, 0, 0.9f, -1.35f, -0.1f);
+        // The shoulder bar: one level beam across the top, a pillar up to it from each side of the chest.
+        Box(torso, 6.4f, 0.75f, 1.6f, m.Armor, 0, 2.75f, 0.2f);
+        Box(torso, 6.5f, 0.15f, 1.65f, m.Accent, 0, 3.17f, 0.2f);
+        foreach (int side in new[] { -1, 1 })
+            Box(torso, 0.6f, 1.2f, 1.2f, m.Frame, side * 1.25f, 2.0f, 0.3f);
+        for (int i = 0; i < 4; i++) Box(torso, 0.4f, 0.9f, 0.08f, m.Glow, 0.9f - i * 0.6f, 1.1f, 1.3f);
+
+        var head = Head;
+        Box(head, 1.6f, 0.55f, 1.0f, m.ArmorDark);
+        Box(head, 1.35f, 0.22f, 0.2f, m.Glass, 0, 0, -0.52f);
+        CamMount = Group(head, "CamMount", 0, 0, -0.55f);
+
+        for (int i = 0; i < 2; i++)
+        {
+            int side = i == 0 ? +1 : -1;
+            var arm = Arms[i];
+            Cyl(arm.Shoulder, 0.55f, 0.55f, 0.9f, m.Frame, -side * 0.1f, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Shoulder, 0.7f, 1.5f, 0.75f, m.Frame, -side * 0.35f, -0.8f, 0);
+            Box(arm.Shoulder, 0.85f, 0.9f, 0.9f, m.Armor, -side * 0.35f, -0.6f, -0.1f);
+            Cyl(arm.Elbow, 0.42f, 0.42f, 0.9f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Elbow, 0.95f, 0.95f, 2.3f, m.ArmorDark, 0, 0, -0.95f);
+            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+        }
+    }
+
+    // ---------- Harrow: squat heavy breacher ----------
+
+    /// <summary>
+    /// Low and broad: thick short legs on big feet, a wide torso with two raised shoulder humps (the cover plates) and
+    /// the cockpit sunk between them, heavy forearms with the guns above blocky fists.
+    /// </summary>
+    private void DressHarrow(MechChassis t)
+    {
+        var m = _m;
+        var pelvis = Pelvis;
+        Box(pelvis, 3.4f, 1.2f, 2.2f, m.Frame);
+        Box(pelvis, 3.0f, 0.7f, 2.4f, m.ArmorDark, 0, -0.3f, 0);
+        Box(pelvis, 1.4f, 1.0f, 0.5f, m.Armor, 0, -0.3f, -1.2f, -0.15f);
+        foreach (int side in new[] { -1, 1 })
+            Cyl(pelvis, 0.8f, 0.8f, 0.8f, m.Accent, -side * 1.65f, -0.1f, 0, 0, 0, -HalfPi);
+        DressPlantigradeLegs(t, 1.35f, 1.25f);
+
+        TorsoBase.AddChild(NewCyl(0.95f, 1.15f, 0.7f, m.Frame, 0, 0.25f, 0, segments: 14));
+        var torso = Torso;
+        Box(torso, 4.6f, 2.1f, 3.0f, m.Armor, 0, 1.0f, 0);
+        Box(torso, 4.9f, 0.55f, 2.8f, m.ArmorDark, 0, 0.05f, 0);
+        Box(torso, 3.4f, 1.2f, 0.45f, m.ArmorDark, 0, 0.9f, -1.6f, -0.15f);
+        Box(torso, 1.6f, 0.9f, 1.4f, m.Frame, 0, 2.2f, 0.6f);
+        foreach (int side in new[] { -1, 1 }) Box(torso, 0.25f, 1.6f, 2.6f, m.Accent, side * 2.3f, 1.0f, 0);
+        for (int i = 0; i < 3; i++) Box(torso, 3.6f, 0.1f, 0.25f, m.Frame, 0, 0.6f + i * 0.35f, 1.55f);
+
+        var head = Head;
+        Box(head, 1.3f, 0.7f, 1.1f, m.ArmorDark);
+        Box(head, 1.05f, 0.2f, 0.2f, m.Glass, 0, 0.05f, -0.56f);
+        CamMount = Group(head, "CamMount", 0, 0.05f, -0.6f);
+
+        for (int i = 0; i < 2; i++)
+        {
+            int side = i == 0 ? +1 : -1;
+            var arm = Arms[i];
+            DrawCover(t, i);
+            Cyl(arm.Shoulder, 0.7f, 0.7f, 1.0f, m.Frame, -side * 0.1f, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Shoulder, 1.0f, 1.6f, 1.0f, m.Frame, -side * 0.4f, -0.9f, 0);
+            Cyl(arm.Elbow, 0.55f, 0.55f, 1.1f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Elbow, 1.5f, 1.4f, 2.4f, m.Armor, 0, 0, -1.0f);
+            Box(arm.Elbow, 1.2f, 1.0f, 0.9f, m.ArmorDark, 0, -0.45f, -2.45f);
+            for (int k = 0; k < 3; k++) Box(arm.Elbow, 0.3f, 0.35f, 0.35f, m.Frame, (k - 1) * 0.38f, -0.75f, -2.85f);
+            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+        }
+    }
+
+    // ---------- Barbican: assault fortress ----------
+
+    /// <summary>
+    /// A wide upper block on a short base: stubby legs on very large feet, a deep chest whose shoulder line sits well
+    /// above a narrow visor slit under a flat brow plate, heavy pauldrons, arms hanging wide.
+    /// </summary>
+    private void DressBarbican(MechChassis t)
+    {
+        var m = _m;
+        var pelvis = Pelvis;
+        Box(pelvis, 3.6f, 1.3f, 2.4f, m.Frame);
+        Box(pelvis, 3.2f, 0.8f, 2.6f, m.ArmorDark, 0, -0.35f, 0);
+        foreach (int side in new[] { -1, 1 })
+            Cyl(pelvis, 0.85f, 0.85f, 0.8f, m.Accent, -side * 1.75f, -0.1f, 0, 0, 0, -HalfPi);
+        DressPlantigradeLegs(t, 1.5f, 1.55f);
+
+        TorsoBase.AddChild(NewCyl(1.1f, 1.3f, 0.8f, m.Frame, 0, 0.3f, 0, segments: 14));
+        var torso = Torso;
+        Box(torso, 5.4f, 3.0f, 3.4f, m.Armor, 0, 1.5f, 0);
+        Box(torso, 5.7f, 0.6f, 3.2f, m.ArmorDark, 0, 0.1f, 0);
+        Box(torso, 6.0f, 0.7f, 3.0f, m.ArmorDark, 0, 3.0f, 0.1f);
+        // Brow plate over the visor slit, chest plating below it.
+        Box(torso, 2.8f, 0.4f, 1.0f, m.Armor, 0, 2.2f, -1.85f, 0.1f);
+        Box(torso, 4.0f, 1.3f, 0.4f, m.ArmorDark, 0, 0.9f, -1.8f, -0.1f);
+        for (int i = 0; i < 5; i++) Box(torso, 0.5f, 1.4f, 0.08f, m.Glow, 1.6f - i * 0.8f, 1.5f, 1.72f);
+        Cyl(torso, 0.05f, 0.05f, 2.0f, m.Chrome, 2.2f, 4.2f, 0.8f);
+
+        var head = Head;
+        Box(head, 2.0f, 0.55f, 0.9f, m.ArmorDark);
+        Box(head, 1.7f, 0.16f, 0.2f, m.Glass, 0, 0, -0.47f);
+        CamMount = Group(head, "CamMount", 0, 0, -0.5f);
+
+        for (int i = 0; i < 2; i++)
+        {
+            int side = i == 0 ? +1 : -1;
+            var arm = Arms[i];
+            DrawCover(t, i);
+            Cyl(arm.Shoulder, 0.7f, 0.7f, 1.1f, m.Frame, -side * 0.15f, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Shoulder, 1.0f, 2.0f, 1.0f, m.Frame, -side * 0.45f, -1.1f, 0);
+            Cyl(arm.Elbow, 0.55f, 0.55f, 1.1f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
+            Box(arm.Elbow, 1.35f, 1.35f, 2.6f, m.ArmorDark, 0, 0, -1.05f);
             BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
         }
     }
@@ -432,7 +659,8 @@ public sealed class MechRig
         var m = _m;
         for (int i = 0; i < t.PointDefense; i++)
         {
-            float x = -1.1f, y = 1.75f, z = 0.4f + 0.9f * i;
+            Vector3 at = t.PointDefenseMount.ToGodot() / Scale;
+            float x = at.X, y = at.Y, z = at.Z + 0.9f * i;
             Cyl(parent, 0.42f, 0.5f, 0.35f, m.Armor, x, y, z, 0f);
             Box(parent, 0.5f, 0.3f, 0.5f, m.Frame, x, y + 0.3f, z);
             for (int b = 0; b < 2; b++)
