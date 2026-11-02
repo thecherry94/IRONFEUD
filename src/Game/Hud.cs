@@ -23,6 +23,7 @@ public partial class Hud : CanvasLayer
     private static readonly Color JetColor = new("5ad8ff"), JetLowColor = new("2a6a80");
     private const float JetBarWidth = 70f;
     private Reticle _reticle = null!;
+    private RichTextLabel _weapons = null!;
     private double _uiTimer, _time;
     // A burning beam lands a sliver of damage every tick: those merge into one line (same attacker, target and
     // section, within 0.25 s) whose amount keeps adding up.
@@ -112,6 +113,28 @@ public partial class Hud : CanvasLayer
         _reticle = new Reticle { MouseFilter = Control.MouseFilterEnum.Ignore };
         AddChild(_reticle);
 
+        // Weapon panel, bottom right: each weapon with its groups, rounds and state; the groups' fire modes under it.
+        _weapons = new RichTextLabel
+        {
+            BbcodeEnabled = true, FitContent = true, ScrollActive = false, AutowrapMode = TextServer.AutowrapMode.Off,
+            MouseFilter = Control.MouseFilterEnum.Ignore, Visible = player,
+        };
+        _weapons.AddThemeFontOverride("normal_font", new SystemFont { FontNames = new[] { "DejaVu Sans Mono", "Liberation Mono", "Consolas", "Menlo", "monospace" } });
+        _weapons.AddThemeFontSizeOverride("normal_font_size", 13);
+        _weapons.AddThemeColorOverride("default_color", new Color("e8e4dc"));
+        _weapons.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
+        _weapons.GrowHorizontal = Control.GrowDirection.Begin;
+        _weapons.GrowVertical = Control.GrowDirection.Begin;
+        _weapons.CustomMinimumSize = new Vector2(430, 0);
+        _weapons.Position += new Vector2(-12, -84);
+        _weapons.AddThemeStyleboxOverride("normal", new StyleBoxFlat
+        {
+            BgColor = new Color(0.05f, 0.06f, 0.07f, 0.45f),
+            ContentMarginLeft = 8, ContentMarginRight = 8, ContentMarginTop = 5, ContentMarginBottom = 5,
+            CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4,
+        });
+        AddChild(_weapons);
+
         if (Battlefield != null) Battlefield.Damaged += OnDamaged;
     }
 
@@ -178,14 +201,8 @@ public partial class Hud : CanvasLayer
         if (sim.Weapons.Mounts.Exists(m => m.Spec.Guided) && Mech!.Unit is var unit)
             sb.Append(unit.Locked != null ? $" · LOCKED {unit.Locked.Name}"
                 : unit.LockCandidate != null ? $" · LOCK {Mathf.RoundToInt(100f * unit.LockProgress / unit.LockTime)}%" : " · NO LOCK");
-        sb.Append('\n');
-        for (int i = 0; i < weapons.Mounts.Count; i++)
-        {
-            var m = weapons.Mounts[i];
-            string state = m.Offline ? "OFFLINE" : m.Cooldown > 0f ? $"{m.Cooldown:0.0}s" : "READY";
-            sb.Append($"{m.Spec.Name.ToUpperInvariant()} {state}   ");
-        }
         sb.Append('\n').Append(SectionLine(dmg));
+        _weapons.Text = WeaponPanel(weapons, Pilot);
         if (sim.IsOut) sb.Append(dmg.Status == MechStatus.PilotKilled ? "\nPILOT KILLED" : "\nMECH DESTROYED");
         else if (sim.Shutdown) sb.Append($"\nHEAT SHUTDOWN · restart in {sim.ShutdownLeft:0.0} s");
         else if (sim.Staggered) sb.Append("\nSTAGGERED");
@@ -239,6 +256,31 @@ public partial class Hud : CanvasLayer
         _banner.Text = text ?? "";
         _bannerSub.Text = sub;
         _banner.AddThemeColorOverride("font_color", color);
+    }
+
+    /// <summary>
+    /// "> Heavy cannon   1 · · · · ·   27  READY": the weapon picked for group editing, its name, the groups it is in,
+    /// rounds left (-- for energy weapons) and its state; then each used group's fire mode.
+    /// </summary>
+    private static string WeaponPanel(IronFeud.Logic.Mech.Weapons.MechWeapons weapons, PlayerMechController pilot)
+    {
+        var g = pilot.Groups;
+        var sb = new StringBuilder("  WEAPON              GROUPS        AMMO  STATE\n");
+        for (int i = 0; i < weapons.Mounts.Count; i++)
+        {
+            var m = weapons.Mounts[i];
+            var groups = new StringBuilder();
+            for (int k = 0; k < IronFeud.Logic.Mech.Weapons.WeaponGroups.Count; k++) groups.Append(g.Contains(k, i) ? $"{k + 1} " : "· ");
+            string ammo = m.Ammo < 0 ? "--" : m.Ammo.ToString();
+            string state = m.Lost ? "[color=#ff4a3a]LOST[/color]" : m.Ammo == 0 ? "[color=#ff8a2a]EMPTY[/color]"
+                : m.Cooldown > 0f ? $"[color=#c8c2b8]{m.Cooldown:0.0}s[/color]" : "[color=#7dffb0]READY[/color]";
+            sb.Append(i == pilot.SelectedWeapon ? "> " : "  ").Append($"{m.Spec.Name,-19} {groups} {ammo,5}  {state}\n");
+        }
+        var modes = new StringBuilder();
+        for (int k = 0; k < IronFeud.Logic.Mech.Weapons.WeaponGroups.Count; k++)
+            if (g.Members[k] != 0u) modes.Append($"{k + 1} {(g.Chain[k] ? "chain" : "alpha")}   ");
+        sb.Append($"  {modes}");
+        return sb.ToString();
     }
 
     private static string SectionLine(MechDamage d) =>

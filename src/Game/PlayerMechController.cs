@@ -1,6 +1,7 @@
 using Godot;
 using IronFeud.Core;
 using IronFeud.Logic.Mech;
+using IronFeud.Logic.Mech.Weapons;
 using IronFeud.Mech;
 
 namespace IronFeud.Game;
@@ -8,7 +9,9 @@ namespace IronFeud.Game;
 /// <summary>
 /// Keyboard/mouse pilot. Writes only <see cref="MechInput"/>, exactly like an AI pilot will.
 /// W/S ramp a held throttle, X zeroes it, A/D turn the legs, the mouse position sets twist and aim.
-/// LMB/Space hold the cannon trigger, RMB/F the laser. Weapons converge where the torso aim ray hits the world.
+/// Weapon groups: 1-6 (LMB / RMB / MMB = 1 / 2 / 3) hold a group's trigger; [ ] pick a weapon, Shift+N puts it in or
+/// takes it out of group N, Ctrl+N switches group N between alpha and chain fire. Weapons converge where the torso aim
+/// ray hits the world.
 /// </summary>
 public partial class PlayerMechController : Node
 {
@@ -17,6 +20,12 @@ public partial class PlayerMechController : Node
     public Battlefield? Battlefield;
 
     private float _throttle, _twistTarget, _aimTarget;
+
+    /// <summary>The pilot's weapon groups (defaults from the loadout).</summary>
+    public WeaponGroups Groups { get; private set; } = new();
+
+    /// <summary>The weapon picked for group editing (index into the mounts).</summary>
+    public int SelectedWeapon { get; private set; }
 
     private const float MaxConvergence = 800f, MinConvergence = 15f;
 
@@ -32,6 +41,7 @@ public partial class PlayerMechController : Node
         ProcessPhysicsPriority = -100;
         GameInput.Ensure();
         Input.MouseMode = Input.MouseModeEnum.Confined;
+        if (Mech != null) Groups = WeaponGroups.Default(Mech.Sim.Weapons);
     }
 
     public override void _UnhandledInput(InputEvent e)
@@ -54,7 +64,18 @@ public partial class PlayerMechController : Node
         }
         if (!e.IsPressed() || e.IsEcho()) return;
 
-        if (e.IsAction("full_stop")) _throttle = 0f;
+        int weapons = Mech?.Sim.Weapons.Mounts.Count ?? 0;
+        if (e is InputEventKey { PhysicalKeycode: >= Key.Key1 and <= Key.Key6 } key && (key.ShiftPressed || key.CtrlPressed) && weapons > 0)
+        {
+            int group = (int)(key.PhysicalKeycode - Key.Key1);
+            if (key.CtrlPressed) Groups.ToggleChain(group);
+            else Groups.Toggle(group, SelectedWeapon);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+        if (e.IsAction("weapon_next") && weapons > 0) SelectedWeapon = (SelectedWeapon + 1) % weapons;
+        else if (e.IsAction("weapon_prev") && weapons > 0) SelectedWeapon = (SelectedWeapon + weapons - 1) % weapons;
+        else if (e.IsAction("full_stop")) _throttle = 0f;
         else if (e.IsAction("center_torso")) _twistTarget = 0f;
         else if (e.IsAction("release_mouse")) Input.MouseMode = Input.MouseModeEnum.Visible;
     }
@@ -73,10 +94,12 @@ public partial class PlayerMechController : Node
 
         bool triggersLive = FlyingView && Input.MouseMode == Input.MouseModeEnum.Confined;
         bool jump = Input.IsActionPressed("jump");
-        uint fire = 0;
-        if (triggersLive && Input.IsActionPressed("fire_cannon")) fire |= 1u << 0;
-        if (triggersLive && Input.IsActionPressed("fire_laser")) fire |= 1u << 1;
-        if (triggersLive && Input.IsActionPressed("fire_rack")) fire |= 1u << 2;
+        // Held group triggers (not while Shift or Ctrl edits the groups).
+        uint held = 0;
+        if (triggersLive && !Input.IsKeyPressed(Key.Shift) && !Input.IsKeyPressed(Key.Ctrl))
+            for (int g = 0; g < WeaponGroups.Count; g++)
+                if (Input.IsActionPressed($"fire_group_{g + 1}")) held |= 1u << g;
+        uint fire = Groups.FireMask(held, Mech.Sim.Weapons, h);
 
         if (_autopilot)
         {
@@ -85,7 +108,7 @@ public partial class PlayerMechController : Node
             _throttle = _autopilotTime < 14f ? Mathf.Min(1f, _autopilotTime * 0.25f) : 0f;
             turn = _autopilotTime is > 6f and < 11f ? Mathf.Sin((_autopilotTime - 6f) * 1.2f) : 0f;
             _twistTarget = 0.5f * Mathf.Sin(_autopilotTime * 0.4f);
-            fire = _autopilotTime is > 3f and < 9f ? 0b111u : 0u;
+            fire = _autopilotTime is > 3f and < 9f ? (1u << Mech.Sim.Weapons.Mounts.Count) - 1u : 0u;
             // A standing hop at 2 s, a running jump at 7 s and a long burn at 12 s (if the chassis has jets).
             jump = _autopilotTime is > 2f and < 2.4f or > 7f and < 7.7f or > 12f and < 13.2f;
         }

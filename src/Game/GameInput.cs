@@ -11,9 +11,13 @@ public static class GameInput
         ("throttle_up", Key.W), ("throttle_down", Key.S), ("full_stop", Key.X),
         ("turn_left", Key.A), ("turn_right", Key.D), ("center_torso", Key.C),
         ("twist_left", Key.Left), ("twist_right", Key.Right), ("aim_up", Key.Up), ("aim_down", Key.Down),
-        ("fire_cannon", Key.G), ("fire_laser", Key.F), ("fire_rack", Key.Q), ("jump", Key.Space), ("release_mouse", Key.Escape),
-        // Cameras and inspection
-        ("cam_chase", Key.Key1), ("cam_cockpit", Key.Key2), ("cam_orbit", Key.Key3), ("cam_overview", Key.Key4),
+        ("jump", Key.Space), ("release_mouse", Key.Escape),
+        // Weapon groups (also LMB / RMB / MMB, and G / F / Q for 1-3); [ ] pick a weapon for group editing.
+        ("fire_group_1", Key.Key1), ("fire_group_2", Key.Key2), ("fire_group_3", Key.Key3),
+        ("fire_group_4", Key.Key4), ("fire_group_5", Key.Key5), ("fire_group_6", Key.Key6),
+        ("weapon_prev", Key.Bracketleft), ("weapon_next", Key.Bracketright),
+        // Cameras and inspection (1-4 pick a camera only when watching: piloting, they fire groups; V cycles).
+        ("cam_chase", Key.Key1), ("cam_cockpit", Key.Key2), ("cam_orbit", Key.Key3), ("cam_overview", Key.Key4), ("cam_cycle", Key.V),
         ("select_next", Key.Tab), ("cycle_personality", Key.K),
         ("debug_draw", Key.F3), ("ai_overlay", Key.F4),
         // Session
@@ -30,8 +34,11 @@ public static class GameInput
             InputMap.AddAction(action);
             InputMap.ActionAddEvent(action, new InputEventKey { PhysicalKeycode = key });
         }
-        InputMap.ActionAddEvent("fire_cannon", new InputEventMouseButton { ButtonIndex = MouseButton.Left });
-        InputMap.ActionAddEvent("fire_laser", new InputEventMouseButton { ButtonIndex = MouseButton.Right });
-        InputMap.ActionAddEvent("fire_rack", new InputEventMouseButton { ButtonIndex = MouseButton.Middle });
+        InputMap.ActionAddEvent("fire_group_1", new InputEventMouseButton { ButtonIndex = MouseButton.Left });
+        InputMap.ActionAddEvent("fire_group_2", new InputEventMouseButton { ButtonIndex = MouseButton.Right });
+        InputMap.ActionAddEvent("fire_group_3", new InputEventMouseButton { ButtonIndex = MouseButton.Middle });
+        InputMap.ActionAddEvent("fire_group_1", new InputEventKey { PhysicalKeycode = Key.G });
+        InputMap.ActionAddEvent("fire_group_2", new InputEventKey { PhysicalKeycode = Key.F });
+        InputMap.ActionAddEvent("fire_group_3", new InputEventKey { PhysicalKeycode = Key.Q });
     }
 }

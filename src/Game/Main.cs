@@ -36,8 +36,8 @@ public partial class Main : Node3D
 
     private const string ModeKeys = "F5 range · F6 watch 1v1 · F7 watch 2v2 · F8 watch lance 4v4 · F9 play 1v1 · F10 play 2v2 · F11 gait parade";
     private const string PlayHelp =
-        "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · Space jump jets · LMB/G cannon · RMB/F laser · MMB/Q shoulder rack (hold the reticle on a target to lock arc missiles)\n" +
-        "1 chase · 2 cockpit · 3 orbit · 4 overview · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · T next map (no man's land / hills / flat) · P pause · O slow-mo · Esc mouse\n" + ModeKeys;
+        "W/S throttle (holds) · X stop · A/D turn legs · mouse twist & aim · arrows fine twist/aim · C center torso · Space jump jets · LMB/RMB/MMB or 1-6 weapon groups · [ ] pick weapon · Shift+N in/out of group N · Ctrl+N chain/alpha\n" +
+        "V camera · Tab inspect · F3 gait debug · F4 AI overlay · L next class · M next model · R restart · T next map (no man's land / hills / flat) · P pause · O slow-mo · Esc mouse · hold the reticle on a target to lock arc missiles\n" + ModeKeys;
     private const string WatchHelp =
         "Tab next mech · K change its personality · 1 chase · 2 cockpit · 3 orbit · 4 overview (drag / wheel) · F3 gait debug · F4 AI overlay · R restart · T next map (no man's land / hills / flat) · P pause · O slow-mo\n" + ModeKeys;
     private const string ParadeHelp =
@@ -304,10 +304,12 @@ public partial class Main : Node3D
     public override void _UnhandledInput(InputEvent e)
     {
         if (!e.IsPressed() || e.IsEcho()) return;
-        if (e.IsAction("cam_chase")) _camera.SetMode(CameraMode.Chase);
-        else if (e.IsAction("cam_cockpit")) _camera.SetMode(CameraMode.Cockpit);
-        else if (e.IsAction("cam_orbit")) _camera.SetMode(CameraMode.Orbit);
-        else if (e.IsAction("cam_overview")) _camera.SetMode(CameraMode.Overview);
+        // 1-4 pick a camera only when watching: a pilot's number keys fire weapon groups. V cycles in every mode.
+        if (_player == null && e.IsAction("cam_chase")) _camera.SetMode(CameraMode.Chase);
+        else if (_player == null && e.IsAction("cam_cockpit")) _camera.SetMode(CameraMode.Cockpit);
+        else if (_player == null && e.IsAction("cam_orbit")) _camera.SetMode(CameraMode.Orbit);
+        else if (_player == null && e.IsAction("cam_overview")) _camera.SetMode(CameraMode.Overview);
+        else if (e.IsAction("cam_cycle")) _camera.SetMode((CameraMode)(((int)_camera.Mode + 1) % 4));
         else if (e.IsAction("select_next"))
         {
             var mechs = _battlefield.Mechs.ToList();
