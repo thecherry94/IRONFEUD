@@ -1190,13 +1190,14 @@ public sealed partial class AiPilot
             input.Throttle = MathF.Min(input.Throttle, 0.3f);
         }
 
-        // Spread damage: twist the weaker arm away while every weapon recycles.
+        // Spread damage: twist the weaker side (side torso and its arm) away while every weapon recycles.
         float extraTwist = 0f;
         if (p.TwistAway && k.Visible && Action != AiAction.Flank && AllRecycling(weapons, 0.3f))
         {
             TwistingAway = true;
             var dmg = sim.Damage;
-            extraTwist = (dmg[MechSection.ArmRight] < dmg[MechSection.ArmLeft] ? -1f : 1f) * 0.8f;
+            float left = dmg[MechSection.TorsoLeft] + dmg[MechSection.ArmLeft], right = dmg[MechSection.TorsoRight] + dmg[MechSection.ArmRight];
+            extraTwist = (right < left ? -1f : 1f) * 0.8f;
         }
 
         // Open loop, as in the prototype: twist toward the bearing and pitch toward the drop-compensated lead point.
