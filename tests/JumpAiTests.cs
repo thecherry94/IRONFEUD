@@ -79,7 +79,7 @@ public class JumpAiTests
         lightChassis.HeatDissipation = 10f;
         // No heat weapons either: incendiary rounds can shut a lone assault down, and a light behind a stalled
         // assault has no reason to vault.
-        lightChassis.RightArmWeapon = WeaponSpec.Autocannon;
+        lightChassis.Loadout[0] = new MountDef(WeaponSpec.Autocannon, Hardpoint.RightArm);
         var light = b.AddUnit("L", 0, lightChassis, new Vector3(0, 0, 160), 0f, Personality.Balanced, Tough(lightChassis));
         var assaultChassis = MechChassis.Assault();
         var assault = b.AddUnit("A", 1, assaultChassis, new Vector3(0, 0, -160), MathF.PI, Personality.Balanced, Tough(assaultChassis));

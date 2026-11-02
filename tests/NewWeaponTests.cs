@@ -21,7 +21,7 @@ public class NewWeaponTests
     {
         var b = new BattleSim(new ArenaMap { Radius = 900f }) { TrackOutcome = false };
         var c = MechChassis.Medium();
-        c.RightArmWeapon = weapon;
+        c.Loadout[0] = new MountDef(weapon, Hardpoint.RightArm);
         c.HeatDissipation = 10f; // the shooter's own heat is not the point here
         var shooter = b.AddUnit("S", 0, c, new Vector3(0, 0, distance), 0f);
         var target = b.AddUnit("T", 1, MechChassis.Medium(MechModel.Sicklefoot), Vector3.Zero, MathF.PI, damage: targetDamage);

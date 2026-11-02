@@ -90,16 +90,25 @@ public sealed class MechWeapons
     public float DissipationFactor = 1f;
 
     /// <summary>
-    /// The chassis' loadout: right arm weapon is bit 0 of the fire mask, left arm bit 1. Muzzles sit the weapon's
-    /// length ahead of the arm's mount point.
+    /// The chassis' loadout, in its order (mount i is bit i of the fire mask). Muzzles sit the weapon's length ahead
+    /// of the mount's anchor (<see cref="MechChassis.MountAnchor"/>).
     /// </summary>
     public static MechWeapons ForChassis(MechChassis t)
     {
         var w = new MechWeapons { Heat = t.HeatStart };
-        w.Mounts.Add(new WeaponMount(t.RightArmWeapon, 1, t.RightArmMount - Vector3.UnitZ * (t.RightArmWeapon.Length * t.Scale)));
-        w.Mounts.Add(new WeaponMount(t.LeftArmWeapon, 0, t.LeftArmMount - Vector3.UnitZ * (t.LeftArmWeapon.Length * t.Scale)));
-        if (t.TorsoWeapon is { } rack)
-            w.Mounts.Add(new WeaponMount(rack, -1, t.TorsoMount - Vector3.UnitZ * (rack.Length * t.Scale), TorsoSectionAt(t.TorsoMount.X, t.Scale)));
+        for (int i = 0; i < t.Loadout.Length; i++)
+        {
+            var (spec, at) = t.Loadout[i];
+            Vector3 muzzle = t.MountAnchor(i) - Vector3.UnitZ * (spec.Length * t.Scale);
+            w.Mounts.Add(at switch
+            {
+                Hardpoint.RightArm => new WeaponMount(spec, 1, muzzle),
+                Hardpoint.LeftArm => new WeaponMount(spec, 0, muzzle),
+                Hardpoint.ChestLeft => new WeaponMount(spec, -1, muzzle, MechSection.TorsoLeft),
+                Hardpoint.ChestRight => new WeaponMount(spec, -1, muzzle, MechSection.TorsoRight),
+                _ => new WeaponMount(spec, -1, muzzle, TorsoSectionAt(t.TorsoMount.X, t.Scale)),
+            });
+        }
         return w;
     }
 

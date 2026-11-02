@@ -166,7 +166,13 @@ public sealed class MechRig
             case MechModel.Barbican: r.DressBarbican(t); break;
             default: r.DressBascinet(t); break;
         }
-        if (t.TorsoWeapon is { } rack) r.BuildRack(r.Torso, rack, t.TorsoMount.ToGodot() / s);
+        for (int i = 0; i < t.Loadout.Length; i++)
+        {
+            var (spec, at) = t.Loadout[i];
+            Vector3 anchor = t.MountAnchor(i).ToGodot() / s;
+            if (at == Hardpoint.Rack) r.BuildRack(r.Torso, spec, anchor);
+            else if (at is Hardpoint.ChestLeft or Hardpoint.ChestRight) r.BuildWeapon(r.Torso, spec, anchor);
+        }
         if (t.PointDefense > 0) r.BuildPointDefense(r.Torso, t);
         return r;
     }
@@ -261,7 +267,7 @@ public sealed class MechRig
             Box(arm.Shoulder, 0.75f, 1.9f, 0.8f, m.Frame, -side * 0.45f, -1.1f, 0);
             Cyl(arm.Elbow, 0.42f, 0.42f, 0.95f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
             Box(arm.Elbow, 1.0f, 1.0f, 2.4f, m.ArmorDark, 0, 0, -1.0f);
-            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+            BuildArmWeapons(arm.Elbow, t, i);
         }
     }
 
@@ -388,7 +394,7 @@ public sealed class MechRig
             Cyl(arm.Elbow, 0.3f, 0.3f, 0.6f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
             Box(arm.Elbow, 0.6f, 0.6f, 1.9f, m.ArmorDark, 0, 0, -0.75f);
             Box(arm.Elbow, 0.64f, 0.12f, 1.4f, m.Accent, 0, 0.33f, -0.8f);
-            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+            BuildArmWeapons(arm.Elbow, t, i);
         }
     }
 
@@ -434,7 +440,7 @@ public sealed class MechRig
             Box(arm.Shoulder, 0.85f, 0.9f, 0.9f, m.Armor, -side * 0.35f, -0.6f, -0.1f);
             Cyl(arm.Elbow, 0.42f, 0.42f, 0.9f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
             Box(arm.Elbow, 0.95f, 0.95f, 2.3f, m.ArmorDark, 0, 0, -0.95f);
-            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+            BuildArmWeapons(arm.Elbow, t, i);
         }
     }
 
@@ -480,7 +486,7 @@ public sealed class MechRig
             Box(arm.Elbow, 1.5f, 1.4f, 2.4f, m.Armor, 0, 0, -1.0f);
             Box(arm.Elbow, 1.2f, 1.0f, 0.9f, m.ArmorDark, 0, -0.45f, -2.45f);
             for (int k = 0; k < 3; k++) Box(arm.Elbow, 0.3f, 0.35f, 0.35f, m.Frame, (k - 1) * 0.38f, -0.75f, -2.85f);
-            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+            BuildArmWeapons(arm.Elbow, t, i);
         }
     }
 
@@ -525,7 +531,7 @@ public sealed class MechRig
             Box(arm.Shoulder, 1.0f, 2.0f, 1.0f, m.Frame, -side * 0.45f, -1.1f, 0);
             Cyl(arm.Elbow, 0.55f, 0.55f, 1.1f, m.Frame, 0, 0, 0, 0, 0, -HalfPi);
             Box(arm.Elbow, 1.35f, 1.35f, 2.6f, m.ArmorDark, 0, 0, -1.05f);
-            BuildWeapon(arm.Elbow, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+            BuildArmWeapons(arm.Elbow, t, i);
         }
     }
 
@@ -639,7 +645,7 @@ public sealed class MechRig
                 Box(pod, 1.1f, 0.8f, 2.4f, m.ArmorDark, 0, 0, -0.7f);
                 Box(pod, 1.15f, 0.12f, 1.8f, m.Accent, 0, 0.45f, -0.8f);
             }
-            BuildWeapon(pod, i == 1 ? t.RightArmWeapon : t.LeftArmWeapon, (i == 1 ? t.RightArmMount : t.LeftArmMount).ToGodot() / Scale);
+            BuildArmWeapons(pod, t, i);
         }
     }
 
@@ -685,6 +691,14 @@ public sealed class MechRig
             for (int b = 0; b < 2; b++)
                 Cyl(parent, 0.06f, 0.06f, 0.9f, m.Frame, x + (b - 0.5f) * 0.16f, y + 0.32f, z - 0.6f, -HalfPi);
         }
+    }
+
+    /// <summary>Every weapon on arm <paramref name="arm"/> (0 = left), at its anchor in the elbow frame.</summary>
+    private void BuildArmWeapons(Node3D elbow, MechChassis t, int arm)
+    {
+        var at = arm == 1 ? Hardpoint.RightArm : Hardpoint.LeftArm;
+        for (int i = 0; i < t.Loadout.Length; i++)
+            if (t.Loadout[i].At == at) BuildWeapon(elbow, t.Loadout[i].Weapon, t.MountAnchor(i).ToGodot() / Scale);
     }
 
     private void BuildWeapon(Node3D parent, WeaponSpec spec, Vector3 mount)

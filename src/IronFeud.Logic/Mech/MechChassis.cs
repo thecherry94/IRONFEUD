@@ -120,15 +120,19 @@ public sealed class MechChassis
     /// <summary>How much rough ground ahead slows the mech (1 = fully; lights are nimble and keep their speed).</summary>
     public float RoughGroundCaution = 1f;
 
-    // Loadout: one weapon per arm, bolted on at the mount point (elbow frame); the muzzle is the weapon's length ahead.
-    public WeaponSpec RightArmWeapon = WeaponSpec.Cannon;
-    public WeaponSpec LeftArmWeapon = WeaponSpec.Laser;
+    /// <summary>
+    /// The weapons, in fire-bit order (bit i fires <c>Loadout[i]</c>), each on a hardpoint of the body. Several weapons
+    /// on one hardpoint stack (see <see cref="MountAnchor"/>); the muzzle sits the weapon's length ahead of its anchor.
+    /// </summary>
+    public MountDef[] Loadout = { new(WeaponSpec.Cannon, Hardpoint.RightArm), new(WeaponSpec.Laser, Hardpoint.LeftArm) };
+
+    // Hardpoint anchors. Arms: the mount point in the elbow frame. Rack: the shoulder rack in the torso frame (its
+    // side torso by x, left = -x). Chest: torso frame.
     public Vector3 RightArmMount = new(0f, 0.05f, -2f);
     public Vector3 LeftArmMount = new(0f, 0.1f, -2f);
-
-    /// <summary>A rack on the right shoulder (fire bit 2), in the torso frame; null = none. Lost only with the mech.</summary>
-    public WeaponSpec? TorsoWeapon;
     public Vector3 TorsoMount = new(1.1f, 1.7f, 0.3f);
+    public Vector3 ChestMountLeft = new(-0.9f, 1.0f, -1.2f);
+    public Vector3 ChestMountRight = new(0.9f, 1.0f, -1.2f);
 
     /// <summary>
     /// Point-defense turrets fitted (each shoots down ~1.5 enemy missiles a second within ~110 m, also over nearby
@@ -431,13 +435,14 @@ public sealed class MechChassis
         // Shoulder racks and point defense: lights a rocket pod for in-close bursts, mediums a strike rack, heavies
         // the guided arc missiles (their support role), assaults one point-defense turret. A Bascinet medium with a
         // second turret made every default lance a two-turret screen that shot down ~3/4 of arc volleys.
-        c.TorsoWeapon = cls switch
+        WeaponSpec? rack = cls switch
         {
             ChassisClass.Light => WeaponSpec.RocketPod,
             ChassisClass.Medium => WeaponSpec.StrikeRack,
             ChassisClass.Heavy => WeaponSpec.ArcMissiles,
             _ => null,
         };
+        if (rack != null) c.Loadout = [.. c.Loadout, new MountDef(rack, Hardpoint.Rack)];
         c.PointDefense = cls == ChassisClass.Assault ? 1 : 0;
         c.Designator = cls == ChassisClass.Light;
         c.Ecm = cls == ChassisClass.Light && sf;
@@ -676,10 +681,38 @@ public sealed class MechChassis
         LegsHp *= k;
     }
 
+    /// <summary>Puts one weapon in each arm (fire bits 0 and 1), keeping whatever else is mounted.</summary>
     private void SetWeapons(WeaponSpec right, WeaponSpec left)
     {
-        RightArmWeapon = right;
-        LeftArmWeapon = left;
+        var rest = Array.FindAll(Loadout, m => m.At is not (Hardpoint.RightArm or Hardpoint.LeftArm));
+        Loadout = [new MountDef(right, Hardpoint.RightArm), new MountDef(left, Hardpoint.LeftArm), .. rest];
+    }
+
+    /// <summary>The weapon on the right arm (the first one), if any.</summary>
+    public WeaponSpec? RightArmWeapon => Array.Find(Loadout, m => m.At == Hardpoint.RightArm).Weapon;
+
+    /// <summary>The weapon on the left arm (the first one), if any.</summary>
+    public WeaponSpec? LeftArmWeapon => Array.Find(Loadout, m => m.At == Hardpoint.LeftArm).Weapon;
+
+    /// <summary>
+    /// Where weapon <paramref name="index"/> is bolted on, in its hardpoint's frame (elbow for arms, torso otherwise),
+    /// at this chassis' size. The k-th weapon on a hardpoint sits k x 0.55 m (medium size) below the first on an arm,
+    /// and as far further out on the chest and rack.
+    /// </summary>
+    public Vector3 MountAnchor(int index)
+    {
+        var at = Loadout[index].At;
+        int k = 0;
+        for (int i = 0; i < index; i++) if (Loadout[i].At == at) k++;
+        float step = 0.55f * Scale * k;
+        return at switch
+        {
+            Hardpoint.RightArm => RightArmMount - new Vector3(0f, step, 0f),
+            Hardpoint.LeftArm => LeftArmMount - new Vector3(0f, step, 0f),
+            Hardpoint.Rack => TorsoMount + new Vector3(MathF.Sign(TorsoMount.X) * step, 0f, 0f),
+            Hardpoint.ChestLeft => ChestMountLeft - new Vector3(step, 0f, 0f),
+            _ => ChestMountRight + new Vector3(step, 0f, 0f),
+        };
     }
 
     private void SetArmour(float torso, float arm, float legs, float cockpit)
@@ -737,6 +770,8 @@ public sealed class MechChassis
         RightArmMount *= s;
         LeftArmMount *= s;
         TorsoMount *= s;
+        ChestMountLeft *= s;
+        ChestMountRight *= s;
         PointDefenseMount *= s;
         TorsoHitOffset *= s;
         TorsoHitRadius *= s;
@@ -752,3 +787,9 @@ public sealed class MechChassis
         return this;
     }
 }
+
+/// <summary>Where on the body a weapon is bolted: an arm, the shoulder rack, or a chest anchor.</summary>
+public enum Hardpoint { RightArm, LeftArm, Rack, ChestLeft, ChestRight }
+
+/// <summary>One weapon of a loadout and the hardpoint it sits on.</summary>
+public readonly record struct MountDef(WeaponSpec Weapon, Hardpoint At);
